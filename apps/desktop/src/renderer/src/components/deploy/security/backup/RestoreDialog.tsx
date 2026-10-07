@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { Notice } from '../../deployKit';
 
 /**
  * Restoring a backup onto this server's core, over SSH as root, so it also works on a new server
@@ -191,7 +192,7 @@ export function RestoreDialog({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="soft"
                 disabled={busy}
                 onClick={() => void pick()}
               >
@@ -232,11 +233,10 @@ export function RestoreDialog({
                 placeholder="Leave empty to use the saved login password"
               />
             </div>
-            <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+            <Notice tone="warning" icon={TriangleAlert} className="text-xs">
               Everything the core on {server.nickname} knows now is replaced. This computer enrolls
               again as the Owner above.
-            </p>
+            </Notice>
           </div>
         )}
 
@@ -273,7 +273,7 @@ export function RestoreDialog({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button variant="soft" disabled={busy} onClick={() => onOpenChange(false)}>
             {result ? 'Close' : 'Cancel'}
           </Button>
           {!result && (

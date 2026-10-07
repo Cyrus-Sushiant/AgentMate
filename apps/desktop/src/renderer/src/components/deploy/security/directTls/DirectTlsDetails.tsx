@@ -2,6 +2,7 @@ import type { DeployDirectTlsInfo } from '@shared/deployDirectTlsTypes';
 import type { DeployConnection } from '@shared/deployTypes';
 import { toast } from 'sonner';
 import { CircleCheck, CircleX, Copy, TriangleAlert } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { ago } from '../format';
@@ -14,8 +15,8 @@ import { ago } from '../format';
 
 function Row({ term, children }: { term: string; children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="grid gap-1 py-2 sm:grid-cols-[11rem_1fr] sm:gap-3">
-      <dt className="text-xs font-medium text-muted-foreground">{term}</dt>
+    <div className="grid gap-1 py-2.5 sm:grid-cols-[11rem_1fr] sm:gap-3">
+      <dt className="pt-0.5 text-xs text-muted-foreground">{term}</dt>
       <dd className="min-w-0 text-sm text-foreground">{children}</dd>
     </div>
   );
@@ -56,12 +57,7 @@ export function DirectTlsDetails({
   const { status, pinned } = info;
   const state = stateOf(info);
   const Mark = state.tone === 'on' ? CircleCheck : state.tone === 'off' ? CircleX : TriangleAlert;
-  const markClass =
-    state.tone === 'on'
-      ? 'text-success'
-      : state.tone === 'off'
-        ? 'text-muted-foreground'
-        : 'text-warning';
+  const chipTone = state.tone === 'on' ? 'success' : state.tone === 'off' ? 'neutral' : 'warning';
 
   async function copyPin(): Promise<void> {
     try {
@@ -73,12 +69,12 @@ export function DirectTlsDetails({
   }
 
   return (
-    <dl className="divide-y divide-border/60" aria-label="Direct TLS details">
+    <dl className="settings-rows" aria-label="Direct TLS details">
       <Row term="Status">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <Mark className={`h-3.5 w-3.5 ${markClass}`} aria-hidden />
+        <Chip tone={chipTone}>
+          <Mark aria-hidden />
           {state.label}
-        </span>
+        </Chip>
         {status.error && <p className="mt-1 text-xs text-warning">{status.error}</p>}
       </Row>
       {status.enabled && (
@@ -101,19 +97,19 @@ export function DirectTlsDetails({
       </Row>
       <Row term="Server key pin">
         <div className="flex items-start gap-2">
-          <code className="min-w-0 break-all rounded bg-secondary/50 px-1.5 py-0.5 font-mono text-xs">
+          <code className="min-w-0 break-all rounded-md bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-xs">
             sha256/{status.pin}
           </code>
           <SimpleTooltip label="Copy the pin">
             <Button
               type="button"
-              size="icon"
+              size="icon-sm"
               variant="ghost"
-              className="h-6 w-6 shrink-0"
+              className="-my-1 shrink-0"
               aria-label="Copy the pin"
               onClick={() => void copyPin()}
             >
-              <Copy className="h-3.5 w-3.5" />
+              <Copy />
             </Button>
           </SimpleTooltip>
         </div>

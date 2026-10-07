@@ -192,7 +192,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
           </div>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => closeUpdateDialog()}>
+          <Button variant="soft" onClick={() => closeUpdateDialog()}>
             Later
           </Button>
           <Button onClick={() => void startDownload()}>
@@ -234,10 +234,10 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => closeUpdateDialog()}>
+          <Button variant="soft" onClick={() => closeUpdateDialog()}>
             Hide
           </Button>
-          <Button variant="secondary" onClick={() => void window.agentmat.app.pauseDownload()}>
+          <Button variant="soft" onClick={() => void window.agentmat.app.pauseDownload()}>
             <Pause className="h-4 w-4" />
             Pause
           </Button>
@@ -261,7 +261,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => closeUpdateDialog()}>
+          <Button variant="soft" onClick={() => closeUpdateDialog()}>
             Hide
           </Button>
           <Button onClick={() => void startDownload()}>
@@ -285,7 +285,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
         </DialogHeader>
         <UpdateProgressTrack percent={100} />
         <DialogFooter>
-          <Button variant="outline" onClick={() => closeUpdateDialog()}>
+          <Button variant="soft" onClick={() => closeUpdateDialog()}>
             Later
           </Button>
           <Button onClick={() => void window.agentmat.app.quitAndInstall()}>Restart now</Button>
@@ -311,7 +311,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
           </div>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => closeUpdateDialog()}>
+          <Button variant="soft" onClick={() => closeUpdateDialog()}>
             Hide
           </Button>
           {status.resumable ? (
@@ -376,7 +376,7 @@ export function UpdateStatusChip(): React.JSX.Element | null {
 
   return (
     <Button
-      variant="secondary"
+      variant="soft"
       size="sm"
       className="hidden h-8 gap-2 px-2.5 sm:inline-flex"
       onClick={() => openUpdateDialog()}

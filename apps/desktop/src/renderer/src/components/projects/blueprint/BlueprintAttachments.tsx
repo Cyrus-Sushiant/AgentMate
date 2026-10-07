@@ -177,9 +177,9 @@ export function BlueprintAttachments({
                   >
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-xs"
                       aria-label={`Insert ${attachment.displayName}`}
-                      className="h-6 w-6 bg-background/80 p-0"
+                      className="bg-background/80"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => onInsert(attachment)}
                     >
@@ -189,9 +189,9 @@ export function BlueprintAttachments({
                   <SimpleTooltip label="Open outside AgentMate">
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-xs"
                       aria-label={`Open ${attachment.displayName}`}
-                      className="h-6 w-6 bg-background/80 p-0"
+                      className="bg-background/80"
                       onClick={() => void openExternally(projectId, attachment.id)}
                     >
                       <ExternalLink className="h-3 w-3" />
@@ -200,9 +200,9 @@ export function BlueprintAttachments({
                   <SimpleTooltip label="Delete the file">
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-xs"
                       aria-label={`Remove ${attachment.displayName}`}
-                      className="h-6 w-6 bg-background/80 p-0 hover:text-destructive"
+                      className="bg-background/80 hover:text-destructive"
                       onClick={() => onRemove(attachment)}
                     >
                       <Trash2 className="h-3 w-3" />

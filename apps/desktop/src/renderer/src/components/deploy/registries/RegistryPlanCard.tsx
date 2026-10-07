@@ -54,7 +54,13 @@ export function RegistryPlanCard({
   const plan = useRegistryPlan(input);
   const refresh = useRefreshRegistries();
 
-  if (plan.isPending) return <Skeleton className="h-16 w-full rounded-lg" aria-busy="true" />;
+  if (plan.isPending) {
+    return (
+      <div aria-busy="true">
+        <Skeleton className="h-16 w-full rounded-xl" />
+      </div>
+    );
+  }
   if (!plan.data) {
     return plan.error ? (
       <p className="text-xs text-muted-foreground">
@@ -85,13 +91,13 @@ export function RegistryPlanCard({
   return (
     <section
       aria-label="Registry sign-in"
-      className="space-y-2 rounded-lg border border-border px-3 py-2.5"
+      className="space-y-2 rounded-xl bg-foreground/[0.03] px-3 py-2.5 ring-1 ring-inset ring-foreground/[0.07]"
     >
       <div className="flex flex-wrap items-center gap-2">
         <Key className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
         <span className="min-w-0 flex-1 text-sm font-medium text-foreground">Registry sign-in</span>
         {onOpenRegistries && (
-          <Button size="sm" variant="ghost" onClick={onOpenRegistries}>
+          <Button size="sm" variant="soft" onClick={onOpenRegistries}>
             Manage registries
           </Button>
         )}

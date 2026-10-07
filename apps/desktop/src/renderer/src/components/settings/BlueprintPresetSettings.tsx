@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Check, Pencil, Plus, Spinner, Trash2, X } from '@/components/icons';
-import { CARD_PILL_SOFT, PILL_PRIMARY, TILE_ACTION } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -13,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
-import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 
 const STEP_OPTIONS = BLUEPRINT_STEPS.map((step) => ({
@@ -137,8 +135,7 @@ export function BlueprintPresetSettings(): React.JSX.Element {
                 <SimpleTooltip label="Edit">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={TILE_ACTION}
+                    size="icon-sm"
                     aria-label={`Edit ${preset.label}`}
                     onClick={() => startEdit(preset)}
                   >
@@ -148,8 +145,8 @@ export function BlueprintPresetSettings(): React.JSX.Element {
                 <SimpleTooltip label="Remove">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={cn(TILE_ACTION, 'hover:bg-destructive/10 hover:text-destructive')}
+                    size="icon-sm"
+                    className="hover:bg-destructive/10 hover:text-destructive"
                     aria-label={`Remove ${preset.label}`}
                     onClick={() => void handleDelete(preset)}
                   >
@@ -168,7 +165,7 @@ export function BlueprintPresetSettings(): React.JSX.Element {
             {isEditing ? 'Edit preset' : 'New preset'}
           </Label>
           {isEditing ? (
-            <Button variant="ghost" size="sm" className={CARD_PILL_SOFT} onClick={resetForm}>
+            <Button variant="soft" size="sm" onClick={resetForm}>
               <X className="h-3 w-3" /> Cancel
             </Button>
           ) : null}
@@ -185,12 +182,7 @@ export function BlueprintPresetSettings(): React.JSX.Element {
           placeholder="What gets appended to the step when the chip is clicked."
           className="min-h-24"
         />
-        <Button
-          size="sm"
-          className={PILL_PRIMARY}
-          disabled={!canSave || saveMutation.isPending}
-          onClick={() => saveMutation.mutate()}
-        >
+        <Button disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? (
             <Spinner className="animate-spin" />
           ) : isEditing ? (

@@ -7,7 +7,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { FolderOpen, GitBranch } from '@/components/icons';
-import { CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -139,12 +138,7 @@ export function WorktreeSettingsForm(): React.JSX.Element {
           />
         </div>
         {saved.baseDir ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(CARD_PILL_SOFT, 'gap-1.5')}
-            onClick={() => void pickFolder()}
-          >
+          <Button variant="soft" size="sm" className="gap-1.5" onClick={() => void pickFolder()}>
             <FolderOpen className="h-3.5 w-3.5" />
             Change folder
           </Button>

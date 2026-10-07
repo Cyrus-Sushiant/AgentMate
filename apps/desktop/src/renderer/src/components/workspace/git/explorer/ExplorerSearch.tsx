@@ -6,13 +6,13 @@ import { Expand, File, FolderTree, ImageIcon, Search, X } from '@/components/ico
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { Highlighted } from '@/components/workspace/search/Highlighted';
-import { changeStatusMeta } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { patchExplorer } from '@/stores/explorerStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useWorkspaceSearchStore } from '@/stores/workspaceSearchStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { StatusLetter, statusTextClass } from '../StatusLetter';
 import { revealInTree } from './actions';
 import { type FileHit, loweredPaths, searchFiles, toAbsolutePath } from './fileSearch';
 
@@ -66,7 +66,6 @@ function ResultRow({
   onReveal: () => void;
   onHover: () => void;
 }): React.JSX.Element {
-  const meta = status ? changeStatusMeta(status) : null;
   const dir = hit.path.slice(0, Math.max(hit.nameStart - 1, 0));
   const name = hit.path.slice(hit.nameStart);
   const from = dirStart(dir, hit.ranges);
@@ -81,21 +80,33 @@ function ResultRow({
         onClick={() => onOpen(false)}
         onDoubleClick={() => onOpen(true)}
         className={cn(
-          'group mx-1 flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px]',
+          'group relative mx-1.5 flex cursor-pointer select-none items-center gap-1.5 rounded-lg py-1 pl-2.5 pr-1.5 text-left text-[12px] transition-colors',
           active
-            ? 'bg-primary/15'
+            ? 'bg-primary/12 text-primary'
             : current
               ? 'bg-foreground/[0.06] hover:bg-foreground/[0.08]'
-              : 'hover:bg-foreground/[0.05]',
+              : 'text-foreground/85 hover:bg-foreground/[0.06]',
         )}
       >
+        {active ? (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+          />
+        ) : null}
         {isImagePath(hit.path) ? (
           <ImageIcon className="h-3 w-3 shrink-0 text-muted-foreground" />
         ) : (
           <File className="h-3 w-3 shrink-0 text-muted-foreground" />
         )}
         <span className="min-w-0 flex-1 leading-tight">
-          <span className={cn('block truncate', meta?.className, status === 'D' && 'line-through')}>
+          <span
+            className={cn(
+              'block truncate',
+              status && statusTextClass(status),
+              status === 'D' && 'line-through',
+            )}
+          >
             <Highlighted text={name} offset={hit.nameStart} ranges={hit.ranges} />
           </span>
           {dir ? (
@@ -114,21 +125,12 @@ function ResultRow({
               event.stopPropagation();
               onReveal();
             }}
-            className="hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground group-hover:flex"
+            className="hidden h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground group-hover:flex"
           >
             <FolderTree className="h-2.5 w-2.5" />
           </button>
         </SimpleTooltip>
-        {meta ? (
-          <span
-            className={cn(
-              'shrink-0 font-mono text-[10px] font-semibold group-hover:hidden',
-              meta.className,
-            )}
-          >
-            {meta.letter}
-          </span>
-        ) : null}
+        {status ? <StatusLetter status={status} className="group-hover:hidden" /> : null}
       </div>
     </SimpleTooltip>
   );
@@ -234,9 +236,11 @@ export function ExplorerSearch({
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
-        <div className="relative flex min-w-0 flex-1 items-center">
-          <Search className="pointer-events-none absolute left-2 h-2.5 w-2.5 text-muted-foreground" />
+      <div className="flex shrink-0 items-center px-2 py-1.5">
+        {/* The search pill the API Client sidebar uses: icon, field, count and its two buttons
+            all inside one soft pill. */}
+        <div className="search-pill flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pl-2.5 pr-1 transition-colors">
+          <Search className="h-3 w-3 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             type="text"
@@ -251,10 +255,10 @@ export function ExplorerSearch({
             value={query}
             onChange={(event) => patchExplorer(project.id, { search: event.target.value })}
             onKeyDown={onKeyDown}
-            className="field-surface h-6 w-full rounded-full pl-6 pr-[4.5rem] text-[12px] outline-none"
+            className="h-full min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/70"
           />
           {query ? (
-            <span className="pointer-events-none absolute right-10 text-[10px] tabular-nums text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-foreground/[0.07] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
               {results.total > 999 ? '999+' : results.total}
             </span>
           ) : null}
@@ -265,7 +269,7 @@ export function ExplorerSearch({
               type="button"
               aria-label="Search files and code"
               onClick={() => openFullSearch(query.trim())}
-              className="absolute right-5 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+              className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
             >
               <Expand className="h-2.5 w-2.5" />
             </button>
@@ -274,7 +278,7 @@ export function ExplorerSearch({
             type="button"
             aria-label="Close search"
             onClick={onClose}
-            className="absolute right-1 flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -286,14 +290,18 @@ export function ExplorerSearch({
           role="listbox"
           aria-label="Matching files"
           className={cn(
-            'min-h-0 flex-1 overflow-y-auto pb-1 transition-opacity',
+            'min-h-0 flex-1 space-y-px overflow-y-auto pb-1 transition-opacity',
             query !== settled && 'opacity-60',
           )}
         >
           {index.isPending ? (
-            <div className="space-y-1.5 px-3 py-2">
+            <div className="space-y-px px-1.5 py-1">
               {[0, 1, 2, 3, 4].map((row) => (
-                <Skeleton key={row} className="h-3 w-full rounded" />
+                <Skeleton
+                  key={row}
+                  className="h-9 rounded-lg"
+                  style={{ width: `${96 - row * 8}%` }}
+                />
               ))}
             </div>
           ) : index.isError ? (
@@ -341,7 +349,7 @@ export function ExplorerSearch({
           <button
             type="button"
             onClick={() => openFullSearch(`x:${query.trim()}`)}
-            className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
+            className="mx-1.5 mt-1 flex w-[calc(100%-0.75rem)] cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
           >
             <Search className="h-2.5 w-2.5 shrink-0" />
             <span className="min-w-0 truncate">Search in file contents for “{query.trim()}”</span>

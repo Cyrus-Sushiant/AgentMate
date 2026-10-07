@@ -42,9 +42,9 @@ export function useWorkspaceActivity(scopeId: string): { terminals: number; work
 }
 
 const TONE_STYLES: Record<RemoveWarning['tone'], string> = {
-  danger: 'border-destructive/30 bg-destructive/10 text-destructive',
-  warning: 'border-warning/30 bg-warning/10 text-warning',
-  info: 'border-border/70 bg-background/40 text-foreground',
+  danger: 'ring-1 ring-inset ring-destructive/30 bg-destructive/10 text-destructive',
+  warning: 'ring-1 ring-inset ring-warning/30 bg-warning/10 text-warning',
+  info: 'ring-1 ring-inset ring-foreground/[0.08] bg-foreground/[0.04] text-foreground',
 };
 
 function Warning({ warning }: { warning: RemoveWarning }): React.JSX.Element {
@@ -52,7 +52,7 @@ function Warning({ warning }: { warning: RemoveWarning }): React.JSX.Element {
   return (
     <li
       className={cn(
-        'flex items-start gap-2.5 rounded-lg border px-3 py-2 text-sm',
+        'flex items-start gap-2.5 rounded-xl px-3 py-2 text-sm',
         TONE_STYLES[warning.tone],
       )}
     >
@@ -157,7 +157,7 @@ export function RemoveWorktreeDialog({
           ) : preflightQuery.isError ? (
             <p className="text-sm text-destructive">Could not check this worktree. Try again.</p>
           ) : warnings.length === 0 ? (
-            <p className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+            <p className="flex items-center gap-2 rounded-xl bg-success/10 px-3 py-2 text-sm text-success ring-1 ring-inset ring-success/30">
               <CircleCheck className="h-3.5 w-3.5" />
               Nothing is lost: the branch is merged and clean.
             </p>
@@ -201,7 +201,7 @@ export function RemoveWorktreeDialog({
           {error ? (
             <p
               role="alert"
-              className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive ring-1 ring-inset ring-destructive/30"
             >
               {error}
             </p>

@@ -3,6 +3,7 @@ import type { WorkspaceGitState } from '@shared/apiTypes';
 import { buildFixConflictsPrompt } from '@shared/conflictPrompts';
 import { useState } from 'react';
 import { Wand2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FixWithAiDialog } from '../FixWithAiDialog';
 
@@ -64,17 +65,16 @@ export function FixConflictsButton({
   if (state.conflicts.length === 0) return null;
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="tint"
+        size="xs"
         onClick={() => setOpen(true)}
-        className={cn(
-          'inline-flex h-6 shrink-0 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20',
-          className,
-        )}
+        className={cn('shrink-0', className)}
       >
-        <Wand2 className="h-2.5 w-2.5" />
+        <Wand2 />
         Fix with AI
-      </button>
+      </Button>
       {open ? (
         <FixConflictsDialog project={project} state={state} open={open} onOpenChange={setOpen} />
       ) : null}

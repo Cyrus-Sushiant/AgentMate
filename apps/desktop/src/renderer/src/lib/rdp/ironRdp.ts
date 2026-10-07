@@ -148,27 +148,115 @@ function isIronError(error: unknown): error is IronError {
   );
 }
 
+/** What the failure screen shows: a sentence, plus the engine's own reason for anyone digging in. */
+export interface ConnectFailure {
+  message: string;
+  detail?: string;
+}
+
+/** The `[ConnectionActivation::CapabilitiesExchange @ crates/ironrdp-connector/src/lib.rs:409]` prefix. */
+const ENGINE_CONTEXT = /\[\s*([^\]@]*?)\s*(?:@[^\]]*)?\]\s*/g;
+const ENGINE_LABEL = /^(?:reason|source|caused by)\s*:\s*/i;
+
 /**
- * A sentence for a failed connect. `proxyMessage` is what the local proxy reported, which is
- * more specific than anything the engine can see when the failure was on the network side.
+ * Engine text without the Rust source locations and labels, e.g. "unexpected Share Control PDU
+ * during capabilities exchange: got Data PDU (expected Server Demand Active PDU)". Plain text
+ * comes back unchanged.
  */
-export function describeConnectError(error: unknown, proxyMessage: string | null): string {
+export function cleanEngineText(text: string): string {
+  for (const line of text.split('\n')) {
+    const cleaned = line.replace(ENGINE_CONTEXT, '').trim().replace(ENGINE_LABEL, '').trim();
+    if (cleaned) return cleaned;
+  }
+  return '';
+}
+
+/** Stages of the engine's connection sequence, matched against its context and reason. */
+const ENGINE_STAGES: ReadonlyArray<{ pattern: RegExp; message: string }> = [
+  {
+    pattern:
+      /CapabilitiesExchange|ConnectionActivation|ConnectionFinalization|Demand Active|Deactivate All/i,
+    message:
+      'The server stopped partway through setting up the session. It may have restarted or dropped the session. Reconnect, and if it keeps failing, restart Remote Desktop on the server.',
+  },
+  {
+    pattern: /licens/i,
+    message:
+      "The server's Remote Desktop licensing refused this session. Check the licensing setup on the server.",
+  },
+  {
+    pattern: /credssp|kerberos|ntlm|\bnla\b/i,
+    message:
+      'Network Level Authentication failed. Check the username, password, and domain, or try switching Network Level Authentication for this server.',
+  },
+  {
+    pattern: /\btls\b|certificate/i,
+    message:
+      "A secure connection to the server couldn't be set up. Its certificate or TLS settings may not be supported.",
+  },
+  {
+    pattern:
+      /websocket|unexpected eof|connection (?:reset|refused|closed|aborted)|timed out|timeout/i,
+    message:
+      'The connection to the server dropped. Check that the server is reachable and try again.',
+  },
+];
+
+/** Reasons the server wrote itself, like "The server denied the connection", read fine as they are. */
+function isPlainSentence(text: string): boolean {
+  return /^[A-Z][a-z]+ [a-z]/.test(text) && !/PDU|::|[_{}]/.test(text);
+}
+
+function describeEngineText(text: string): ConnectFailure {
+  const reason = cleanEngineText(text);
+  const detail = reason || undefined;
+  if (reason && isPlainSentence(reason)) {
+    return { message: /[.!?]$/.test(reason) ? reason : `${reason}.` };
+  }
+  const contexts = [...text.matchAll(ENGINE_CONTEXT)].map((match) => match[1]).join(' ');
+  const stage = ENGINE_STAGES.find(({ pattern }) => pattern.test(`${contexts} ${reason}`));
+  return {
+    message:
+      stage?.message ??
+      'The connection failed while setting up the remote session. Try reconnecting.',
+    detail,
+  };
+}
+
+/**
+ * What to tell the user about a failed connect. `proxyMessage` is what the local proxy reported,
+ * which is more specific than anything the engine can see when the failure was on the network
+ * side. The engine's own text names Rust crates and source lines, so it only goes in `detail`.
+ */
+export function describeConnectError(error: unknown, proxyMessage: string | null): ConnectFailure {
   if (!isIronError(error)) {
-    return proxyMessage ?? (error instanceof Error ? error.message : String(error));
+    if (proxyMessage) return { message: proxyMessage };
+    return describeEngineText(error instanceof Error ? error.message : String(error));
   }
   switch (error.kind() as number) {
     case ErrorKind.WrongPassword:
     case ErrorKind.LogonFailure:
-      return 'Sign-in failed. Check the username, password, and domain.';
+      return { message: 'Sign-in failed. Check the username, password, and domain.' };
     case ErrorKind.AccessDenied:
-      return 'The server refused this account. It may not be allowed to sign in over Remote Desktop.';
+      return {
+        message:
+          'The server refused this account. It may not be allowed to sign in over Remote Desktop.',
+      };
     case ErrorKind.NegotiationFailure:
-      return "AgentMate and the server couldn't agree on security settings. Try switching Network Level Authentication for this server.";
+      return {
+        message:
+          "AgentMate and the server couldn't agree on security settings. Try switching Network Level Authentication for this server.",
+      };
     case ErrorKind.RDCleanPath:
     case ErrorKind.ProxyConnect:
-      return proxyMessage ?? 'Could not reach the server.';
-    default:
-      return proxyMessage ?? error.backtrace().split('\n')[0] ?? 'The connection failed.';
+      return { message: proxyMessage ?? 'Could not reach the server.' };
+    default: {
+      if (proxyMessage) return { message: proxyMessage };
+      const backtrace = error.backtrace();
+      // biome-ignore lint/suspicious/noConsole: keeps the full engine trace for bug reports
+      console.warn('[rdp] connection failed:', backtrace);
+      return describeEngineText(backtrace);
+    }
   }
 }
 

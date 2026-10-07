@@ -94,10 +94,10 @@ export function UpdateDot({ className }: { className?: string }): React.JSX.Elem
 }
 
 /*
- * .glass is plain (unlayered) CSS, so it outranks Tailwind's background, border and box-shadow
- * utilities on the same element. Hover feedback therefore comes from an overlay span, and focus
- * is drawn with an outline because a ring is a box-shadow. The base is outline-hidden, since
- * outline-none would also cancel that focus outline.
+ * .glass is plain (unlayered) CSS, so it outranks Tailwind's background and border utilities on
+ * the same element. Hover feedback therefore comes from an overlay span. Focus is an outline set
+ * off from the card. The base is outline-hidden, since outline-none would also cancel that focus
+ * outline.
  */
 const CARD_BASE =
   'glass group relative overflow-hidden rounded-[calc(var(--radius)+2px)] outline-hidden transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring/60';

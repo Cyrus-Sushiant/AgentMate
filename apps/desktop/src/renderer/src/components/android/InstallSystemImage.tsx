@@ -124,7 +124,7 @@ export function InstallSystemImage({ onInstalled }: InstallSystemImageProps): Re
           </p>
         )}
         <Button
-          variant="outline"
+          variant="soft"
           size="sm"
           className="w-full"
           disabled={retry.isPending}

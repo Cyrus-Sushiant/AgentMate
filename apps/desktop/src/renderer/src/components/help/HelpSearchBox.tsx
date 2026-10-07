@@ -15,7 +15,8 @@ import {
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, FileText, Search, X } from '@/components/icons';
+import { ChevronRight, FileText } from '@/components/icons';
+import { SECTION_HEADING, SearchPill } from '@/components/pageKit';
 import { cn } from '@/lib/utils';
 
 const search = createHelpSearch(HELP_ARTICLES);
@@ -107,13 +108,9 @@ export const HelpSearchBox = forwardRef<HelpSearchBoxHandle, HelpSearchBoxProps>
           event.preventDefault();
           choose(hit);
         }
-      } else if (event.key === 'Escape') {
-        if (query) {
-          event.preventDefault();
-          setQuery('');
-        } else {
-          inputRef.current?.blur();
-        }
+      } else if (event.key === 'Escape' && !query) {
+        // With text in the box, the pill itself clears it on Escape.
+        inputRef.current?.blur();
       }
     }
 
@@ -121,61 +118,39 @@ export const HelpSearchBox = forwardRef<HelpSearchBoxHandle, HelpSearchBoxProps>
 
     return (
       <div className={cn('relative', className)}>
-        <div
+        {/* The soft search pill the rest of the app uses, as a combobox over the results. */}
+        <SearchPill
+          ref={inputRef}
+          role="combobox"
+          label="Search the help"
+          aria-expanded={showPanel}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={showPanel && hits[active] ? `${listId}-${active}` : undefined}
+          value={query}
+          placeholder={hero ? 'Search for a page, a button, a setting…' : 'Search the help'}
+          onValueChange={(next) => {
+            setQuery(next);
+            setActive(0);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={onKeyDown}
           className={cn(
-            // The shared field surface (see index.css), so it reads like every other search pill.
-            'field-surface flex items-center gap-2.5 rounded-full',
             hero
-              ? 'h-14 px-5 shadow-[0_1px_0_0_hsl(var(--foreground)/0.04),0_12px_32px_-18px_hsl(0_0%_0%/0.35)]'
-              : 'h-9 pl-3.5 pr-3',
+              ? 'h-12 gap-2.5 pl-4 pr-2 shadow-[0_12px_32px_-18px_hsl(0_0%_0%/0.35)]'
+              : 'h-8 w-full',
           )}
-        >
-          <Search
-            className={cn('shrink-0 text-muted-foreground', hero ? 'h-4.5 w-4.5' : 'h-3.5 w-3.5')}
-          />
-          <input
-            ref={inputRef}
-            role="combobox"
-            aria-label="Search the help"
-            aria-expanded={showPanel}
-            aria-controls={listId}
-            aria-autocomplete="list"
-            aria-activedescendant={showPanel && hits[active] ? `${listId}-${active}` : undefined}
-            value={query}
-            placeholder={hero ? 'Search for a page, a button, a setting…' : 'Search the help'}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setActive(0);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
-            onKeyDown={onKeyDown}
-            spellCheck={false}
-            className={cn(
-              'min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground/70',
-              hero ? 'text-base' : 'text-sm',
-            )}
-          />
-          {query ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          ) : (
-            <kbd className="help-kbd shrink-0" aria-hidden>
-              /
-            </kbd>
-          )}
-        </div>
+          inputClassName={hero ? 'text-[15px]' : undefined}
+          trailing={
+            query ? undefined : (
+              <kbd className="help-kbd mr-1.5 shrink-0" aria-hidden>
+                /
+              </kbd>
+            )
+          }
+        />
 
         {showPanel && (
           <div
@@ -202,7 +177,7 @@ export const HelpSearchBox = forwardRef<HelpSearchBoxHandle, HelpSearchBoxProps>
                     onClick={() => choose(hit)}
                     className={cn(
                       'group flex cursor-pointer gap-3 rounded-lg px-3 py-2.5 transition-colors',
-                      i === active ? 'bg-primary/[0.09]' : 'hover:bg-foreground/[0.04]',
+                      i === active ? 'bg-primary/12' : 'hover:bg-foreground/[0.06]',
                     )}
                   >
                     <FileText
@@ -229,9 +204,7 @@ export const HelpSearchBox = forwardRef<HelpSearchBoxHandle, HelpSearchBoxProps>
                         <Highlighted text={hit.snippet} terms={terms} />
                       </p>
                     </div>
-                    <span className="mt-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50">
-                      {hit.category}
-                    </span>
+                    <span className={cn(SECTION_HEADING, 'mt-0.5 shrink-0')}>{hit.category}</span>
                   </div>
                 ))}
               </div>

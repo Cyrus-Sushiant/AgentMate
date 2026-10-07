@@ -76,7 +76,7 @@ function SwitchRow({
   onChange: (checked: boolean) => void;
 }): React.JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-secondary/30 px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-foreground/[0.03] px-3 py-2 ring-1 ring-inset ring-foreground/[0.08]">
       <div className="min-w-0">
         <p id={id} className="text-sm font-medium">
           {label}
@@ -202,7 +202,7 @@ export function PointDomainDialog({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => close(false)}>
+            <Button type="button" variant="soft" onClick={() => close(false)}>
               Close
             </Button>
             <Button type="button" onClick={addWebsite}>
@@ -291,7 +291,7 @@ export function PointDomainDialog({
                   </span>
                 </p>
                 {plan.upToDate ? (
-                  <p className="flex items-start gap-2 rounded-lg border border-success/40 bg-success/10 p-3 text-sm text-foreground">
+                  <p className="flex items-start gap-2 rounded-xl bg-success/[0.08] p-3 text-sm text-foreground ring-1 ring-inset ring-success/25">
                     <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                     {plan.names.join(' and ')} already point at {server?.nickname}. Nothing to
                     change.
@@ -299,7 +299,7 @@ export function PointDomainDialog({
                 ) : (
                   <ul
                     aria-label="Changes"
-                    className="divide-y divide-border/60 rounded-lg border border-border/70"
+                    className="settings-rows rounded-xl bg-foreground/[0.03] ring-1 ring-inset ring-foreground/[0.08]"
                   >
                     {plan.changes.map((change) => {
                       const Icon = ACTION_ICON[change.action];
@@ -329,7 +329,7 @@ export function PointDomainDialog({
                   </ul>
                 )}
                 {advice && advice.level !== 'ok' && (
-                  <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+                  <p className="flex items-start gap-2 rounded-xl bg-warning/[0.08] p-3 text-sm text-foreground ring-1 ring-inset ring-warning/30">
                     <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                     <span>
                       SSL/TLS for proxied records: {advice.message} You can change it under
@@ -346,7 +346,7 @@ export function PointDomainDialog({
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             {plan && !plan.upToDate ? (

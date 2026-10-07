@@ -55,20 +55,16 @@ import {
   Sparkles,
   TerminalSquare,
   Trash2,
+  Workspace,
   Wrench,
   X,
 } from '@/components/icons';
 import {
-  CARD_PILL_SOFT,
   Chip,
   GLASS_CARD,
   MetricTile,
-  PILL_PRIMARY,
-  PILL_SOFT,
-  PILL_SOFT_ICON,
   SEGMENT_TRACK,
   segmentClass,
-  TILE_ACTION,
   TileHeader,
   TOOLBAR,
 } from '@/components/pageKit';
@@ -375,12 +371,7 @@ function UpdateRow({
           </div>
         </div>
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        className={cn(CARD_PILL_SOFT, 'shrink-0')}
-        onClick={onUpdate}
-      >
+      <Button variant="soft" size="sm" className="shrink-0" onClick={onUpdate}>
         <CloudDownload /> Update
       </Button>
     </div>
@@ -553,8 +544,7 @@ function UpdatesCard({
             >
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 disabled={checking || installedCount === 0}
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: ['cli-update-check'] });
@@ -804,8 +794,7 @@ export default function DashboardPage(): React.JSX.Element {
       <SimpleTooltip label="Remove from dashboard">
         <Button
           variant="ghost"
-          size="icon"
-          className={TILE_ACTION}
+          size="icon-sm"
           onClick={() => removeChartCard(id, CHART_LABELS[id])}
         >
           <X />
@@ -854,8 +843,7 @@ export default function DashboardPage(): React.JSX.Element {
             <SimpleTooltip label="Top apps using CPU">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 onClick={() => {
                   setTopAppsResource('cpu');
                   setTopAppsOpen(true);
@@ -945,8 +933,7 @@ export default function DashboardPage(): React.JSX.Element {
             <SimpleTooltip label="Top apps using memory">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 onClick={() => {
                   setTopAppsResource('memory');
                   setTopAppsOpen(true);
@@ -1009,8 +996,7 @@ export default function DashboardPage(): React.JSX.Element {
             <SimpleTooltip label="Top apps using disk">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 onClick={() => {
                   setTopAppsResource('disk');
                   setTopAppsOpen(true);
@@ -1091,8 +1077,7 @@ export default function DashboardPage(): React.JSX.Element {
             <SimpleTooltip label="Top apps using GPU">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 onClick={() => {
                   setTopAppsResource('gpu');
                   setTopAppsOpen(true);
@@ -1169,12 +1154,7 @@ export default function DashboardPage(): React.JSX.Element {
         actions={
           <>
             <SimpleTooltip label="Test network speed">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
-                onClick={() => setSpeedTestOpen(true)}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => setSpeedTestOpen(true)}>
                 <Bolt className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
@@ -1247,12 +1227,7 @@ export default function DashboardPage(): React.JSX.Element {
         actions={
           <>
             <SimpleTooltip label="Manage ping targets">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
-                onClick={() => navigate('/settings?tab=data')}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => navigate('/settings?tab=data')}>
                 <SettingsIcon className="h-3.5 w-3.5" />
               </Button>
             </SimpleTooltip>
@@ -1429,8 +1404,7 @@ export default function DashboardPage(): React.JSX.Element {
         action={
           <Button
             variant="ghost"
-            size="icon"
-            className={TILE_ACTION}
+            size="icon-sm"
             onClick={refreshIpGeo}
             disabled={ipGeoSpinning || ipGeoQuery.isFetching}
           >
@@ -1552,16 +1526,19 @@ export default function DashboardPage(): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2 p-2">
       <div className={TOOLBAR}>
-        <Button className={PILL_PRIMARY} onClick={() => navigate('/projects?new=1')}>
+        <Button onClick={() => navigate('/workspace')}>
+          <Workspace /> Open Workspace
+        </Button>
+        <Button variant="soft" onClick={() => navigate('/projects?new=1')}>
           <FolderPlus /> New Project
         </Button>
-        <Button variant="ghost" className={PILL_SOFT} onClick={() => navigate('/prompt-builder')}>
+        <Button variant="soft" onClick={() => navigate('/prompt-builder')}>
           <Sparkles /> Open Prompt Builder
         </Button>
         {editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className={cn(PILL_SOFT, 'ml-auto')}>
+              <Button variant="soft" className="ml-auto">
                 <Plus /> Add card
               </Button>
             </DropdownMenuTrigger>
@@ -1613,9 +1590,9 @@ export default function DashboardPage(): React.JSX.Element {
         )}
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit layout'}>
           <Button
-            variant={editing ? 'default' : 'ghost'}
+            variant={editing ? 'default' : 'soft'}
             size="icon"
-            className={editing ? 'h-8 w-8 rounded-full' : cn(PILL_SOFT_ICON, 'ml-auto')}
+            className={cn(!editing && 'ml-auto')}
             aria-label={editing ? 'Done editing' : 'Edit layout'}
             onClick={() => setEditing(!editing)}
           >
@@ -1689,8 +1666,7 @@ export default function DashboardPage(): React.JSX.Element {
                   >
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className={TILE_ACTION}
+                      size="icon-sm"
                       disabled={rows.length === 1}
                       onClick={() => removeRow(row.id)}
                     >
@@ -1723,8 +1699,7 @@ export default function DashboardPage(): React.JSX.Element {
                               <SimpleTooltip label="Open Token Usage">
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={TILE_ACTION}
+                                  size="icon-sm"
                                   onClick={() => navigate('/usage')}
                                 >
                                   <ExternalLink />
@@ -1735,8 +1710,7 @@ export default function DashboardPage(): React.JSX.Element {
                                 <SimpleTooltip label="Remove from dashboard">
                                   <Button
                                     variant="ghost"
-                                    size="icon"
-                                    className={TILE_ACTION}
+                                    size="icon-sm"
                                     onClick={() => {
                                       toggleUsageCard(ALL_AGENTS_WIDGET_ID);
                                       toast.info('All agents removed from the dashboard.');
@@ -1811,7 +1785,7 @@ export default function DashboardPage(): React.JSX.Element {
         )}
 
         {editing && (
-          <Button variant="ghost" className={PILL_SOFT} onClick={addRow}>
+          <Button variant="soft" onClick={addRow}>
             <Plus /> Add row
           </Button>
         )}
@@ -1826,7 +1800,7 @@ export default function DashboardPage(): React.JSX.Element {
             <DialogDescription>Open a terminal session to investigate this host.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => diagnoseHost && handlePingHost(diagnoseHost)}>
+            <Button variant="soft" onClick={() => diagnoseHost && handlePingHost(diagnoseHost)}>
               <SatelliteDish className="h-3.5 w-3.5" /> Ping (ping -t)
             </Button>
             <Button onClick={() => diagnoseHost && handleTracerouteHost(diagnoseHost)}>

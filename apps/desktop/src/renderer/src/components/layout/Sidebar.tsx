@@ -1,5 +1,7 @@
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { NavLink, useLocation } from 'react-router-dom';
+// The styles module alone, so the always-loaded menu does not pull the whole kit in with it.
+import { SECTION_HEADING } from '@/components/pageKit/styles';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/stores/uiStore';
@@ -48,9 +50,7 @@ export function Sidebar(): React.JSX.Element {
                 {collapsed ? (
                   <div className="mx-3 my-1.5 h-px shrink-0 bg-border/60" />
                 ) : (
-                  <div className="select-none px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                    {group}
-                  </div>
+                  <div className={cn(SECTION_HEADING, 'px-3 pb-1 pt-3')}>{group}</div>
                 )}
                 {NAV_ITEMS.filter((item) => item.group === group).map(renderItem)}
               </div>

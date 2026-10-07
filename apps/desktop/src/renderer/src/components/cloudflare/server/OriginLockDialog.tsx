@@ -170,7 +170,7 @@ export function OriginLockDialog({
                     <h4 className="text-xs font-medium text-muted-foreground">
                       Site domains on this server
                     </h4>
-                    <ul className="divide-y divide-border/60 rounded-lg border border-border/70">
+                    <ul className="settings-rows rounded-xl bg-foreground/[0.03] ring-1 ring-inset ring-foreground/[0.08]">
                       {plan.domains.map((check) => (
                         <DomainRow key={check.domain} check={check} enabling={enabling} />
                       ))}
@@ -190,7 +190,7 @@ export function OriginLockDialog({
                       : `${commands.length} firewall commands`}
                   </h4>
                   {commands.length > 0 && (
-                    <pre className="max-h-40 overflow-auto rounded-lg border border-border/70 bg-secondary/30 p-2 font-mono text-xs">
+                    <pre className="max-h-40 overflow-auto rounded-xl bg-foreground/[0.03] p-2.5 font-mono text-xs ring-1 ring-inset ring-foreground/[0.08]">
                       {commands.join('\n')}
                     </pre>
                   )}
@@ -212,7 +212,7 @@ export function OriginLockDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="soft"
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >

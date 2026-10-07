@@ -308,13 +308,7 @@ function PackageRow({
           </SimpleTooltip>
         )}
         {!tick && selectable && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5"
-            disabled={updating}
-            onClick={onUpdate}
-          >
+          <Button variant="outline" size="sm" disabled={updating} onClick={onUpdate}>
             Update
           </Button>
         )}
@@ -589,14 +583,16 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
             className="h-8 pl-8 pr-8"
           />
           {query && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label="Clear search"
-              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2"
               onClick={() => setQuery('')}
             >
-              <X className="h-3 w-3" />
-            </button>
+              <X />
+            </Button>
           )}
         </div>
         <div

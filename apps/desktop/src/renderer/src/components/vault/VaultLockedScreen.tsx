@@ -125,7 +125,8 @@ export function VaultLockedScreen({ status }: { status: VaultStatus }): React.JS
         </div>
         <Button
           type="submit"
-          className="h-10 w-full rounded-full"
+          size="lg"
+          className="h-10 w-full"
           disabled={!password || busy || secondsLeft > 0}
         >
           {busy && <Spinner className="h-3.5 w-3.5 animate-spin" />}

@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Class strings every restyled page shares, so cards, headings and buttons read the way the API
- * Client page draws them. Tailwind's border colour utilities lose to the app's global unlayered
+ * Class strings every restyled page shares, so cards and headings read the way the API Client
+ * page draws them. Buttons aren't in here: they come from the Button component's variant, size
+ * and shape props. Tailwind's border colour utilities lose to the app's global unlayered
  * `* { border-color }` rule, so every tinted edge in here is a ring or an inset shadow instead.
  */
 
@@ -32,42 +33,6 @@ export const FOOTER_HAIRLINE = 'shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08
  */
 export const CARD_GRID =
   'grid grid-cols-1 gap-2 @xl/grid:grid-cols-2 @4xl/grid:grid-cols-3 @7xl/grid:grid-cols-4';
-
-/** A primary page action as a pill (on a default Button, usually size="sm"). */
-export const PILL_PRIMARY = 'h-8 rounded-full px-4';
-
-/**
- * A secondary action drawn as the search pill, so only the primary action has weight (on a ghost
- * Button). The pill's own hover wash comes from the unlayered `.search-pill` rule.
- */
-export const PILL_SOFT =
-  'search-pill h-8 rounded-full px-3.5 text-xs font-medium text-foreground/85 hover:text-foreground';
-
-/** An icon-only page action as a round soft pill (on a ghost Button with size="icon"). */
-export const PILL_SOFT_ICON =
-  'search-pill h-8 w-8 rounded-full text-foreground/85 hover:text-foreground';
-
-/** A primary action inside a card, as a small pill (on a default Button with size="sm"). */
-export const CARD_PILL = 'h-7 rounded-full px-3';
-
-/** A secondary action inside a card, as a small soft pill (on a ghost Button with size="sm"). */
-export const CARD_PILL_SOFT =
-  'search-pill h-7 rounded-full px-3 text-xs font-medium text-foreground/85 hover:text-foreground';
-
-/**
- * A destructive action as a soft pill tinted red, so it reads as dangerous without the weight
- * of a filled button (on a ghost Button). The confirmation dialog it opens keeps the filled one.
- */
-export const PILL_DESTRUCTIVE =
-  'h-8 rounded-full bg-destructive/10 px-3.5 text-xs font-medium text-destructive hover:bg-destructive/15 hover:text-destructive';
-
-/** A small round icon button in a card's header or row (on a ghost Button with size="icon"). */
-export const TILE_ACTION =
-  'h-7 w-7 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground [&_svg]:size-3.5';
-
-/** A smaller square icon button for a dense card header, as a plain `<button>`. */
-export const HEADER_ICON_BUTTON =
-  'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
 
 /** A segmented control: a rounded pill track, the same one the usage period chips use. */
 export const SEGMENT_TRACK = 'inline-flex items-center rounded-full bg-foreground/8 p-0.5';

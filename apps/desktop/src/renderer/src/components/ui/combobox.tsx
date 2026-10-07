@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Check, ChevronsUpDown, Search, X } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { FIELD_SURFACE } from './input';
+import { LIST_OPTION, LIST_SEARCH, OVERLAY_MOTION, OVERLAY_SURFACE } from './overlay';
 
 export interface ComboboxOption {
   value: string;
@@ -118,20 +119,27 @@ export function Combobox({
         <PopoverPrimitive.Content
           align="start"
           sideOffset={6}
-          className="z-50 w-[var(--radix-popover-trigger-width)] overflow-hidden rounded-lg border border-border bg-popover/85 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          className={cn(
+            OVERLAY_SURFACE,
+            OVERLAY_MOTION,
+            'z-50 w-[var(--radix-popover-trigger-width)] overflow-hidden origin-[var(--radix-popover-content-transform-origin)]',
+          )}
         >
           <CommandPrimitive className="flex flex-col" filter={cmdkFilter}>
-            <div className="flex items-center gap-2 border-b border-border px-3">
-              <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
-              <CommandPrimitive.Input
-                autoFocus
-                value={search}
-                onValueChange={setSearch}
-                placeholder={searchPlaceholder}
-                className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
+            {/* The search box is the same soft pill as the field that opened the list. */}
+            <div className="p-1 pb-0">
+              <div className={LIST_SEARCH}>
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <CommandPrimitive.Input
+                  autoFocus
+                  value={search}
+                  onValueChange={setSearch}
+                  placeholder={searchPlaceholder}
+                  className="h-full w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+                />
+              </div>
             </div>
-            <CommandPrimitive.List className="max-h-64 overflow-y-auto p-1">
+            <CommandPrimitive.List className="rail-scroll max-h-64 overflow-y-auto p-1">
               <CommandPrimitive.Empty className="py-6 text-center text-sm text-muted-foreground">
                 {emptyText}
               </CommandPrimitive.Empty>
@@ -144,7 +152,7 @@ export function Combobox({
                     setOpen(false);
                     setSearch('');
                   }}
-                  className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground"
+                  className={LIST_OPTION}
                 >
                   <Check className="h-3.5 w-3.5 shrink-0 opacity-0" />
                   <span className="truncate font-mono text-xs">{customLabel(typed)}</span>
@@ -159,7 +167,7 @@ export function Combobox({
                     setOpen(false);
                     setSearch('');
                   }}
-                  className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12 aria-selected:text-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
+                  className={LIST_OPTION}
                 >
                   <Check
                     className={cn(

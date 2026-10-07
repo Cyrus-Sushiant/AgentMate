@@ -13,7 +13,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, File, FilePlus, Folder, FolderOpen, ImageIcon } from '@/components/icons';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { changeStatusMeta } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import {
@@ -44,6 +43,7 @@ import { EntryNameInput } from './explorer/EntryNameInput';
 import { ExplorerMenu, type ExplorerMenuTarget } from './explorer/ExplorerMenu';
 import { ExplorerSearch } from './explorer/ExplorerSearch';
 import { explorerCommandFor, isCopyDrag, isToggleSelectClick } from './explorer/keys';
+import { StatusLetter, statusTextClass } from './StatusLetter';
 
 /** Folders that are huge and generated; shown, but dimmed, and never expanded on their own. */
 const QUIET_FOLDERS = new Set([
@@ -215,8 +215,8 @@ function NewEntryRow({
     patchExplorer(project.id, { editing: null, pendingFocus: focusPath });
   return (
     <div
-      className="mx-1 flex h-[22px] w-[calc(100%-0.5rem)] items-center gap-1.5 pr-2"
-      style={{ paddingLeft: depth * 12 + 6 }}
+      className="mx-1.5 flex h-6 w-[calc(100%-0.75rem)] items-center gap-1.5 pr-2"
+      style={{ paddingLeft: depth * 12 + 8 }}
     >
       <span className="w-2 shrink-0" />
       {kind === 'newFolder' ? (
@@ -283,9 +283,9 @@ function Directory({
 
   if (listing.isPending) {
     return (
-      <div className="space-y-1 py-1" style={{ paddingLeft: depth * 12 + 22 }}>
-        <Skeleton className="h-3 w-24 rounded" />
-        <Skeleton className="h-3 w-16 rounded" />
+      <div className="space-y-px py-px pr-2" style={{ paddingLeft: depth * 12 + 20 }}>
+        <Skeleton className="h-6 w-[70%] rounded-lg" />
+        <Skeleton className="h-6 w-[50%] rounded-lg" />
       </div>
     );
   }
@@ -357,7 +357,6 @@ function Entry({
   const relative = repoPath(context, entry.path);
   const quiet = isRepo ? ignored : entry.isDirectory && QUIET_FOLDERS.has(entry.name);
   const status = entry.isDirectory ? undefined : statusByPath.get(relative);
-  const meta = status ? changeStatusMeta(status) : null;
   const dirty = entry.isDirectory && dirtyFolders.has(relative);
   const folder = entry.isDirectory ? entry.path : (parentPath(entry.path) ?? root);
   const drop = dropHandlers(context, folder, {
@@ -431,16 +430,22 @@ function Entry({
         }}
         {...drop}
         className={cn(
-          'mx-1 flex h-[22px] w-[calc(100%-0.5rem)] cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 text-left text-[12px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary/60',
+          'relative mx-1.5 flex h-6 w-[calc(100%-0.75rem)] cursor-pointer select-none items-center gap-1.5 rounded-lg pr-1.5 text-left text-[12px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60',
           selected
-            ? 'bg-primary/15 hover:bg-primary/20'
+            ? 'bg-primary/12 text-primary hover:bg-primary/[0.16]'
             : activePath === entry.path
-              ? 'bg-foreground/[0.06] hover:bg-foreground/[0.08]'
-              : 'hover:bg-foreground/[0.05]',
+              ? 'bg-foreground/[0.06] text-foreground hover:bg-foreground/[0.08]'
+              : 'text-foreground/85 hover:bg-foreground/[0.06] hover:text-foreground',
           dropTarget && 'bg-primary/20 ring-1 ring-inset ring-primary/50',
         )}
-        style={{ paddingLeft: depth * 12 + 6 }}
+        style={{ paddingLeft: depth * 12 + 8 }}
       >
+        {selected ? (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+          />
+        ) : null}
         <span
           className={cn(
             'flex min-w-0 flex-1 items-center gap-1.5',
@@ -451,7 +456,7 @@ function Entry({
           {entry.isDirectory ? (
             <ChevronRight
               className={cn(
-                'h-2 w-2 shrink-0 text-muted-foreground transition-transform',
+                'h-2 w-2 shrink-0 text-muted-foreground/70 transition-transform',
                 open && 'rotate-90',
               )}
             />
@@ -489,7 +494,7 @@ function Entry({
             <span
               className={cn(
                 'min-w-0 flex-1 truncate',
-                meta?.className,
+                status && statusTextClass(status),
                 status === 'D' && 'line-through',
                 dirty && 'text-warning/90',
               )}
@@ -498,12 +503,10 @@ function Entry({
             </span>
           )}
         </span>
-        {renaming ? null : meta ? (
-          <span className={cn('font-mono text-[10px] font-semibold', meta.className)}>
-            {meta.letter}
-          </span>
+        {renaming ? null : status ? (
+          <StatusLetter status={status} />
         ) : dirty ? (
-          <span className="h-1.5 w-1.5 rounded-full bg-warning/80" />
+          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-warning/80" />
         ) : null}
       </div>
       {entry.isDirectory && open ? (
@@ -797,7 +800,7 @@ export function ExplorerSection({
             }}
             {...rootDrop}
             className={cn(
-              'min-h-0 flex-1 overflow-y-auto py-1 outline-none',
+              'min-h-0 flex-1 space-y-px overflow-y-auto py-1.5 outline-none [&_[role=group]]:space-y-px',
               rootDropTarget && 'bg-primary/[0.06] ring-1 ring-inset ring-primary/40',
               // Results take the tree's place while something is typed. The tree stays mounted
               // so it keeps its scroll position and its folders stay loaded.
@@ -829,7 +832,7 @@ function EmptyHint({ context }: { context: TreeContext }): React.JSX.Element | n
     <button
       type="button"
       onClick={() => patchExplorer(project.id, { editing: { kind: 'newFile', parent: root } })}
-      className="mx-3 mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+      className="mx-2 mt-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[12px] text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
     >
       <FilePlus className="h-3 w-3" />
       This folder is empty. Create a file

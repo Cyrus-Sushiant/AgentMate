@@ -65,7 +65,7 @@ export function RemoveCertificateDialog({
           Visitors who were sent to HTTPS before may see errors until they come back over HTTP.
         </p>
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
+          <Button type="button" variant="soft" disabled={busy} onClick={onCancel}>
             Keep it
           </Button>
           <Button

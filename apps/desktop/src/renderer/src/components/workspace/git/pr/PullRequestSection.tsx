@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CircleCheck, GitBranch, GitMerge, Spinner, X } from '@/components/icons';
+import { EmptyState, Notice } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -12,7 +14,7 @@ import { PanelNotice } from '../PanelNotice';
 import { CreatePrForm } from './CreatePrForm';
 import { MergeCard } from './MergeCard';
 import { MergeSteps } from './MergeSteps';
-import { PR_GHOST_BUTTON } from './PrCard';
+import { PR_CARD } from './PrCard';
 import { PrChecks } from './PrChecks';
 import { PrHeader, PrOverview } from './PrHeader';
 import { PrReview } from './PrReview';
@@ -22,11 +24,11 @@ function LoadingCards(): React.JSX.Element {
   return (
     <div data-testid="pr-loading" className="space-y-2 p-2">
       <div className="space-y-1.5 px-1">
-        <Skeleton className="h-4 w-4/5 rounded" />
-        <Skeleton className="h-3 w-1/2 rounded" />
+        <Skeleton className="h-4 w-4/5 rounded-full" />
+        <Skeleton className="h-3 w-1/2 rounded-full" />
       </div>
       {Array.from({ length: 3 }, (_, i) => (
-        <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        <Skeleton key={i} className="h-16 w-full rounded-[calc(var(--radius)+2px)]" />
       ))}
     </div>
   );
@@ -46,24 +48,33 @@ function RecentMergeCard({
     <section
       aria-label="Last merge"
       className={cn(
-        'mx-2 space-y-1.5 rounded-lg border px-3 py-2',
-        ok ? 'border-success/35 bg-success/[0.05]' : 'border-warning/40 bg-warning/[0.05]',
+        PR_CARD,
+        'space-y-1.5 px-3 py-2.5 ring-1 ring-inset',
+        ok ? 'ring-success/30' : 'ring-warning/35',
       )}
     >
       <div className="flex items-center gap-1.5">
-        <GitMerge className={cn('h-3 w-3 shrink-0', ok ? 'text-success' : 'text-warning')} />
+        <span
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-md [&_svg]:size-3',
+            ok ? 'bg-success/12 text-success' : 'bg-warning/12 text-warning',
+          )}
+        >
+          <GitMerge />
+        </span>
         <p className="min-w-0 flex-1 text-[12px] font-semibold">
           Merged #{merge.number} into {merge.base}
         </p>
         <SimpleTooltip label="Dismiss">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label="Dismiss"
             onClick={() => dismiss(project.id)}
-            className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           >
-            <X className="h-2.5 w-2.5" />
-          </button>
+            <X />
+          </Button>
         </SimpleTooltip>
       </div>
       <MergeSteps steps={merge.steps} />
@@ -110,14 +121,17 @@ function FinishedPr({
     <div className="space-y-2">
       <section
         aria-label={merged ? 'Merged' : 'Closed'}
-        className="mx-2 space-y-2 rounded-lg border border-border/70 bg-card/40 px-3 py-2.5"
+        className={cn(PR_CARD, 'space-y-2 px-3 py-2.5')}
       >
         <p className="flex items-center gap-1.5 text-[12px] font-semibold">
-          {merged ? (
-            <CircleCheck className="h-3 w-3 text-success" />
-          ) : (
-            <X className="h-3 w-3 text-destructive" />
-          )}
+          <span
+            className={cn(
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md [&_svg]:size-3',
+              merged ? 'bg-success/12 text-success' : 'bg-destructive/12 text-destructive',
+            )}
+          >
+            {merged ? <CircleCheck /> : <X />}
+          </span>
           {merged ? `Merged into ${pr.base}` : 'This pull request was closed'}
         </p>
         <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -126,22 +140,25 @@ function FinishedPr({
             : 'Open a new pull request below, or reopen this one on GitHub.'}
         </p>
         {merged ? (
-          <button
+          <Button
             type="button"
+            variant="soft"
+            size="xs"
             onClick={() => void cleanup()}
             disabled={cleaning || status.dirty}
-            className={cn(PR_GHOST_BUTTON, 'bg-foreground/[0.06]')}
           >
             {cleaning ? (
-              <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" />
+              <Spinner className="animate-spin motion-reduce:animate-none" />
             ) : (
-              <GitBranch className="h-2.5 w-2.5" />
+              <GitBranch />
             )}
             Switch to {pr.base} and delete {pr.head}
-          </button>
+          </Button>
         ) : null}
         {merged && status.dirty ? (
-          <p className="text-[11px] text-warning">Commit or discard your changes first.</p>
+          <Notice tone="warning" size="sm" className="text-[11px]">
+            Commit or discard your changes first.
+          </Notice>
         ) : null}
       </section>
       {merged ? null : <CreatePrForm project={project} status={status} />}
@@ -308,22 +325,24 @@ export function PullRequestSection({
     return (
       <div className="space-y-2 py-2">
         {recentCard}
-        <div className="flex flex-col items-center gap-1.5 px-5 py-4 text-center">
-          <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <p className="text-xs font-medium">Pull requests start from a branch</p>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            You are on {status.branch}. Create a branch for your change, commit to it, and open the
-            pull request here.
-          </p>
-          <button
-            type="button"
-            onClick={onNewBranch}
-            className="mt-1 inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110"
-          >
-            <GitBranch className="h-2.5 w-2.5" />
-            New branch
-          </button>
-        </div>
+        <EmptyState
+          size="sm"
+          icon={GitBranch}
+          title="Pull requests start from a branch"
+          description={
+            <span className="block text-xs">
+              You are on {status.branch}. Create a branch for your change, commit to it, and open
+              the pull request here.
+            </span>
+          }
+          action={
+            <Button size="xs" onClick={onNewBranch}>
+              <GitBranch />
+              New branch
+            </Button>
+          }
+          className="px-5 py-5"
+        />
       </div>
     );
   }

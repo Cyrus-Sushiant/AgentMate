@@ -1,11 +1,13 @@
 import type { ContainerSummary } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
-import { Card } from '@/components/ui/card';
+import { ChartColumn } from '@/components/icons';
+import { EmptyState, SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChartColors } from '@/lib/chartColors';
 import { cpuText, memoryShare, ratesOf, type StatsHistory } from '@/lib/deploy/containers/stats';
 import { formatRate } from '@/lib/deploy/overview/metrics';
 import { formatBytes } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 /**
  * A container's live figures (E06 T8), the way `docker stats` computes them: processor (100% is
@@ -35,9 +37,9 @@ function Chart({
   format: (value: number) => string;
 }): React.JSX.Element {
   return (
-    <Card className="space-y-2 p-3" role="group" aria-label={label}>
+    <div className={cn(SECTION_WELL, 'space-y-2')} role="group" aria-label={label}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={SECTION_HEADING}>{label}</span>
         <span
           className="text-sm font-semibold tabular-nums text-foreground"
           data-testid={`stat-${label}`}
@@ -67,7 +69,7 @@ function Chart({
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -88,9 +90,12 @@ export function ContainerStatsTab({
 
   if (container.state !== 'running') {
     return (
-      <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-        {container.name} is not running, so there are no live figures. Start it to see them.
-      </p>
+      <EmptyState
+        size="sm"
+        icon={ChartColumn}
+        title="No live figures"
+        description={`${container.name} is not running, so there are no live figures. Start it to see them.`}
+      />
     );
   }
   if (!latest) {
@@ -101,7 +106,7 @@ export function ContainerStatsTab({
     ) : (
       <div className="grid gap-3 sm:grid-cols-2" aria-busy="true">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-36 rounded-lg" />
+          <Skeleton key={i} className="h-36 rounded-xl" />
         ))}
         {ready && <p className="text-sm text-muted-foreground">Waiting for the first reading.</p>}
       </div>

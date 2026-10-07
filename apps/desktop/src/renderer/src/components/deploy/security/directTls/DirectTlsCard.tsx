@@ -9,16 +9,16 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Power, RefreshCw, Shield, TriangleAlert } from '@/components/icons';
+import { Pencil, Power, Shield, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { confirmDialog } from '@/stores/confirmStore';
+import { Notice } from '../../deployKit';
 import { useDeployConnection } from '../../overview/hooks';
 import { useProofStepUp } from '../../overview/useProofStepUp';
-import { SetupFailure } from '../../SetupFailure';
 import { ago } from '../format';
+import { CARD_BODY, LoadFailure, SecurityCard } from '../SecurityCard';
 import { DirectTlsDetails } from './DirectTlsDetails';
 import { DirectTlsFirewall } from './DirectTlsFirewall';
 import { DirectTlsForm } from './DirectTlsForm';
@@ -139,50 +139,47 @@ export function DirectTlsCard({
   let body: React.ReactNode;
   if (info.isPending) {
     body = (
-      <div className="space-y-2" aria-busy="true">
-        <Skeleton className="h-6 w-1/2" />
-        <Skeleton className="h-24 w-full rounded-lg" />
+      <div className={`${CARD_BODY} space-y-3`} aria-busy="true">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="flex gap-3">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3.5 flex-1" />
+          </div>
+        ))}
       </div>
     );
   } else if (info.isError) {
     body = (
-      <div className="space-y-3">
-        <SetupFailure message={coreErrorMessage(info.error)} />
-        <Button size="sm" variant="outline" onClick={() => void info.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <LoadFailure message={coreErrorMessage(info.error)} onRetry={() => void info.refetch()} />
     );
   } else {
     const data = info.data;
     const { status } = data;
     body = (
-      <div className="space-y-4">
+      <div className={`${CARD_BODY} space-y-4`}>
         {data.pinChanged && (
-          <div
-            role="alert"
-            className="flex flex-wrap items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3"
-          >
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
-            <div className="min-w-0 flex-1 space-y-1 text-sm">
-              <p className="font-medium text-foreground">The server key changed</p>
-              <p className="text-muted-foreground">
-                The core presents a key that does not match the pin this computer took{' '}
-                {data.pinned ? ago(data.pinned.pinnedAt) : 'earlier'}. Direct TLS stays refused on
-                this computer, and nothing falls back to it quietly, until the new key is trusted.
-              </p>
+          <Notice role="alert" tone="destructive" icon={TriangleAlert}>
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-medium text-foreground">The server key changed</p>
+                <p className="text-muted-foreground">
+                  The core presents a key that does not match the pin this computer took{' '}
+                  {data.pinned ? ago(data.pinned.pinnedAt) : 'earlier'}. Direct TLS stays refused on
+                  this computer, and nothing falls back to it quietly, until the new key is trusted.
+                </p>
+              </div>
+              {owner && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={busy !== null}
+                  onClick={() => void acceptPin()}
+                >
+                  Trust the new key
+                </Button>
+              )}
             </div>
-            {owner && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy !== null}
-                onClick={() => void acceptPin()}
-              >
-                Trust the new key
-              </Button>
-            )}
-          </div>
+          </Notice>
         )}
         <DirectTlsDetails info={data} connection={connection} />
         {!owner ? (
@@ -200,7 +197,7 @@ export function DirectTlsCard({
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              variant="outline"
+              variant="soft"
               disabled={busy !== null}
               onClick={() => setEditing(true)}
             >
@@ -208,8 +205,7 @@ export function DirectTlsCard({
             </Button>
             <Button
               size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
+              variant="danger"
               disabled={busy !== null}
               onClick={() => void turnOff()}
             >
@@ -222,18 +218,13 @@ export function DirectTlsCard({
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Shield className="h-4 w-4" /> Direct TLS
-        </CardTitle>
-        <CardDescription>
-          Reach the core on its own HTTPS port when SSH is not available. Each computer proves
-          itself with a client certificate for its device key, and checks the core&apos;s key
-          against a pin read over SSH. When the port does not answer, the app uses SSH as before.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <SecurityCard
+      icon={<Shield />}
+      title="Direct TLS"
+      description="Reach the core on its own HTTPS port when SSH is not available. Each computer proves itself with a client certificate for its device key, and checks the core's key against a pin read over SSH. When the port does not answer, the app uses SSH as before."
+    >
+      {/* The firewall half renders nothing until a change waits, so it gets no padding of its own. */}
+      <div className="px-4 empty:hidden [&:has(>*)]:pb-3.5">
         <DirectTlsFirewall
           server={server}
           changes={review}
@@ -241,9 +232,9 @@ export function DirectTlsCard({
           canAdmin={owner}
           onClose={() => setReview(null)}
         />
-        {body}
-        {stepUp.dialog}
-      </CardContent>
-    </Card>
+      </div>
+      {body}
+      {stepUp.dialog}
+    </SecurityCard>
   );
 }

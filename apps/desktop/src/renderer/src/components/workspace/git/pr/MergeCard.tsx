@@ -9,6 +9,7 @@ import type { MergePullRequestResult, PullRequestStatus } from '@shared/apiTypes
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Check, ChevronDown, GitMerge, Spinner, TriangleAlert } from '@/components/icons';
+import { Notice, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -28,7 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { MergeSteps } from './MergeSteps';
-import { PR_GHOST_BUTTON, PrCard, useRevealInPanel } from './PrCard';
+import { PrCard, useRevealInPanel } from './PrCard';
 import { usePullRequestActions, useRecentMerges } from './usePullRequest';
 
 const METHODS: { id: MergeMethod; label: string; description: string }[] = [
@@ -145,7 +146,7 @@ export function MergeCard({
 
   return (
     <PrCard title="Merge" icon={GitMerge} tone={blocked ? 'default' : 'success'}>
-      <div className="space-y-2.5 px-3">
+      <div className="space-y-2.5 px-3.5">
         {hard.length > 0 || dirtyBlocks || soft.length > 0 ? (
           <ul className="space-y-1">
             {hard.map((blocker) => (
@@ -153,17 +154,19 @@ export function MergeCard({
                 <TriangleAlert className="h-2.5 w-2.5 shrink-0 text-destructive" />
                 <span className="min-w-0 flex-1">{blocker.message}</span>
                 {blocker.kind === 'draft' ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => void markReady()}
                     disabled={markingReady}
-                    className={PR_GHOST_BUTTON}
+                    className="text-muted-foreground"
                   >
                     {markingReady ? (
                       <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" />
                     ) : null}
                     Mark ready
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}
@@ -173,13 +176,15 @@ export function MergeCard({
                 <span className="min-w-0 flex-1">
                   You have uncommitted changes. Commit or discard them before switching branches.
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   onClick={() => revealPanelSection('changes')}
-                  className={PR_GHOST_BUTTON}
+                  className="text-muted-foreground"
                 >
                   Review changes
-                </button>
+                </Button>
               </li>
             ) : null}
             {soft.map((blocker) => (
@@ -211,37 +216,38 @@ export function MergeCard({
           </span>
         </label>
 
+        {/* One split pill: the merge itself, then a chevron to pick how it merges. */}
         <div className="flex">
-          <button
-            type="button"
+          <Button
             onClick={() => setConfirming(true)}
             disabled={blocked || running}
-            className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-l-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-8px_hsl(var(--primary)/0.8)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:bg-foreground/[0.08] disabled:text-muted-foreground disabled:shadow-none"
+            className="min-w-0 flex-1 gap-1.5 rounded-r-none px-3"
           >
             {running ? (
               <Spinner className="h-3 w-3 animate-spin motion-reduce:animate-none" />
             ) : (
               <GitMerge className="h-3 w-3" />
             )}
-            {current.label}
-          </button>
+            <span className="truncate">{current.label}</span>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                type="button"
+              <Button
                 aria-label="Choose merge method"
                 disabled={running}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-r-lg border-l border-primary-foreground/20 bg-primary text-primary-foreground transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
+                // The divider is an inset shadow: the app's global border colour would repaint a
+                // border here.
+                className="w-8 rounded-l-none px-0 shadow-[inset_1px_0_0_hsl(var(--primary-foreground)/0.25)]"
               >
                 <ChevronDown className="h-3 w-3" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" collisionPadding={8} className="w-[17rem] p-1">
+            <DropdownMenuContent align="end" collisionPadding={8} className="w-[17rem]">
               {METHODS.map((option) => (
                 <DropdownMenuItem
                   key={option.id}
                   onSelect={() => setMergeMethod(project.id, option.id)}
-                  className="items-start gap-2 px-2 py-1.5"
+                  className="items-start"
                 >
                   <Check
                     className={cn(
@@ -268,22 +274,25 @@ export function MergeCard({
         {result ? (
           <div
             className={cn(
-              'space-y-1.5 rounded-md border px-2.5 py-2',
+              SECTION_WELL,
+              'space-y-1.5 px-2.5 py-2',
               result.ok
-                ? 'border-success/30 bg-success/[0.05]'
-                : 'border-destructive/30 bg-destructive/[0.05]',
+                ? 'bg-success/[0.05] ring-success/25'
+                : 'bg-destructive/[0.05] ring-destructive/25',
             )}
           >
             <MergeSteps steps={result.steps} />
             {result.merged && !result.ok ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => void retryCleanup()}
                 disabled={running}
-                className={PR_GHOST_BUTTON}
+                className="text-muted-foreground"
               >
                 Retry cleanup
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}
@@ -307,17 +316,16 @@ export function MergeCard({
             ) : null}
           </ul>
           {soft.length > 0 ? (
-            <div className="space-y-1 rounded-md border border-warning/30 bg-warning/[0.06] px-3 py-2 text-[12px]">
-              {soft.map((blocker) => (
-                <p key={blocker.kind} className="flex items-center gap-1.5">
-                  <TriangleAlert className="h-3 w-3 shrink-0 text-warning" />
-                  {blocker.message}
+            <Notice tone="warning" size="sm" className="text-[12px]">
+              <div className="space-y-1">
+                {soft.map((blocker) => (
+                  <p key={blocker.kind}>{blocker.message}</p>
+                ))}
+                <p className="text-muted-foreground">
+                  GitHub still refuses the merge if the repository requires these.
                 </p>
-              ))}
-              <p className="text-muted-foreground">
-                GitHub still refuses the merge if the repository requires these.
-              </p>
-            </div>
+              </div>
+            </Notice>
           ) : null}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirming(false)}>

@@ -33,7 +33,7 @@ export function ScopeWarning({
     <div
       role="group"
       aria-label="Broader scopes"
-      className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm"
+      className="space-y-3 rounded-xl bg-warning/10 p-3 text-sm ring-1 ring-inset ring-warning/30"
     >
       <p className="flex items-start gap-2 font-medium text-foreground">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />

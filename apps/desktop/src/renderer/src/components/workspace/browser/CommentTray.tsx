@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import { ChevronDown, Copy, MessageSquare, Pencil, Send, Trash2, X } from '@/components/icons';
+import { Chip, type ChipTone, FOOTER_HAIRLINE } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { elementLabel } from '@/lib/browser/annotationPrompt';
 import type { AnnotationIntent, BrowserAnnotation } from '@/lib/browser/types';
@@ -41,10 +44,10 @@ export interface CommentTrayProps {
   onReveal: (annotation: BrowserAnnotation) => void;
 }
 
-const INTENT_CHIP: Record<AnnotationIntent, { label: string; className: string } | null> = {
+const INTENT_CHIP: Record<AnnotationIntent, { label: string; tone: ChipTone } | null> = {
   change: null,
-  fix: { label: 'Fix', className: 'bg-destructive/12 text-destructive' },
-  question: { label: 'Ask', className: 'bg-sky-500/12 text-sky-500' },
+  fix: { label: 'Fix', tone: 'destructive' },
+  question: { label: 'Ask', tone: 'primary' },
 };
 
 function pagePath(url: string): string {
@@ -78,19 +81,16 @@ function TrayIconButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={label}
         onClick={onClick}
-        className={cn(
-          'flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          tone === 'danger'
-            ? 'hover:bg-destructive/15 hover:text-destructive'
-            : 'hover:bg-foreground/10 hover:text-foreground',
-        )}
+        className={cn(tone === 'danger' && 'hover:bg-destructive/15 hover:text-destructive')}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -142,7 +142,7 @@ function Row({
                 <img
                   src={annotation.thumbDataUrl}
                   alt=""
-                  className="max-h-40 max-w-56 rounded border border-border/60"
+                  className="max-h-40 max-w-56 rounded-md ring-1 ring-foreground/10"
                 />
               ) : null
             }
@@ -151,14 +151,12 @@ function Row({
             <span className="min-w-0 truncate text-[11px] text-muted-foreground">{label}</span>
           </SimpleTooltip>
           {chip ? (
-            <span
-              className={cn(
-                'shrink-0 rounded px-1 text-[9px] font-semibold uppercase tracking-wide',
-                chip.className,
-              )}
+            <Chip
+              tone={chip.tone}
+              className="h-4 px-1.5 text-[9px] font-semibold uppercase tracking-wide"
             >
               {chip.label}
-            </span>
+            </Chip>
           ) : null}
         </div>
         {editing ? (
@@ -176,7 +174,7 @@ function Row({
                 save(event.currentTarget.value);
               }
             }}
-            className="mt-0.5 w-full resize-none rounded-md border border-primary/40 bg-background px-1.5 py-1 text-xs outline-none"
+            className="field-surface mt-0.5 w-full resize-none rounded-md px-1.5 py-1 text-xs outline-none"
           />
         ) : (
           <button
@@ -223,25 +221,33 @@ export function CommentTray({
 
   if (collapsed) {
     return (
-      <button
+      // The frosted overlay, since it floats over the page. The !-radius beats its own corners.
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setCollapsed(false)}
-        className="pointer-events-auto absolute bottom-3 right-3 flex h-8 items-center gap-2 rounded-full border border-white/10 bg-popover/90 pl-2.5 pr-3 text-xs font-medium text-foreground shadow-2xl backdrop-blur-2xl transition-colors hover:bg-popover animate-in fade-in-0 slide-in-from-bottom-1"
+        className={cn(
+          OVERLAY_SURFACE,
+          'pointer-events-auto absolute bottom-3 right-3 h-8 gap-2 rounded-full! pl-1.5 pr-3 text-xs text-foreground animate-in fade-in-0 slide-in-from-bottom-1',
+        )}
       >
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.5)]">
           {annotations.length}
         </span>
         {count}
-      </button>
+      </Button>
     );
   }
 
   return (
     <section
       aria-label="Page comments"
-      className="pointer-events-auto absolute bottom-3 right-3 flex max-h-[55%] w-[min(21rem,calc(100%-1.5rem))] flex-col overflow-hidden rounded-xl border border-white/10 bg-popover/90 text-popover-foreground shadow-2xl backdrop-blur-2xl animate-in fade-in-0 slide-in-from-bottom-2"
+      className={cn(
+        OVERLAY_SURFACE,
+        'pointer-events-auto absolute bottom-3 right-3 flex max-h-[55%] w-[min(21rem,calc(100%-1.5rem))] flex-col overflow-hidden animate-in fade-in-0 slide-in-from-bottom-2',
+      )}
     >
-      <header className="flex items-center gap-1.5 border-b border-border/50 py-1.5 pl-3 pr-1.5">
+      <header className="flex items-center gap-1.5 py-1.5 pl-3 pr-1.5 shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]">
         <MessageSquare className="h-3 w-3 text-primary" />
         <span className="mr-auto text-xs font-semibold">{count}</span>
         <TrayIconButton label="Copy comments" onClick={onCopy}>
@@ -270,26 +276,26 @@ export function CommentTray({
         ))}
       </ul>
 
-      <footer className="flex items-center gap-2 border-t border-border/50 p-2">
+      <footer className={cn(FOOTER_HAIRLINE, 'flex items-center gap-2 p-2')}>
         <div className="flex min-w-0 flex-1">
-          <button
-            type="button"
+          <Button
             onClick={() => onSend(undefined)}
             aria-label={`Send to ${targets.defaultLabel}`}
-            className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-l-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-6px_hsl(var(--primary)/0.7)] transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="min-w-0 flex-1 gap-1.5 rounded-r-none px-3"
           >
             <Send className="h-3 w-3 shrink-0" />
             <span className="truncate">Send to {targets.defaultLabel}</span>
-          </button>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                type="button"
+              <Button
                 aria-label="Choose where to send"
-                className="flex h-8 w-7 items-center justify-center rounded-r-lg border-l border-primary-foreground/20 bg-primary text-primary-foreground transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:brightness-110"
+                // A hairline split drawn as an inset shadow, since a tinted border loses to the
+                // global border colour.
+                className="w-8 rounded-l-none px-0 shadow-[inset_1px_0_0_hsl(var(--primary-foreground)/0.25)] data-[state=open]:brightness-110"
               >
                 <ChevronDown className="h-3 w-3" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-60">
               {targets.running.length > 0 ? (
@@ -302,10 +308,9 @@ export function CommentTray({
                     >
                       <CliLogo cliId={target.cliId} className="h-3.5 w-3.5" />
                       <span className="truncate">{target.label}</span>
-                      <span className="ml-auto flex items-center gap-1 text-[10px] text-primary">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      <Chip tone="primary" dot className="ml-auto">
                         running
-                      </span>
+                      </Chip>
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />

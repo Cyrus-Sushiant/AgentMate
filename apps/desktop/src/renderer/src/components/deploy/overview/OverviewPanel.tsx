@@ -8,16 +8,19 @@ import type { DeployCoreRecord, DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Bolt, HardDrive, MemoryStick, Package, Spinner } from '@/components/icons';
+import { Bolt, HardDrive, Lock, MemoryStick, Package, Spinner } from '@/components/icons';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatTile } from '@/components/ui/stat-tile';
 import { healthScore } from '@/lib/deploy/overview/health';
 import { swapPercent, wholePercent } from '@/lib/deploy/overview/metrics';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { CoreAccessCard } from '../CoreAccessCard';
 import { CoreHealthCard } from '../CoreHealthCard';
+import { Notice } from '../deployKit';
 import { hasRole } from '../security/format';
 import { AlertsCard } from './AlertsCard';
 import { useDeployConnection, useJobLog, useLiveAlerts, useLiveSamples } from './hooks';
@@ -252,8 +255,10 @@ export function OverviewPanel({
 
   if (access.isPending) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-28 w-full rounded-lg" aria-busy="true" />
+      <div className="flex flex-col gap-2">
+        <div className={cn(GLASS_CARD, 'p-4')} aria-busy="true">
+          <Skeleton className="h-20 w-full rounded-lg" />
+        </div>
         {coreCards}
       </div>
     );
@@ -261,10 +266,10 @@ export function OverviewPanel({
 
   if (!signedIn) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col gap-2">
+        <Notice icon={Lock}>
           Sign in to see {server.nickname} live: its charts, services, alerts and updates.
-        </p>
+        </Notice>
         {coreCards}
       </div>
     );
@@ -292,35 +297,34 @@ export function OverviewPanel({
   const error = (query: { error: unknown }) => (query.error ? coreErrorMessage(query.error) : null);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       {reboot && (
-        <div
+        <Notice
           role="status"
-          className="flex items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm"
+          tone="warning"
+          icon={Spinner}
+          iconClassName="motion-safe:animate-spin"
         >
-          <Spinner className="h-4 w-4 shrink-0 text-warning motion-safe:animate-spin" />
           {reboot === 'starting'
             ? `${server.nickname} is about to reboot. This page reconnects by itself when it is back.`
             : `Waiting for ${server.nickname} to come back. This page reconnects by itself.`}
-        </div>
+        </Notice>
       )}
       {shown.map((job) => (
-        <div
-          key={job.id}
-          className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm"
-        >
-          <Spinner className="h-3.5 w-3.5 text-muted-foreground motion-safe:animate-spin" />
-          <span className="min-w-0 flex-1">
-            Running: {job.title}
-            {job.requestedBy ? `, started by ${job.requestedBy}` : ''}
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => setLogJob(job)}>
-            Show the log
-          </Button>
-        </div>
+        <Notice key={job.id} tone="primary" icon={Spinner} iconClassName="motion-safe:animate-spin">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="min-w-0 flex-1">
+              Running: {job.title}
+              {job.requestedBy ? `, started by ${job.requestedBy}` : ''}
+            </span>
+            <Button size="sm" variant="soft" onClick={() => setLogJob(job)}>
+              Show the log
+            </Button>
+          </div>
+        </Notice>
       ))}
       <PulseHeader samples={samples} ready={live.ready} health={health} connection={state} />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <StatTile
           icon={<Bolt className="h-3.5 w-3.5" />}
           label="Load, 1 / 5 / 15 min"
@@ -398,7 +402,7 @@ export function OverviewPanel({
         liveError={live.error}
         stale={stale}
       />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-2 xl:grid-cols-2">
         <SystemFactsCard
           info={info.data}
           loading={info.isPending}
@@ -408,7 +412,7 @@ export function OverviewPanel({
           rebooting={reboot !== null}
           onReboot={canOperate ? () => void rebootServer() : undefined}
         />
-        <div className="space-y-4">
+        <div className="flex flex-col gap-2">
           <UpdatesCard
             updates={updates.data}
             loading={updates.isPending}

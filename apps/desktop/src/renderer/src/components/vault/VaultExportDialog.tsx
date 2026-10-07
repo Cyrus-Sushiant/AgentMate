@@ -121,7 +121,7 @@ export function VaultExportDialog({
           )}
         </form>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="vault-export-form" disabled={!password || busy}>

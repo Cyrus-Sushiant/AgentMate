@@ -11,7 +11,7 @@ import {
   type VaultApiMock,
 } from '@/components/vault/testing/mockVaultApi';
 import { useVaultEvents } from '@/hooks/useVaultEvents';
-import { usePaneLayoutStore } from '@/stores/paneLayoutStore';
+import { usePanelWidthStore } from '@/stores/panelWidthStore';
 import { useVaultStore } from '@/stores/vaultStore';
 
 installDomShims();
@@ -126,7 +126,7 @@ describe('VaultPage layout', () => {
     fireEvent.keyDown(handle, { key: 'ArrowRight' });
 
     expect(Number(handle.getAttribute('aria-valuenow'))).toBe(before + 16);
-    expect(usePaneLayoutStore.getState().widths.vaultList).toBe(before + 16);
+    expect(usePanelWidthStore.getState().widths.vaultList).toBe(before + 16);
   });
 
   it('marks the type filter that is on', async () => {

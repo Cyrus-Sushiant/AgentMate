@@ -79,14 +79,14 @@ export function DirectTlsForm({
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" disabled={busy || (touched && !valid)}>
           {busy ? (
-            <Spinner className="h-3.5 w-3.5 animate-spin" />
+            <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
           ) : (
             <Lock className="h-3.5 w-3.5" />
           )}
           {submitLabel}
         </Button>
         {onCancel && (
-          <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+          <Button type="button" size="sm" variant="soft" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
         )}

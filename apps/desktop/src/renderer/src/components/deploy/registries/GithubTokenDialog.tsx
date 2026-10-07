@@ -110,7 +110,7 @@ export function GithubTokenDialog({
             </p>
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               size="sm"
               onClick={() => void window.agentmat.shell.openExternal(githubNewTokenUrl())}
             >
@@ -135,7 +135,7 @@ export function GithubTokenDialog({
               <Button
                 type="submit"
                 size="sm"
-                variant="outline"
+                variant="soft"
                 disabled={!token.trim() || busy !== null}
               >
                 {busy === 'check' ? (
@@ -171,7 +171,7 @@ export function GithubTokenDialog({
         <DialogFooter>
           <Button
             type="button"
-            variant="ghost"
+            variant="soft"
             disabled={busy !== null}
             onClick={() => {
               reset();

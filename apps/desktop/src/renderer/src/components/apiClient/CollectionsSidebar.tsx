@@ -18,6 +18,7 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -62,14 +63,7 @@ function filterTree(nodes: ApiTreeNode[], query: string): ApiTreeNode[] {
 
 const INDENT_REM = 0.8;
 
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
 /** A small square icon button for the sidebar header, with the main menu's hover wash. */
-const HEADER_BUTTON =
-  'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
-
 export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.Element {
   const { collections, loading, onNewCollection } = props;
   const [query, setQuery] = useState('');
@@ -110,25 +104,27 @@ export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.El
         <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Collections</h2>
         {expanded.size > 0 && !needle && (
           <SimpleTooltip label="Collapse all">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label="Collapse all"
               onClick={() => setExpanded(new Set())}
-              className={HEADER_BUTTON}
             >
-              <CollapseAll className="h-3.5 w-3.5" />
-            </button>
+              <CollapseAll />
+            </Button>
           </SimpleTooltip>
         )}
         <SimpleTooltip label="New collection">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             aria-label="New collection"
             onClick={onNewCollection}
-            className={HEADER_BUTTON}
           >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+            <Plus />
+          </Button>
         </SimpleTooltip>
       </div>
 
@@ -190,7 +186,7 @@ export function CollectionsSidebar(props: CollectionsSidebarProps): React.JSX.El
                 Collections keep your saved requests together, organised in folders.
               </p>
             </div>
-            <Button size="sm" className="rounded-full" onClick={onNewCollection}>
+            <Button size="sm" onClick={onNewCollection}>
               <Plus /> Create a collection
             </Button>
           </div>
@@ -275,10 +271,7 @@ function CollectionRow({
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem
-              onSelect={() => ctx.onDeleteCollection(collection)}
-              className="text-destructive focus:text-destructive"
-            >
+            <DropdownMenuItem onSelect={() => ctx.onDeleteCollection(collection)} tone="danger">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </DropdownMenuItem>
           </>
@@ -329,10 +322,7 @@ function NodeRow({
         pillTransition={ctx.pillTransition}
         icon={<MethodBadge method={method} />}
         menu={
-          <DropdownMenuItem
-            onSelect={() => ctx.onDeleteItem(collectionId, node)}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem onSelect={() => ctx.onDeleteItem(collectionId, node)} tone="danger">
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </DropdownMenuItem>
         }
@@ -365,10 +355,7 @@ function NodeRow({
               <FolderPlus className="h-3.5 w-3.5" /> Add folder
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => ctx.onDeleteItem(collectionId, node)}
-              className="text-destructive focus:text-destructive"
-            >
+            <DropdownMenuItem onSelect={() => ctx.onDeleteItem(collectionId, node)} tone="danger">
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </DropdownMenuItem>
           </>

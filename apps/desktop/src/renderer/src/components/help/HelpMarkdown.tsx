@@ -48,21 +48,31 @@ function remarkCallouts() {
   return (tree: MdNode) => walk(tree);
 }
 
-const CALLOUT: Record<CalloutKind, { label: string; icon: typeof CircleInfo; tone: string }> = {
+/**
+ * Callout tints from the theme, so they follow every theme. The edge is an inset ring, because the
+ * app's global border colour would repaint a tinted border.
+ */
+const CALLOUT: Record<
+  CalloutKind,
+  { label: string; icon: typeof CircleInfo; tone: string; iconTone: string }
+> = {
   note: {
     label: 'Note',
     icon: CircleInfo,
-    tone: 'border-sky-500/40 bg-sky-500/[0.07] [--callout:var(--color-sky-500)]',
+    tone: 'bg-foreground/[0.04] ring-foreground/[0.1]',
+    iconTone: 'text-muted-foreground',
   },
   tip: {
     label: 'Tip',
     icon: Sparkles,
-    tone: 'border-primary/40 bg-primary/[0.07] [--callout:hsl(var(--primary))]',
+    tone: 'bg-primary/[0.07] ring-primary/25',
+    iconTone: 'text-primary',
   },
   warning: {
     label: 'Heads up',
     icon: TriangleAlert,
-    tone: 'border-amber-500/50 bg-amber-500/[0.08] [--callout:var(--color-amber-500)]',
+    tone: 'bg-warning/[0.08] ring-warning/30',
+    iconTone: 'text-warning',
   },
 };
 
@@ -107,7 +117,7 @@ export function HelpMarkdown({ slug, markdown, sections }: HelpMarkdownProps): R
     h2: ({ children }) => (
       <h2
         id={ids[next++]}
-        className="help-heading mt-12 mb-3 text-[1.35rem] font-semibold tracking-tight first:mt-0"
+        className="mt-12 mb-3 scroll-mt-16 text-[1.35rem] font-semibold tracking-tight first:mt-0"
       >
         {children}
       </h2>
@@ -115,7 +125,7 @@ export function HelpMarkdown({ slug, markdown, sections }: HelpMarkdownProps): R
     h3: ({ children }) => (
       <h3
         id={ids[next++]}
-        className="help-heading mt-8 mb-2 text-base font-semibold tracking-tight"
+        className="mt-8 mb-2 scroll-mt-16 text-base font-semibold tracking-tight"
       >
         {children}
       </h3>
@@ -158,7 +168,7 @@ export function HelpMarkdown({ slug, markdown, sections }: HelpMarkdownProps): R
       const kind = (props as Record<string, unknown>)['data-callout'] as CalloutKind | undefined;
       if (!kind) {
         return (
-          <blockquote className="my-4 border-l-2 border-border pl-4 text-muted-foreground">
+          <blockquote className="my-4 pl-4 text-muted-foreground shadow-[inset_2px_0_0_hsl(var(--foreground)/0.15)]">
             {children}
           </blockquote>
         );
@@ -168,9 +178,12 @@ export function HelpMarkdown({ slug, markdown, sections }: HelpMarkdownProps): R
       return (
         <aside
           aria-label={callout.label}
-          className={cn('my-5 flex gap-3 rounded-lg border px-4 py-3 [&_p]:my-1', callout.tone)}
+          className={cn(
+            'my-5 flex gap-3 rounded-xl px-4 py-3 ring-1 ring-inset [&_p]:my-1',
+            callout.tone,
+          )}
         >
-          <Icon className="mt-1.5 h-3.5 w-3.5 shrink-0 text-[var(--callout)]" />
+          <Icon className={cn('mt-1.5 h-3.5 w-3.5 shrink-0', callout.iconTone)} />
           <div className="min-w-0 text-sm">{children}</div>
         </aside>
       );
@@ -202,27 +215,25 @@ export function HelpMarkdown({ slug, markdown, sections }: HelpMarkdownProps): R
       );
     },
     pre: ({ children }) => (
-      <pre className="my-4 overflow-x-auto rounded-lg border border-border/70 bg-foreground/[0.04] px-4 py-3">
+      <pre className="my-4 overflow-x-auto rounded-xl bg-foreground/[0.04] px-4 py-3 ring-1 ring-inset ring-foreground/[0.08]">
         {children}
       </pre>
     ),
     table: ({ children }) => (
-      <div className="my-5 overflow-x-auto rounded-lg border border-border/70">
+      <div className="my-5 overflow-x-auto rounded-xl ring-1 ring-inset ring-foreground/[0.08]">
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
-    thead: ({ children }) => <thead className="bg-foreground/[0.04]">{children}</thead>,
+    thead: ({ children }) => <thead className="bg-foreground/[0.03]">{children}</thead>,
+    // Hairlines between rows, drawn like the .settings-rows ones.
+    tbody: ({ children }) => <tbody className="settings-rows">{children}</tbody>,
     th: ({ children }) => (
-      <th className="border-b border-border/70 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]">
         {children}
       </th>
     ),
-    td: ({ children }) => (
-      <td className="border-b border-border/40 px-3 py-2 align-top text-foreground/85">
-        {children}
-      </td>
-    ),
-    hr: () => <hr className="my-8 border-border/60" />,
+    td: ({ children }) => <td className="px-3 py-2 align-top text-foreground/85">{children}</td>,
+    hr: () => <hr className="my-8 h-px border-0 bg-foreground/[0.08]" />,
   };
 
   return (

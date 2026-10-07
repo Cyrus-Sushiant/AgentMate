@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { FolderOpen, Globe, Shield, Spinner } from '@/components/icons';
-import { CARD_PILL_SOFT, Chip, GLASS_CARD, PILL_PRIMARY, SearchPill } from '@/components/pageKit';
+import { Chip, GLASS_CARD, SearchPill } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -169,9 +169,8 @@ export function AdHocSkillScanner({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 aria-label="Browse for a folder"
-                className="h-8 shrink-0 rounded-full px-3 text-foreground/85 hover:bg-foreground/[0.08] hover:text-foreground"
+                className="shrink-0 px-3 text-foreground/85 hover:bg-foreground/[0.08] hover:text-foreground"
                 onClick={() => void handleBrowse()}
               >
                 <FolderOpen className="h-3.5 w-3.5" />
@@ -223,8 +222,7 @@ export function AdHocSkillScanner({
               </span>
             </div>
             <Button
-              size="sm"
-              className={cn(PILL_PRIMARY, 'shrink-0')}
+              className="shrink-0"
               disabled={checkingAll}
               onClick={() => checkAllMutation.mutate(preview.skills)}
             >
@@ -290,9 +288,9 @@ export function AdHocSkillScanner({
                     }
                   >
                     <Button
+                      variant="soft"
                       size="sm"
-                      variant="ghost"
-                      className={cn(CARD_PILL_SOFT, 'shrink-0')}
+                      className="shrink-0"
                       disabled={checkingAll}
                       onClick={() =>
                         onCheck({ skillId, skillName: skill.name, target: skill.target })

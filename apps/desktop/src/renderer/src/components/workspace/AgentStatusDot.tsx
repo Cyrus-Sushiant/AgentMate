@@ -1,4 +1,5 @@
 import type { AgentStatus } from '@agentmat/core';
+import { Chip, type ChipTone } from '@/components/pageKit';
 import { cn } from '@/lib/utils';
 
 export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
@@ -22,12 +23,18 @@ export function AgentStatusDot({
   className?: string;
 }): React.JSX.Element | null {
   if (status === 'working') {
+    // The ring's colours are inline, since the global unlayered border colour beats any
+    // border colour utility and left the spinner a plain grey circle.
     return (
       <span
         role="img"
         aria-label={AGENT_STATUS_LABEL.working}
+        style={{
+          borderColor: 'hsl(var(--primary) / 0.2)',
+          borderTopColor: 'hsl(var(--primary))',
+        }}
         className={cn(
-          'block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-primary/20 border-t-primary shadow-[0_0_6px_hsl(var(--primary)/0.45)] motion-reduce:animate-none motion-reduce:border-primary',
+          'block h-3 w-3 shrink-0 animate-spin rounded-full border-2 shadow-[0_0_6px_hsl(var(--primary)/0.45)] motion-reduce:animate-none',
           className,
         )}
       />
@@ -58,4 +65,30 @@ export function AgentStatusDot({
     );
   }
   return null;
+}
+
+const STATUS_TONE: Partial<Record<AgentStatus, ChipTone>> = {
+  working: 'primary',
+  'needs-input': 'warning',
+  done: 'success',
+};
+
+/**
+ * The same state in words, as a tinted chip, for places with room for a label such as a tab's
+ * tooltip. Idle and exited show nothing, like the dot.
+ */
+export function AgentStatusChip({
+  status,
+  className,
+}: {
+  status: AgentStatus | null;
+  className?: string;
+}): React.JSX.Element | null {
+  const tone = status ? STATUS_TONE[status] : undefined;
+  if (!status || !tone) return null;
+  return (
+    <Chip tone={tone} dot pulse={status !== 'done'} className={className}>
+      {AGENT_STATUS_LABEL[status]}
+    </Chip>
+  );
 }

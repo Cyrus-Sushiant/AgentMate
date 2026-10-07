@@ -21,7 +21,6 @@ import {
   Route,
   Spinner,
 } from '@/components/icons';
-import { PILL_PRIMARY, PILL_SOFT } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -224,7 +223,7 @@ export function ProxySettings({
                   aria-pressed={active}
                   onClick={() => patch({ mode: option.value })}
                   className={cn(
-                    'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                    'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-all duration-150',
                     active
                       ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
                       : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
@@ -318,18 +317,15 @@ export function ProxySettings({
                     onChange={(event) => patch({ password: event.target.value })}
                   />
                   <SimpleTooltip label={showPassword ? 'Hide password' : 'Show password'}>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-3.5 w-3.5" />
-                      ) : (
-                        <Eye className="h-3.5 w-3.5" />
-                      )}
-                    </button>
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </Button>
                   </SimpleTooltip>
                 </div>
               </div>
@@ -379,13 +375,7 @@ export function ProxySettings({
             Terminals that are already open keep the old setting until they are reopened.
           </p>
           <div className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_SOFT}
-              disabled={!canTest}
-              onClick={() => void runTest()}
-            >
+            <Button variant="soft" disabled={!canTest} onClick={() => void runTest()}>
               {testing ? (
                 <Spinner className="h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -394,13 +384,11 @@ export function ProxySettings({
               Test connection
             </Button>
             {dirty ? (
-              <Button variant="ghost" size="sm" className={PILL_SOFT} onClick={discard}>
+              <Button variant="soft" onClick={discard}>
                 Discard
               </Button>
             ) : null}
             <Button
-              size="sm"
-              className={PILL_PRIMARY}
               disabled={!dirty || save.isPending}
               onClick={() => void save.mutateAsync().catch(() => undefined)}
             >

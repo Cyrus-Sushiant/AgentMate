@@ -195,7 +195,7 @@ export function SecurityReport({ record }: { record: SecurityScanRecord }): Reac
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs"
+                className="px-2.5"
                 onClick={() => {
                   setSeverityFilter([]);
                   setScannerFilter([]);
@@ -240,7 +240,6 @@ export function SecurityReport({ record }: { record: SecurityScanRecord }): Reac
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-xs"
                         onClick={() => setExpanded((current) => [...current, severity])}
                       >
                         Show the other {group.length - shown.length}

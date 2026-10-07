@@ -373,7 +373,7 @@ export function RecordDialog({
 
             <div className="grid gap-3 sm:grid-cols-2">
               {proxiable && (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-secondary/30 px-3 py-2">
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-foreground/[0.03] px-3 py-2 ring-1 ring-inset ring-foreground/[0.08]">
                   <div className="min-w-0">
                     <p id={field('proxyLabel')} className="text-sm font-medium">
                       Proxy through Cloudflare
@@ -431,7 +431,7 @@ export function RecordDialog({
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>

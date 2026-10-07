@@ -1,11 +1,16 @@
 import { Github } from '@/components/icons';
+import { EmptyState } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 
-/** The centred message a panel tab shows when it has nothing to list, with an optional way out. */
+/**
+ * What a panel tab or section shows when it has nothing to list: the glowing empty state, sized
+ * for the narrow panel, with an optional way out.
+ */
 export function PanelNotice({
   title,
   body,
   action,
-  icon: Icon = Github,
+  icon = Github,
 }: {
   title: string;
   body: React.ReactNode;
@@ -13,19 +18,19 @@ export function PanelNotice({
   icon?: React.ComponentType<{ className?: string }>;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <p className="text-xs font-medium">{title}</p>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">{body}</p>
-      {action ? (
-        <button
-          type="button"
-          onClick={action.run}
-          className="mt-1 text-[11px] font-medium text-primary hover:underline"
-        >
-          {action.label}
-        </button>
-      ) : null}
-    </div>
+    <EmptyState
+      size="sm"
+      icon={icon}
+      title={title}
+      description={<span className="block text-xs">{body}</span>}
+      action={
+        action ? (
+          <Button type="button" variant="soft" size="xs" onClick={action.run}>
+            {action.label}
+          </Button>
+        ) : undefined
+      }
+      className="gap-2.5 px-4 py-5"
+    />
   );
 }

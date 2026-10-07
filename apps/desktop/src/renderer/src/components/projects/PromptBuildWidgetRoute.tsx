@@ -223,7 +223,7 @@ export default function PromptBuildWidgetRoute(): React.JSX.Element {
                   <Spinner className="h-4 w-4 animate-spin text-primary" />
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="soft"
                     size="sm"
                     className="h-6 px-2 text-[11px]"
                     onClick={handleCancel}

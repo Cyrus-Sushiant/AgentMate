@@ -127,7 +127,7 @@ function AboutBody(): React.JSX.Element {
           )}
           {/* The credit at the foot already links to smartclouds.co, so the second action here
               is the source code. */}
-          <Button variant="outline" asChild>
+          <Button variant="soft" asChild>
             <a href={SOURCE_URL} onClick={openInBrowser(SOURCE_URL)}>
               <Github />
               Source on GitHub

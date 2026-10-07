@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { MonacoDiffEditor } from '@/components/editor/MonacoDiffEditor';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { Code, Lock, Save, Spinner } from '@/components/icons';
+import { SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { problemsFor, snippetMarks } from '@/lib/deploy/sites/problems';
+import { cn } from '@/lib/utils';
 import { FieldError, Section } from './fields';
 
 /**
@@ -101,9 +103,14 @@ export function AdvancedTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {!owner && (
-        <p className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+        <p
+          className={cn(
+            SECTION_WELL,
+            'flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground',
+          )}
+        >
           <Lock className="h-3.5 w-3.5 shrink-0" />
           Only an Owner can change custom directives, since they reach nginx most directly.
         </p>
@@ -152,7 +159,7 @@ export function AdvancedTab({
           </DialogHeader>
           {SNIPPETS.filter((snippet) => text[snippet.key] !== saved[snippet.key]).map((snippet) => (
             <div key={snippet.key} className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">{snippet.title}</p>
+              <p className={SECTION_HEADING}>{snippet.title}</p>
               <MonacoDiffEditor
                 path={`${snippet.key}.conf`}
                 original={saved[snippet.key]}
@@ -171,7 +178,7 @@ export function AdvancedTab({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="soft"
               disabled={busy}
               onClick={() => setReviewing(false)}
             >

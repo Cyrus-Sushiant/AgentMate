@@ -1,10 +1,13 @@
 import type { CloudflareZone } from '@shared/cloudflareTypes';
-import { CircleInfo, Globe } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { Globe } from '@/components/icons';
+import { Chip, FOOTER_HAIRLINE, GLASS_CARD } from '@/components/pageKit';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import { AccessRulesCard } from './AccessRulesCard';
 import { CustomRulesCard } from './CustomRulesCard';
 import { DnsRecordsCard } from './DnsRecordsCard';
+import { Notice } from './fields';
 import { PurgeCard } from './PurgeCard';
 import { DnsTokensCard } from './server/DnsTokensCard';
 import { zoneStateText } from './ZoneRail';
@@ -15,6 +18,16 @@ export type ZoneTab = 'dns' | 'settings' | 'security' | 'servers';
 export function isZoneTab(value: string | null): value is ZoneTab {
   return value === 'dns' || value === 'settings' || value === 'security' || value === 'servers';
 }
+
+const TABS: { value: ZoneTab; label: string }[] = [
+  { value: 'dns', label: 'DNS' },
+  { value: 'settings', label: 'Settings' },
+  { value: 'security', label: 'Security' },
+  { value: 'servers', label: 'Servers' },
+];
+
+/** The tab content sits straight under the header card, spaced like every other card. */
+const CONTENT = 'mt-0 flex flex-col gap-2 focus-visible:ring-offset-0';
 
 /**
  * One zone: its state and, by tab, its DNS records, its settings and cache, its rules, and the
@@ -29,51 +42,96 @@ export function ZonePanel({
   tab: ZoneTab;
   onTabChange: (tab: ZoneTab) => void;
 }): React.JSX.Element {
+  const reduceMotion = useReducedMotion();
   const active = zone.status === 'active' && !zone.paused;
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-          <Globe className="h-5 w-5" />
+    <Tabs
+      value={tab}
+      onValueChange={(value) => onTabChange(value as ZoneTab)}
+      className="flex min-w-0 flex-col gap-2"
+    >
+      <div className={GLASS_CARD}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-[0_0_24px_-10px_hsl(var(--primary)/0.7)]">
+            <Globe className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
+                {zone.name}
+              </h2>
+              <Chip tone={active ? 'success' : 'warning'} dot>
+                {zoneStateText(zone)}
+              </Chip>
+            </div>
+            <p className="truncate text-xs text-muted-foreground">
+              {zone.plan || 'Cloudflare zone'}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-foreground">{zone.name}</h2>
-          <p className="truncate text-xs text-muted-foreground">{zone.plan || 'Cloudflare zone'}</p>
+        {zone.status === 'pending' && (
+          <div className="px-4 pb-3">
+            <Notice tone="warning">
+              Cloudflare is waiting for your registrar to use its name servers:{' '}
+              <span className="font-mono">{zone.nameServers.join(', ')}</span>. Until then, changes
+              here do not reach visitors.
+            </Notice>
+          </div>
+        )}
+        {/* Radix tabs, drawn as the kit's sliding pill, so arrow keys still move between them. */}
+        <div className={cn(FOOTER_HAIRLINE, 'px-3 py-2')}>
+          <LayoutGroup id="cloudflare-zone-tabs">
+            <TabsList
+              containerClassName="border-b-0"
+              className="search-pill mb-0 h-auto w-auto max-w-full gap-0.5 rounded-full p-0.5"
+            >
+              {TABS.map((item) => {
+                const selected = tab === item.value;
+                return (
+                  <TabsTrigger
+                    key={item.value}
+                    value={item.value}
+                    className={cn(
+                      'relative h-7 rounded-full border-b-0 px-3 text-xs focus-visible:ring-ring/60',
+                      selected
+                        ? 'text-primary data-[state=active]:text-primary'
+                        : 'text-muted-foreground hover:bg-foreground/[0.06]',
+                    )}
+                  >
+                    {selected && (
+                      <motion.span
+                        aria-hidden
+                        layoutId="cloudflare-zone-tab-active"
+                        transition={
+                          reduceMotion
+                            ? { duration: 0 }
+                            : { type: 'spring', stiffness: 420, damping: 32 }
+                        }
+                        className="absolute inset-0 rounded-full bg-primary/12 ring-1 ring-inset ring-primary/20"
+                      />
+                    )}
+                    <span className="relative">{item.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </LayoutGroup>
         </div>
-        <Badge variant={active ? 'success' : 'warning'}>{zoneStateText(zone)}</Badge>
       </div>
-      {zone.status === 'pending' && (
-        <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground">
-          <CircleInfo className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <span>
-            Cloudflare is waiting for your registrar to use its name servers:{' '}
-            <span className="font-mono">{zone.nameServers.join(', ')}</span>. Until then, changes
-            here do not reach visitors.
-          </span>
-        </p>
-      )}
-      <Tabs value={tab} onValueChange={(value) => onTabChange(value as ZoneTab)}>
-        <TabsList>
-          <TabsTrigger value="dns">DNS</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="servers">Servers</TabsTrigger>
-        </TabsList>
-        <TabsContent value="dns" className="pt-4">
-          <DnsRecordsCard zone={zone} />
-        </TabsContent>
-        <TabsContent value="settings" className="space-y-4 pt-4">
-          <ZoneSettingsCard zone={zone} />
-          <PurgeCard zone={zone} />
-        </TabsContent>
-        <TabsContent value="security" className="space-y-4 pt-4">
-          <CustomRulesCard zone={zone} />
-          <AccessRulesCard zone={zone} />
-        </TabsContent>
-        <TabsContent value="servers" className="space-y-4 pt-4">
-          <DnsTokensCard zone={zone} />
-        </TabsContent>
-      </Tabs>
-    </div>
+      <TabsContent value="dns" className={CONTENT}>
+        <DnsRecordsCard zone={zone} />
+      </TabsContent>
+      <TabsContent value="settings" className={CONTENT}>
+        <ZoneSettingsCard zone={zone} />
+        <PurgeCard zone={zone} />
+      </TabsContent>
+      <TabsContent value="security" className={CONTENT}>
+        <CustomRulesCard zone={zone} />
+        <AccessRulesCard zone={zone} />
+      </TabsContent>
+      <TabsContent value="servers" className={CONTENT}>
+        <DnsTokensCard zone={zone} />
+      </TabsContent>
+    </Tabs>
   );
 }

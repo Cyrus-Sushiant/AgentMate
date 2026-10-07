@@ -8,16 +8,16 @@ import type {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
-import { CircleCheck, CircleInfo, SettingsIcon, TriangleAlert } from '@/components/icons';
+import { SettingsIcon } from '@/components/icons';
+import { Chip, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { cloudflareFailureText, useCloudflareError } from '@/lib/cloudflare/feedback';
 import { formatRemaining, SECURITY_LEVEL_LABELS, SSL_MODE_LABELS } from '@/lib/cloudflare/labels';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
-import { NativeSelect, Problem } from './fields';
+import { CardBody, CloudflareCard, NativeSelect, Notice, Problem } from './fields';
 
 const SECURITY_LEVELS = Object.keys(SECURITY_LEVEL_LABELS) as CloudflareSecurityLevel[];
 const SETTABLE_SSL_MODES: Exclude<CloudflareSslMode, 'origin_pull'>[] = [
@@ -43,7 +43,7 @@ function Row({
   below?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="space-y-2 py-3 first:pt-0 last:pb-0">
+    <div className="space-y-2 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           {htmlFor ? (
@@ -66,9 +66,15 @@ function Row({
 
 function SettingsSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-3" aria-busy="true">
+    <div className={cn(FOOTER_HAIRLINE, 'settings-rows')} aria-busy="true">
       {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-12 w-full rounded-md" />
+        <div key={index} className="flex items-center gap-3 px-4 py-3.5">
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-36" />
+            <Skeleton className="h-3 w-3/5" />
+          </div>
+          <Skeleton className="h-8 w-40 rounded-full" />
+        </div>
       ))}
     </div>
   );
@@ -106,24 +112,26 @@ export function ZoneSettingsCard({ zone }: { zone: CloudflareZone }): React.JSX.
   if (settings.isPending) {
     body = <SettingsSkeleton />;
   } else if (settings.isError) {
-    body = <Problem message={loadError ?? ''} onRetry={() => void settings.refetch()} />;
+    body = (
+      <CardBody>
+        <Problem message={loadError ?? ''} onRetry={() => void settings.refetch()} />
+      </CardBody>
+    );
   } else {
     const { developmentMode, securityLevel, ssl, alwaysUseHttps } = settings.data;
     const advice = sslAdvice(ssl.value);
-    const AdviceIcon =
-      advice.level === 'ok' ? CircleCheck : advice.level === 'improve' ? CircleInfo : TriangleAlert;
     const developmentOn = developmentMode.value === 'on';
     const httpsOn = alwaysUseHttps.value === 'on';
     body = (
-      <div className="divide-y divide-border/60">
+      <div className={cn(FOOTER_HAIRLINE, 'settings-rows')}>
         <Row
           title="Development mode"
           titleId={`${id}-development`}
           description="Skips the cache for three hours, so changes to the site show at once."
         >
-          <span className="text-xs text-muted-foreground">
+          <Chip tone={developmentOn ? 'warning' : 'neutral'}>
             {developmentOn ? `On, ${formatRemaining(developmentMode.secondsRemaining)}` : 'Off'}
-          </span>
+          </Chip>
           <Switch
             checked={developmentOn}
             disabled={!developmentMode.editable || saving === 'developmentMode'}
@@ -142,11 +150,10 @@ export function ZoneSettingsCard({ zone }: { zone: CloudflareZone }): React.JSX.
           description="How suspicious a visitor has to look before Cloudflare checks them."
           below={
             securityLevel.value === 'under_attack' && (
-              <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-foreground">
-                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <Notice tone="warning" size="sm">
                 I'm Under Attack is on: every visitor sees a short check before the site loads. Turn
                 it back down once the attack is over.
-              </p>
+              </Notice>
             )
           }
         >
@@ -175,39 +182,37 @@ export function ZoneSettingsCard({ zone }: { zone: CloudflareZone }): React.JSX.
           htmlFor={`${id}-ssl`}
           description="How Cloudflare connects to your server for proxied records."
           below={
-            <div
-              className={cn(
-                'flex flex-wrap items-start gap-2 rounded-lg border p-2.5 text-xs text-foreground',
-                advice.level === 'ok' && 'border-success/40 bg-success/10',
-                advice.level === 'improve' && 'border-border/70 bg-secondary/30',
-                advice.level === 'warning' && 'border-warning/40 bg-warning/10',
-              )}
+            <Notice
+              size="sm"
+              tone={
+                advice.level === 'ok'
+                  ? 'success'
+                  : advice.level === 'improve'
+                    ? 'neutral'
+                    : 'warning'
+              }
+              className="items-center"
+              action={
+                advice.recommended !== ssl.value &&
+                ssl.editable && (
+                  <Button
+                    size="sm"
+                    variant="soft"
+                    disabled={saving === 'ssl'}
+                    onClick={() =>
+                      void change(
+                        { setting: 'ssl', value: 'strict' },
+                        'SSL/TLS mode is Full (strict) now.',
+                      )
+                    }
+                  >
+                    Use Full (strict)
+                  </Button>
+                )
+              }
             >
-              <AdviceIcon
-                className={cn(
-                  'mt-0.5 h-3.5 w-3.5 shrink-0',
-                  advice.level === 'ok' && 'text-success',
-                  advice.level === 'warning' && 'text-warning',
-                )}
-              />
-              <span className="min-w-0 flex-1">{advice.message}</span>
-              {advice.recommended !== ssl.value && ssl.editable && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7"
-                  disabled={saving === 'ssl'}
-                  onClick={() =>
-                    void change(
-                      { setting: 'ssl', value: 'strict' },
-                      'SSL/TLS mode is Full (strict) now.',
-                    )
-                  }
-                >
-                  Use Full (strict)
-                </Button>
-              )}
-            </div>
+              {advice.message}
+            </Notice>
           }
         >
           <NativeSelect
@@ -238,7 +243,7 @@ export function ZoneSettingsCard({ zone }: { zone: CloudflareZone }): React.JSX.
           titleId={`${id}-https`}
           description="Sends visitors who ask for http:// to the https:// address."
         >
-          <span className="text-xs text-muted-foreground">{httpsOn ? 'On' : 'Off'}</span>
+          <Chip tone={httpsOn ? 'success' : 'neutral'}>{httpsOn ? 'On' : 'Off'}</Chip>
           <Switch
             checked={httpsOn}
             disabled={!alwaysUseHttps.editable || saving === 'alwaysUseHttps'}
@@ -256,16 +261,12 @@ export function ZoneSettingsCard({ zone }: { zone: CloudflareZone }): React.JSX.
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-primary" /> Settings
-        </CardTitle>
-        <CardDescription>
-          For everything in {zone.name}. Changes apply within seconds.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
-    </Card>
+    <CloudflareCard
+      icon={<SettingsIcon />}
+      title="Settings"
+      description={`For everything in ${zone.name}. Changes apply within seconds.`}
+    >
+      {body}
+    </CloudflareCard>
   );
 }

@@ -3,17 +3,19 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { Check, ChevronDown, CloudUpload, Plus, Sparkles, Spinner } from '@/components/icons';
+import { Notice } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { sanitizeCommitMessage } from '@/lib/git';
 import { cn } from '@/lib/utils';
 import { commandForEvent, useShortcutLabel, useShortcutStore } from '@/stores/shortcutStore';
+import { HAIRLINE_BELOW } from './PanelTabs';
 import type { GitActions } from './useWorkspaceGit';
 
 /**
@@ -43,12 +45,8 @@ function CommitMenuItem({
   onSelect: () => void;
 }): React.JSX.Element {
   return (
-    <DropdownMenuItem
-      disabled={disabled}
-      onSelect={onSelect}
-      className="group items-start gap-2.5 px-2 py-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-    >
-      <span className="mt-px flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/70 bg-foreground/[0.04] text-muted-foreground transition-colors group-focus:border-primary/30 group-focus:bg-primary/15 group-focus:text-primary">
+    <DropdownMenuItem disabled={disabled} onSelect={onSelect} className="group items-start py-2">
+      <span className="mt-px flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-foreground/[0.05] text-muted-foreground transition-colors group-focus:bg-foreground/[0.08] group-focus:text-foreground">
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -56,7 +54,7 @@ function CommitMenuItem({
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="whitespace-nowrap text-[13px] font-medium leading-5">{title}</span>
           {shortcut ? (
-            <kbd className="ml-auto shrink-0 rounded border border-border/80 bg-foreground/[0.04] px-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
+            <kbd className="ml-auto shrink-0 font-sans text-[11px] leading-5 tracking-wide text-muted-foreground">
               {shortcut}
             </kbd>
           ) : null}
@@ -69,8 +67,8 @@ function CommitMenuItem({
 
 const MAX_ROWS = 8;
 const LINE_HEIGHT = 20;
-/** Vertical padding (py-2) plus the 1px border on each side. */
-const CHROME_HEIGHT = 16 + 2;
+/** Vertical padding (pt-2.5 plus pb-1.5). The composer pill draws the edge, not the textarea. */
+const CHROME_HEIGHT = 10 + 6;
 
 /** Sizes the textarea to its text, between one and MAX_ROWS lines. */
 function fitTextarea(el: HTMLTextAreaElement): void {
@@ -206,8 +204,10 @@ export function CommitBox({
         : `Commit ${stagedLabel}, then ${pushTarget}`;
 
   return (
-    <div className="space-y-2 border-b border-border/60 px-2.5 pb-3 pt-2.5">
-      <div className="relative">
+    <div className={cn('@container/commit space-y-2 px-2.5 pb-2.5 pt-2', HAIRLINE_BELOW)}>
+      {/* The message and its actions are one composed field, like the commit composer on the
+          Project detail Git tab: write at the top, suggest and commit from the bottom row. */}
+      <div className="search-pill flex flex-col rounded-[1.25rem] transition-colors">
         <textarea
           ref={textareaRef}
           value={message}
@@ -231,93 +231,108 @@ export function CommitBox({
           }}
           style={{ lineHeight: `${LINE_HEIGHT}px`, minHeight: LINE_HEIGHT + CHROME_HEIGHT }}
           className={cn(
-            'field-surface block w-full resize-none overflow-hidden py-2 pl-3 pr-9 text-[13px] outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            MULTILINE_FIELD_RADIUS,
+            'block w-full resize-none overflow-hidden rounded-t-[1.25rem] bg-transparent px-3.5 pb-1.5 pt-2.5 text-[13px] outline-none placeholder:text-muted-foreground/70 [scrollbar-width:none] disabled:opacity-60 [&::-webkit-scrollbar]:hidden',
+            // Only the textarea shimmers, so the sweep never sits over the Stop button.
             generating && 'shimmer',
           )}
         />
-        <SimpleTooltip label={generating ? 'Stop writing' : 'Write a message with AI'}>
-          <button
-            type="button"
-            aria-label={
-              generating ? 'Stop writing the commit message' : 'Write a commit message with AI'
-            }
-            onClick={() => void generate()}
-            disabled={nothingToCommit && !generating}
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40"
+        <div className="flex items-center gap-1.5 p-1.5 pt-0">
+          <SimpleTooltip
+            label={generating ? 'Stop writing, click to cancel' : 'Write a message with AI'}
           >
-            {generating ? (
-              <Spinner className="h-3.5 w-3.5 animate-spin text-primary motion-reduce:animate-none" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-          </button>
-        </SimpleTooltip>
-      </div>
-
-      <div className="flex">
-        <button
-          type="button"
-          onClick={() => void commit(false)}
-          disabled={!canCommit}
-          className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-l-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-8px_hsl(var(--primary)/0.8)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:bg-foreground/[0.08] disabled:text-muted-foreground disabled:shadow-none"
-        >
-          {busy === 'commit' ? (
-            <Spinner className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-          ) : stageAllFirst ? (
-            <Plus className="h-3 w-3" />
-          ) : (
-            <Check className="h-3 w-3" />
-          )}
-          {primaryLabel}
-          {stagedCount > 0 ? (
-            <span className="rounded-full bg-primary-foreground/15 px-1.5 text-[10px] tabular-nums">
-              {stagedCount}
-            </span>
-          ) : null}
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
-              aria-label="More commit options"
-              disabled={!canCommit}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-r-lg border-l border-primary-foreground/20 bg-primary text-primary-foreground transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:border-border disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
-            >
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" collisionPadding={8} className="w-[19rem] p-1">
-            <CommitMenuItem
-              icon={<Check className="h-3.5 w-3.5" />}
-              title="Commit"
-              description={
-                stageAllFirst
-                  ? `Stage all ${changesLabel}, then commit locally`
-                  : `Commit ${stagedLabel} locally`
+              variant={generating ? 'danger' : 'soft'}
+              size="xs"
+              aria-label={
+                generating ? 'Stop writing the commit message' : 'Write a commit message with AI'
               }
-              shortcut={commitLabel}
-              onSelect={() => void commit(false)}
-            />
-            <CommitMenuItem
-              icon={<CloudUpload className="h-3.5 w-3.5" />}
-              title="Commit & push"
-              description={pushDescription}
-              shortcut={pushLabel}
-              disabled={!canPush}
-              onSelect={() => void commit(true)}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+              onClick={() => void generate()}
+              disabled={nothingToCommit && !generating}
+              className="shrink-0"
+            >
+              {generating ? (
+                <Spinner className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <Sparkles />
+              )}
+              {/* A narrow panel keeps just the icon, so the commit button keeps its label. */}
+              <span className="hidden @[17rem]/commit:inline">
+                {generating ? 'Writing…' : 'Suggest'}
+              </span>
+            </Button>
+          </SimpleTooltip>
+
+          {/* One split pill: the commit itself, then a chevron for the other ways to commit. */}
+          <div className="ml-auto flex min-w-0">
+            <Button
+              size="xs"
+              onClick={() => void commit(false)}
+              disabled={!canCommit}
+              className="min-w-0 rounded-r-none pl-2.5 pr-2"
+            >
+              {busy === 'commit' ? (
+                <Spinner className="animate-spin motion-reduce:animate-none" />
+              ) : stageAllFirst ? (
+                <Plus />
+              ) : (
+                <Check />
+              )}
+              <span className="truncate">{primaryLabel}</span>
+              {stagedCount > 0 ? (
+                <span className="rounded-full bg-primary-foreground/15 px-1.5 text-[10px] tabular-nums">
+                  {stagedCount}
+                </span>
+              ) : null}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="xs"
+                  aria-label="More commit options"
+                  disabled={!canCommit}
+                  // The divider is an inset shadow: the app's global border colour would repaint
+                  // a border here.
+                  className="w-6 rounded-l-none px-0 shadow-[inset_1px_0_0_hsl(var(--primary-foreground)/0.25)]"
+                >
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" collisionPadding={8} className="w-[19rem]">
+                <CommitMenuItem
+                  icon={<Check className="h-3.5 w-3.5" />}
+                  title="Commit"
+                  description={
+                    stageAllFirst
+                      ? `Stage all ${changesLabel}, then commit locally`
+                      : `Commit ${stagedLabel} locally`
+                  }
+                  shortcut={commitLabel}
+                  onSelect={() => void commit(false)}
+                />
+                <CommitMenuItem
+                  icon={<CloudUpload className="h-3.5 w-3.5" />}
+                  title="Commit & push"
+                  description={pushDescription}
+                  shortcut={pushLabel}
+                  disabled={!canPush}
+                  onSelect={() => void commit(true)}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
 
       {blockedByConflicts ? (
-        <div className="flex items-center gap-2">
-          <p className="min-w-0 flex-1 text-[11px] leading-snug text-destructive">
-            Resolve the conflicts below before committing.
-          </p>
-          {conflictAction}
-        </div>
+        <Notice
+          tone="destructive"
+          size="sm"
+          className="items-center text-[11px] leading-snug"
+          action={conflictAction}
+        >
+          Resolve the conflicts below before committing.
+        </Notice>
       ) : null}
       {busy === 'push' ? (
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

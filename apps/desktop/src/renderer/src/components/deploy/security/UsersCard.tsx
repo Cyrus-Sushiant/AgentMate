@@ -12,14 +12,12 @@ import {
   Key,
   Lock,
   LockOpen,
-  RefreshCw,
   Trash2,
   UserPlus,
   Users,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,13 +28,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { confirmDialog } from '@/stores/confirmStore';
-import { SetupFailure } from '../SetupFailure';
 import { EnrollmentCodeDialog } from './EnrollmentCodeDialog';
 import { ago, clockTime, isRole, ROLE_LABEL, ROLE_SUMMARY, roleLabel, withArticle } from './format';
+import { CARD_ROWS, LoadFailure, RowsSkeleton, SecurityCard } from './SecurityCard';
 import { CreateUserDialog, ResetPasswordDialog } from './UserDialogs';
 import { useStepUp } from './useStepUp';
 
@@ -57,27 +54,26 @@ const locked = (user: UserInfo) => !user.disabled && user.lockedOutUntilUnixMs !
 function UserStatus({ user }: { user: UserInfo }): React.JSX.Element {
   if (user.disabled) {
     return (
-      <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
-        <Ban className="h-3.5 w-3.5" />
+      <Chip tone="destructive">
+        <Ban />
         Disabled
-      </span>
+      </Chip>
     );
   }
   if (locked(user)) {
     return (
       <SimpleTooltip label="Too many wrong passwords. It unlocks by itself, or when an Owner unlocks it.">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-warning">
-          <Lock className="h-3.5 w-3.5" />
+        <Chip tone="warning">
+          <Lock />
           {`Locked until ${clockTime(user.lockedOutUntilUnixMs ?? 0)}`}
-        </span>
+        </Chip>
       </SimpleTooltip>
     );
   }
   return (
-    <span className="flex items-center gap-1.5 text-xs font-medium text-success">
-      <CircleCheck className="h-3.5 w-3.5" />
+    <Chip tone="success" dot>
       Active
-    </span>
+    </Chip>
   );
 }
 
@@ -175,28 +171,14 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
 
   let body: React.ReactNode;
   if (users.isPending) {
-    body = (
-      <div className="space-y-2" aria-busy="true">
-        {Array.from({ length: 3 }, (_, index) => (
-          <Skeleton key={index} className="h-14 w-full rounded-lg" />
-        ))}
-      </div>
-    );
+    body = <RowsSkeleton />;
   } else if (users.isError) {
     body = (
-      <div className="space-y-3">
-        <SetupFailure message={coreErrorMessage(users.error)} />
-        <Button size="sm" variant="outline" onClick={() => void users.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <LoadFailure message={coreErrorMessage(users.error)} onRetry={() => void users.refetch()} />
     );
   } else {
     body = (
-      <ul
-        aria-label="Users"
-        className="divide-y divide-border/60 rounded-lg border border-border/70 bg-secondary/20"
-      >
+      <ul aria-label="Users" className={CARD_ROWS}>
         {users.data.map((user) => (
           <li
             key={user.id}
@@ -208,8 +190,8 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
                 <span className="truncate text-sm font-medium text-foreground">
                   {user.userName}
                 </span>
-                {user.current && <Badge variant="outline">You</Badge>}
-                <Badge variant="secondary">{roleLabel(user.role)}</Badge>
+                {user.current && <Chip tone="primary">You</Chip>}
+                <Chip>{roleLabel(user.role)}</Chip>
               </div>
               <p className="text-xs text-muted-foreground">
                 {[
@@ -225,8 +207,12 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
             <DropdownMenu>
               <SimpleTooltip label="Actions">
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label={`Actions for ${user.userName}`}>
-                    <EllipsisVertical className="h-3.5 w-3.5" />
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Actions for ${user.userName}`}
+                  >
+                    <EllipsisVertical />
                   </Button>
                 </DropdownMenuTrigger>
               </SimpleTooltip>
@@ -272,10 +258,7 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onSelect={() => void remove(user)}
-                    >
+                    <DropdownMenuItem tone="danger" onSelect={() => void remove(user)}>
                       <Trash2 className="h-3.5 w-3.5" /> Remove
                     </DropdownMenuItem>
                   </>
@@ -289,22 +272,17 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" /> Users
-          </CardTitle>
-          <CardDescription>
-            Who can sign in to {server.nickname}, and what each of them may do. Only Owners see this
-            list.
-          </CardDescription>
-        </div>
+    <SecurityCard
+      icon={<Users />}
+      title="Users"
+      description={`Who can sign in to ${server.nickname}, and what each of them may do. Only Owners see this list.`}
+      actions={
         <Button size="sm" onClick={() => setDialog({ kind: 'create' })}>
           <UserPlus className="h-3.5 w-3.5" /> Add a user
         </Button>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
+      }
+    >
+      {body}
       <CreateUserDialog
         server={server}
         open={dialog?.kind === 'create'}
@@ -351,6 +329,6 @@ export function UsersCard({ server }: { server: DeployServer }): React.JSX.Eleme
         run={stepUp.run}
       />
       {stepUp.dialog}
-    </Card>
+    </SecurityCard>
   );
 }

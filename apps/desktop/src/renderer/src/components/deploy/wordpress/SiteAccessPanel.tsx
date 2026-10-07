@@ -3,9 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { Key, LinkOff, Lock, Pencil, Spinner } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -20,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { Switch } from '@/components/ui/switch';
 import { queryKeys } from '@/lib/queryKeys';
+import { DeployCard, FactRow, FactRows, GLASS_EDGE } from '../deployKit';
 import { AuditLogList } from './AuditLogList';
 import { siteProjects, useProjects, useSiteInfo, useSiteSettings } from './hooks';
 import {
@@ -33,65 +33,54 @@ import {
 } from './messages';
 import { PlainHttpNotice } from './PlainHttpNotice';
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3 border-t border-border/60 py-2 first:border-t-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-foreground">{children}</dd>
-    </div>
-  );
-}
-
 function ConnectionCard({ site }: { site: DeployWordPressSite }): React.JSX.Element {
   const info = useSiteInfo(site.id).data;
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Key className="h-4 w-4 text-primary" /> Connection
-          <Badge variant={site.scope === 'read' ? 'secondary' : 'outline'}>
-            {SCOPE_LABEL[site.scope]}
-          </Badge>
-        </CardTitle>
-        <CardDescription className="max-w-2xl">
+    <DeployCard
+      icon={<Key />}
+      title="Connection"
+      extra={
+        <Chip tone={site.scope === 'read' ? 'neutral' : 'primary'}>{SCOPE_LABEL[site.scope]}</Chip>
+      }
+      description={
+        <span className="block max-w-2xl">
           {SCOPE_SUMMARY[site.scope]}
           {site.scope === 'read' &&
             ' To deploy, make a read and write key in Tools > AgentMate Connector and connect the site again.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <dl>
-          <Row label="Site address">
-            <span className="font-mono text-xs">{site.siteUrl}</span>
-          </Row>
-          {site.siteName && site.siteName !== site.label && (
-            <Row label="Site name">{site.siteName}</Row>
-          )}
-          <Row label="Travels over">{TRANSPORT_LABEL[site.transport]}</Row>
-          <Row label="Connected">{dateTimeText(site.connectedAt)}</Row>
-          <Row label="Last reached">{lastSeenText(site)}</Row>
-          <Row label="Connector">
-            {site.pluginVersion}
-            <span className="text-muted-foreground">, protocol {site.protocol}</span>
-          </Row>
-          {info && (
-            <>
-              <Row label="Name on the site">{info.connection.label || 'Not named'}</Row>
-              <Row label="Key expires">
-                {info.connection.expiresAt === null
-                  ? 'Never'
-                  : siteTimeText(info.connection.expiresAt)}
-              </Row>
-            </>
-          )}
-        </dl>
-        <p className="mt-3 text-xs text-muted-foreground">
-          This computer holds its own private key for the site, sealed with your other Servers
-          secrets. Every request and every reply is signed, and the key you pasted to connect worked
-          only once.
-        </p>
-      </CardContent>
-    </Card>
+        </span>
+      }
+    >
+      <FactRows>
+        <FactRow label="Site address">
+          <span className="font-mono text-xs">{site.siteUrl}</span>
+        </FactRow>
+        {site.siteName && site.siteName !== site.label && (
+          <FactRow label="Site name">{site.siteName}</FactRow>
+        )}
+        <FactRow label="Travels over">{TRANSPORT_LABEL[site.transport]}</FactRow>
+        <FactRow label="Connected">{dateTimeText(site.connectedAt)}</FactRow>
+        <FactRow label="Last reached">{lastSeenText(site)}</FactRow>
+        <FactRow label="Connector">
+          {site.pluginVersion}
+          <span className="text-muted-foreground">, protocol {site.protocol}</span>
+        </FactRow>
+        {info && (
+          <>
+            <FactRow label="Name on the site">{info.connection.label || 'Not named'}</FactRow>
+            <FactRow label="Key expires">
+              {info.connection.expiresAt === null
+                ? 'Never'
+                : siteTimeText(info.connection.expiresAt)}
+            </FactRow>
+          </>
+        )}
+      </FactRows>
+      <p className="mt-3 text-xs text-muted-foreground">
+        This computer holds its own private key for the site, sealed with your other Servers
+        secrets. Every request and every reply is signed, and the key you pasted to connect worked
+        only once.
+      </p>
+    </DeployCard>
   );
 }
 
@@ -117,34 +106,28 @@ function RenameCard({ site }: { site: DeployWordPressSite }): React.JSX.Element 
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Pencil className="h-4 w-4 text-primary" /> Name
-        </CardTitle>
-        <CardDescription>
-          What AgentMate calls this site. The site itself isn't changed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => void submit(event)}>
-          <div className="min-w-[14rem] flex-1 space-y-1.5">
-            <Label htmlFor={`${id}-label`}>Name in AgentMate</Label>
-            <Input
-              id={`${id}-label`}
-              value={draft}
-              maxLength={100}
-              onChange={(event) => setDraft(event.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <Button type="submit" size="sm" disabled={busy || !trimmed || trimmed === site.label}>
-            {busy && <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />}
-            Save
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <DeployCard
+      icon={<Pencil />}
+      title="Name"
+      description="What AgentMate calls this site. The site itself isn't changed."
+    >
+      <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => void submit(event)}>
+        <div className="min-w-[14rem] flex-1 space-y-1.5">
+          <Label htmlFor={`${id}-label`}>Name in AgentMate</Label>
+          <Input
+            id={`${id}-label`}
+            value={draft}
+            maxLength={100}
+            onChange={(event) => setDraft(event.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <Button type="submit" disabled={busy || !trimmed || trimmed === site.label}>
+          {busy && <Spinner className="motion-safe:animate-spin" />}
+          Save
+        </Button>
+      </form>
+    </DeployCard>
   );
 }
 
@@ -172,7 +155,7 @@ function PlainHttpCard({ site }: { site: DeployWordPressSite }): React.JSX.Eleme
 
   return (
     <PlainHttpNotice>
-      <div className="flex items-center gap-3 pl-6">
+      <div className="flex items-center gap-3">
         <Switch
           id={`${id}-plain`}
           checked={site.allowPlainHttp}
@@ -184,7 +167,7 @@ function PlainHttpCard({ site }: { site: DeployWordPressSite }): React.JSX.Eleme
         </Label>
       </div>
       {!site.allowPlainHttp && (
-        <p className="pl-6 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Off, so AgentMate won't talk to this site until you allow it.
         </p>
       )}
@@ -238,61 +221,55 @@ function HttpAuthCard({ site }: { site: DeployWordPressSite }): React.JSX.Elemen
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-primary" /> HTTP sign-in
-        </CardTitle>
-        <CardDescription className="max-w-2xl">
-          For staging sites that ask for a user name and password before WordPress even loads. Most
-          sites don't need this.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {site.hasHttpAuth && !editing && (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="min-w-0 flex-1 text-sm text-foreground">
-              A sign-in is saved. The password is sealed on this computer and is never shown again.
-            </p>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing(true)}>
-              Change
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove()}>
-              Remove
-            </Button>
+    <DeployCard
+      icon={<Lock />}
+      title="HTTP sign-in"
+      description="For staging sites that ask for a user name and password before WordPress even loads. Most sites don't need this."
+      bodyClassName="space-y-3"
+    >
+      {site.hasHttpAuth && !editing && (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-foreground">
+            A sign-in is saved. The password is sealed on this computer and is never shown again.
+          </p>
+          <Button size="sm" variant="soft" disabled={busy} onClick={() => setEditing(true)}>
+            Change
+          </Button>
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => void remove()}>
+            Remove
+          </Button>
+        </div>
+      )}
+      {showForm && (
+        <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void submit(event)}>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-user`}>User name</Label>
+            <Input
+              id={`${id}-user`}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
           </div>
-        )}
-        {showForm && (
-          <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void submit(event)}>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-user`}>User name</Label>
-              <Input
-                id={`${id}-user`}
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-password`}>Password</Label>
-              <SecretInput id={`${id}-password`} value={password} onChange={setPassword} />
-            </div>
-            <div className="flex gap-2 sm:col-span-2">
-              <Button type="submit" size="sm" disabled={busy || !username.trim() || !password}>
-                {busy && <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />}
-                Save sign-in
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-password`}>Password</Label>
+            <SecretInput id={`${id}-password`} value={password} onChange={setPassword} />
+          </div>
+          <div className="flex gap-2 sm:col-span-2">
+            <Button type="submit" size="sm" disabled={busy || !username.trim() || !password}>
+              {busy && <Spinner className="motion-safe:animate-spin" />}
+              Save sign-in
+            </Button>
+            {editing && (
+              <Button type="button" size="sm" variant="soft" onClick={reset}>
+                Cancel
               </Button>
-              {editing && (
-                <Button type="button" size="sm" variant="ghost" onClick={reset}>
-                  Cancel
-                </Button>
-              )}
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
+            )}
+          </div>
+        </form>
+      )}
+    </DeployCard>
   );
 }
 
@@ -382,11 +359,11 @@ function DisconnectDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button variant="destructive" disabled={busy} onClick={() => void disconnect()}>
-            {busy && <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />}
+            {busy && <Spinner className="motion-safe:animate-spin" />}
             Disconnect
           </Button>
         </DialogFooter>
@@ -408,27 +385,26 @@ export function SiteAccessPanel({
 }): React.JSX.Element {
   const [disconnecting, setDisconnecting] = useState(false);
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       <PlainHttpCard site={site} />
       <ConnectionCard site={site} />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid items-start gap-2 xl:grid-cols-2">
         <RenameCard site={site} />
         <HttpAuthCard site={site} />
       </div>
       <AuditLogList site={site} />
-      <Card className="glass border-destructive/30">
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <div className="min-w-0 space-y-1.5">
-            <CardTitle className="flex items-center gap-2">
-              <LinkOff className="h-4 w-4 text-destructive" /> Disconnect
-            </CardTitle>
-            <CardDescription>Forget this site on this computer.</CardDescription>
-          </div>
-          <Button size="sm" variant="outline" onClick={() => setDisconnecting(true)}>
+      <DeployCard
+        className={GLASS_EDGE.destructive}
+        icon={<LinkOff />}
+        tone="destructive"
+        title="Disconnect"
+        description="Forget this site on this computer."
+        actions={
+          <Button size="sm" variant="danger" onClick={() => setDisconnecting(true)}>
             Disconnect
           </Button>
-        </CardHeader>
-      </Card>
+        }
+      />
       <DisconnectDialog
         site={site}
         open={disconnecting}

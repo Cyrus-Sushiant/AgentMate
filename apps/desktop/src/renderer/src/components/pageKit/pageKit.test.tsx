@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Server } from '@/components/icons';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { CATALOG_SIDEBAR_WIDTH, useCatalogLayoutStore } from '@/stores/catalogLayoutStore';
+import { PANEL_WIDTHS, usePanelWidthStore } from '@/stores/panelWidthStore';
 import {
   CatalogSplit,
   Chip,
@@ -276,7 +276,7 @@ describe('CountChip', () => {
 
 describe('CatalogSplit', () => {
   beforeEach(() => {
-    act(() => useCatalogLayoutStore.setState({ widths: {} }));
+    act(() => usePanelWidthStore.setState({ widths: {} }));
   });
 
   it('starts at the default width and remembers a resize per sidebar', () => {
@@ -291,15 +291,15 @@ describe('CatalogSplit', () => {
       </CatalogSplit>,
     );
     const aside = screen.getByRole('complementary', { name: 'Repositories' });
-    expect(aside.style.width).toBe(`${CATALOG_SIDEBAR_WIDTH.default}px`);
+    expect(aside.style.width).toBe(`${PANEL_WIDTHS.mcpRepositories.default}px`);
 
     fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize repositories' }), {
       key: 'ArrowRight',
     });
 
-    const saved = useCatalogLayoutStore.getState().widths;
-    expect(saved.mcpRepositories).toBe(CATALOG_SIDEBAR_WIDTH.default + 16);
+    const saved = usePanelWidthStore.getState().widths;
+    expect(saved.mcpRepositories).toBe(PANEL_WIDTHS.mcpRepositories.default + 16);
     expect(saved.skillRepositories).toBeUndefined();
-    expect(aside.style.width).toBe(`${CATALOG_SIDEBAR_WIDTH.default + 16}px`);
+    expect(aside.style.width).toBe(`${PANEL_WIDTHS.mcpRepositories.default + 16}px`);
   });
 });

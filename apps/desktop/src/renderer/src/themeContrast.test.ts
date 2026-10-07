@@ -42,8 +42,9 @@ function contrast(a: string, b: string): number {
 }
 
 const THEMES = {
-  light: block(':root'),
-  dark: { ...block(':root'), ...block('.dark') },
+  // The light tokens sit in the `:root, .theme-light` block; `.theme-light {` is its unique opener.
+  light: block('.theme-light'),
+  dark: { ...block('.theme-light'), ...block('.dark') },
 };
 
 describe.each(Object.entries(THEMES))('the %s theme', (_name, tokens) => {

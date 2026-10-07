@@ -164,6 +164,7 @@ describe('DashboardPage with an empty layout', () => {
 
     expect(screen.getByRole('button', { name: /New Project/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Open Prompt Builder/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Open Workspace/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Edit layout' })).toBeTruthy();
     // No rows were seeded, so the grid is empty and only the updates card is left.
     expect(screen.queryByText('CPU Usage')).toBeNull();

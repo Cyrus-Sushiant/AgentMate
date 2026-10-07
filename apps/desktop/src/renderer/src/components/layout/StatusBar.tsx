@@ -30,6 +30,8 @@ import {
   Wifi,
 } from '@/components/icons';
 import { ProviderLogo } from '@/components/providerLogos';
+import { Button } from '@/components/ui/button';
+import { OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
 import { type RunRow, useRunRows } from '@/hooks/useRunRows';
@@ -63,8 +65,9 @@ function formatBytes(bytes: number): string {
   return gb >= 10 ? `${gb.toFixed(0)} GB` : `${gb.toFixed(1)} GB`;
 }
 
+// whitespace-nowrap, because a squeezed segment would wrap and show only its middle line.
 const segmentClass =
-  'flex h-full items-center gap-1.5 rounded px-2 transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.07] data-[state=open]:text-foreground';
+  'flex h-full items-center gap-1.5 whitespace-nowrap rounded px-2 transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.07] data-[state=open]:text-foreground';
 
 function Segment({
   children,
@@ -89,6 +92,13 @@ function Segment({
     </SimpleTooltip>
   );
 }
+
+/** The glass every status bar panel opens as, the same as the app's menus and popovers. */
+const PANEL_SURFACE = cn(
+  OVERLAY_SURFACE,
+  OVERLAY_MOTION,
+  'z-50 overflow-hidden p-3 origin-[var(--radix-popover-content-transform-origin)]',
+);
 
 /** A status bar item that opens a panel with the detail behind its number. */
 function PopSegment({
@@ -120,10 +130,7 @@ function PopSegment({
           align="center"
           sideOffset={8}
           collisionPadding={8}
-          className={cn(
-            'z-50 overflow-hidden rounded-lg border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-            width,
-          )}
+          className={cn(PANEL_SURFACE, width)}
         >
           {panel}
         </PopoverPrimitive.Content>
@@ -224,7 +231,7 @@ function AgentSegments(): React.JSX.Element {
           key={tab.id}
           type="button"
           onClick={() => open(tab)}
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <AgentStatusDot status={status} className="shrink-0 scale-90" />
           {tab.cliId ? <CliLogo cliId={tab.cliId} className="h-3 w-3 shrink-0" /> : null}
@@ -441,7 +448,7 @@ function DockerSegment(): React.JSX.Element | null {
                     onClick={() =>
                       navigate(`/docker?container=${encodeURIComponent(container.id)}`)
                     }
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
                       {container.name}
@@ -557,7 +564,7 @@ function AndroidSegment(): React.JSX.Element | null {
           align="center"
           sideOffset={8}
           collisionPadding={8}
-          className="z-50 w-80 overflow-hidden rounded-lg border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          className={cn(PANEL_SURFACE, 'w-80')}
         >
           <PanelTitle title="Android" detail={`${running.length} of ${emulators.length} running`} />
           {running.length + booting.length > 0 ? (
@@ -567,7 +574,7 @@ function AndroidSegment(): React.JSX.Element | null {
                   <button
                     type="button"
                     onClick={() => go(emulator.serial)}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
                       {emulator.avd.displayName}
@@ -916,7 +923,7 @@ function KeepAwakeSegment(): React.JSX.Element | null {
                 key={option.mode}
                 type="button"
                 onClick={() => pick(option.mode)}
-                className="flex items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <Check
                   className={cn(
@@ -1009,9 +1016,6 @@ const RUN_STATE_LABEL: Record<RunRow['state'], string> = {
   idle: 'finished, the shell is still open',
 };
 
-const runActionClass =
-  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
-
 function RunDetail({
   row,
   stopLabel,
@@ -1033,28 +1037,26 @@ function RunDetail({
         <RunStateDot state={row.state} />
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
         <PopoverPrimitive.Close asChild>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={openTerminal}
-            className={cn(
-              runActionClass,
-              'text-muted-foreground hover:bg-foreground/[0.07] hover:text-foreground',
-            )}
+            className="text-muted-foreground"
           >
-            <TerminalSquare className="h-2.5 w-2.5" />
+            <TerminalSquare />
             Show terminal
-          </button>
+          </Button>
         </PopoverPrimitive.Close>
         <SimpleTooltip label={stopLabel ? `Stop (${stopLabel})` : 'Stop'} side="top">
-          <button
-            type="button"
+          <Button
+            variant="danger"
+            size="xs"
             aria-label={`Stop ${session.run.label}`}
             onClick={() => stopRun(session.id)}
-            className={cn(runActionClass, 'text-destructive hover:bg-destructive/10')}
           >
-            <StopCircle className="h-2.5 w-2.5" />
+            <StopCircle />
             Stop
-          </button>
+          </Button>
         </SimpleTooltip>
       </div>
       <p className="truncate text-[10px] text-muted-foreground">
@@ -1090,14 +1092,14 @@ function RunDetail({
             <span className="truncate">{url}</span>
           </button>
           <SimpleTooltip label="Copy address" side="top">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               aria-label="Copy address"
               onClick={() => void navigator.clipboard.writeText(url)}
-              className="rounded p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
-              <Copy className="h-2.5 w-2.5" />
-            </button>
+              <Copy />
+            </Button>
           </SimpleTooltip>
         </div>
       ) : null}

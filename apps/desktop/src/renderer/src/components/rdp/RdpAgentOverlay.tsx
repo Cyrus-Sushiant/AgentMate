@@ -119,7 +119,6 @@ export function RdpAgentOverlay({
         <span className="text-foreground/85">The AI is using this desktop</span>
         <Button
           size="sm"
-          className="h-7 rounded-full"
           // The overlay swallows clicks, so the button acts on its own pointer events.
           onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}

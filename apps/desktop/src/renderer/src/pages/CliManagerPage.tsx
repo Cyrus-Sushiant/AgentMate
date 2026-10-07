@@ -13,16 +13,11 @@ import {
   TerminalSquare,
 } from '@/components/icons';
 import {
-  CARD_PILL,
-  CARD_PILL_SOFT,
   Chip,
   EmptyState,
   GLASS_CARD,
   NoMatches,
-  PILL_PRIMARY,
-  PILL_SOFT,
   SearchPill,
-  TILE_ACTION,
   TOOLBAR,
   UpdateSummary,
 } from '@/components/pageKit';
@@ -204,8 +199,8 @@ export default function CliManagerPage(): React.JSX.Element {
         />
         {notInstalledCount > 0 && (
           <Button
-            variant="ghost"
-            className={cn(PILL_SOFT, showAll && 'text-primary hover:text-primary')}
+            variant="soft"
+            className={cn(showAll && 'text-primary hover:text-primary')}
             onClick={() => setShowAll((v) => !v)}
           >
             {showAll ? 'Hide not installed' : `Show all CLIs (${notInstalledCount} not installed)`}
@@ -213,8 +208,7 @@ export default function CliManagerPage(): React.JSX.Element {
         )}
         <div className="ml-auto flex items-center gap-2">
           <Button
-            variant="ghost"
-            className={PILL_SOFT}
+            variant="soft"
             disabled={checkingAll}
             onClick={() => void handleCheckAllForUpdates()}
           >
@@ -222,8 +216,7 @@ export default function CliManagerPage(): React.JSX.Element {
             {checkingAll ? 'Checking updates…' : 'Check all for updates'}
           </Button>
           <Button
-            variant="ghost"
-            className={PILL_SOFT}
+            variant="soft"
             onClick={() => {
               toast.info('Re-scanning installed CLIs…');
               // `true` skips the main process's detection cache, which is what
@@ -247,7 +240,7 @@ export default function CliManagerPage(): React.JSX.Element {
             title="No AI CLIs installed yet"
             description='Click "Show all CLIs" above to discover and install one.'
             action={
-              <Button className={PILL_PRIMARY} onClick={() => setShowAll(true)}>
+              <Button onClick={() => setShowAll(true)}>
                 <Search /> Browse the catalogue
               </Button>
             }
@@ -304,16 +297,8 @@ export default function CliManagerPage(): React.JSX.Element {
                   {status?.installed ? (
                     <>
                       <Button
-                        variant="ghost"
+                        variant={isDefault ? 'tint' : 'soft'}
                         size="sm"
-                        className={
-                          isDefault
-                            ? cn(
-                                CARD_PILL,
-                                'bg-primary/12 text-primary hover:bg-primary/18 hover:text-primary',
-                              )
-                            : CARD_PILL_SOFT
-                        }
                         onClick={() => setDefaultCliId(isDefault ? null : cli.id)}
                       >
                         {isDefault && <Check />}
@@ -322,8 +307,7 @@ export default function CliManagerPage(): React.JSX.Element {
                       <SimpleTooltip label="Check for updates">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className={TILE_ACTION}
+                          size="icon-sm"
                           disabled={checkingCliId === cli.id}
                           onClick={() => void handleCheckForUpdate(cli, status.version)}
                         >
@@ -334,11 +318,7 @@ export default function CliManagerPage(): React.JSX.Element {
                       </SimpleTooltip>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      className={CARD_PILL}
-                      onClick={() => void handleInstall(cli.id, cli.name)}
-                    >
+                    <Button size="sm" onClick={() => void handleInstall(cli.id, cli.name)}>
                       <TerminalSquare /> Install
                     </Button>
                   )}
@@ -346,8 +326,7 @@ export default function CliManagerPage(): React.JSX.Element {
                     <SimpleTooltip label="Open homepage">
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className={TILE_ACTION}
+                        size="icon-sm"
                         onClick={() => void window.agentmat.shell.openExternal(cli.homepageUrl!)}
                       >
                         <ExternalLink />
@@ -385,12 +364,10 @@ export default function CliManagerPage(): React.JSX.Element {
             command={pendingUpdate?.command ?? ''}
           />
           <DialogFooter>
-            <Button variant="ghost" className={PILL_SOFT} onClick={dismissPendingUpdate}>
+            <Button variant="soft" onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button className={PILL_PRIMARY} onClick={handleConfirmUpdate}>
-              Update
-            </Button>
+            <Button onClick={handleConfirmUpdate}>Update</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

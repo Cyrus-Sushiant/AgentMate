@@ -1,16 +1,21 @@
 import type { DeployServer } from '@shared/deployTypes';
 import type { DeployWordPressSite } from '@shared/deployWordPressTypes';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
 import { ExternalLink, Plus, RefreshCw, Spinner } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip, SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WordPressMark } from '@/components/wordpress/WordPressMark';
 import { cn } from '@/lib/utils';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
 import { type ServerState, serverState, useCoreHealth } from './coreHealth';
+import { Notice } from './deployKit';
 import { lastSeenText, siteHost } from './wordpress/messages';
+
+/** Servers and sites share one pill, so the selection slides between the two groups. */
+const PILL_ID = 'deploy-rail-active';
 
 function StatusDot({ state }: { state: ServerState }): React.JSX.Element {
   if (state === 'busy' || state === 'connecting') {
@@ -25,14 +30,52 @@ function StatusDot({ state }: { state: ServerState }): React.JSX.Element {
   }
   if (state === 'online') {
     return (
-      <span className="relative flex h-2.5 w-2.5">
+      <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-50 motion-safe:animate-ping" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-success shadow-[0_0_6px_hsl(var(--success)/0.7)]" />
       </span>
     );
   }
-  if (state === 'offline') return <span className="h-2.5 w-2.5 rounded-full bg-warning" />;
-  return <span className="h-2.5 w-2.5 rounded-full border-2 border-muted-foreground/50" />;
+  if (state === 'offline') return <span className="h-2 w-2 rounded-full bg-warning" />;
+  // A hollow ring for a server with no core yet. A border would take the global border colour.
+  return <span className="h-2 w-2 rounded-full ring-[1.5px] ring-inset ring-muted-foreground/60" />;
+}
+
+/** The tinted pill and glowing bar behind the selected row, as on the main menu. */
+function ActivePill(): React.JSX.Element {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.span
+      aria-hidden
+      layoutId={PILL_ID}
+      transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}
+      className="absolute inset-0 -z-10 rounded-lg bg-primary/12"
+    >
+      <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+    </motion.span>
+  );
+}
+
+/** A two-line rail row: the main menu's row, with room for a status line under the name. */
+function rowClass(selected: boolean): string {
+  return cn(
+    // `isolate` keeps the pill behind the text without lifting every child.
+    'relative isolate flex w-full cursor-pointer items-center gap-2.5 rounded-lg py-2 pl-3 pr-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+    !selected && 'hover:bg-foreground/[0.06]',
+  );
+}
+
+function RowTitle({ selected, children }: { selected: boolean; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        'block truncate text-[13px] font-medium',
+        selected ? 'text-primary' : 'text-foreground',
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 function RailItem({
@@ -61,21 +104,15 @@ function RailItem({
         type="button"
         aria-current={selected ? 'true' : undefined}
         onClick={() => onSelect(server.id)}
-        className={cn(
-          'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          selected
-            ? 'border-primary/40 bg-primary/10'
-            : 'border-border bg-secondary/30 hover:bg-accent',
-        )}
+        className={rowClass(selected)}
       >
+        {selected && <ActivePill />}
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">
           <StatusDot state={state} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">
-            {server.nickname}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">{text[state]}</span>
+          <RowTitle selected={selected}>{server.nickname}</RowTitle>
+          <span className="block truncate text-[11px] text-muted-foreground">{text[state]}</span>
         </span>
       </button>
     </li>
@@ -97,37 +134,45 @@ function SiteRailItem({
         type="button"
         aria-current={selected ? 'true' : undefined}
         onClick={() => onSelect(site.id)}
-        className={cn(
-          'flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          selected
-            ? 'border-primary/40 bg-primary/10'
-            : 'border-border bg-secondary/30 hover:bg-accent',
-        )}
+        className={cn(rowClass(selected), 'items-start')}
       >
-        <WordPressMark className="h-4 w-4" />
+        {selected && <ActivePill />}
+        <span className="flex h-[18px] w-4 shrink-0 items-center justify-center">
+          <WordPressMark className="h-3.5 w-3.5" />
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">{site.label}</span>
-          <span className="block truncate text-xs text-muted-foreground">
+          <RowTitle selected={selected}>{site.label}</RowTitle>
+          <span className="block truncate text-[11px] text-muted-foreground">
             {siteHost(site.siteUrl)}
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-1">
-            <span className="text-[11px] text-muted-foreground">{lastSeenText(site)}</span>
-            {site.scope === 'read' && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                Read-only
-              </Badge>
-            )}
-            {site.transport === 'plain-http' && (
-              <Badge variant="warning" className="px-1.5 py-0 text-[10px]">
-                Plain HTTP
-              </Badge>
-            )}
+            <span className="mr-0.5 text-[11px] text-muted-foreground">{lastSeenText(site)}</span>
+            {site.scope === 'read' && <Chip>Read-only</Chip>}
+            {site.transport === 'plain-http' && <Chip tone="warning">Plain HTTP</Chip>}
           </span>
         </span>
       </button>
     </li>
   );
 }
+
+/** A group heading in the rail, with how many entries the group holds. */
+function GroupHeading({ label, count }: { label: string; count?: number }): React.JSX.Element {
+  return (
+    <div className="flex h-7 items-center justify-between gap-2 px-3">
+      <p className={SECTION_HEADING}>{label}</p>
+      {count !== undefined && (
+        <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A quiet link row for the places this page hands off to. */
+const LINK_ROW =
+  'flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:shrink-0';
 
 /** The WordPress sites group under the servers, with its own loading and failure states. */
 function SiteGroup({
@@ -148,31 +193,24 @@ function SiteGroup({
   onConnectSite?: () => void;
 }): React.JSX.Element {
   return (
-    <div className="mt-2 flex flex-col gap-2">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          WordPress sites
-        </p>
-        {!loading && !error && (
-          <span className="text-xs tabular-nums text-muted-foreground">{sites.length}</span>
-        )}
-      </div>
+    <div className="mt-3 flex flex-col gap-1">
+      <GroupHeading label="WordPress sites" count={!loading && !error ? sites.length : undefined} />
       {loading ? (
-        <div className="flex flex-col gap-1.5" aria-busy="true">
+        <div className="px-1" aria-busy="true">
           <Skeleton className="h-14 w-full rounded-lg" />
         </div>
       ) : error ? (
-        <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 p-2.5">
-          <p className="text-xs text-foreground">The WordPress sites did not load: {error}</p>
+        <Notice role="alert" tone="destructive" className="mx-1 text-xs">
+          <p>The WordPress sites did not load: {error}</p>
           {onRetrySites && (
-            <Button size="sm" variant="outline" onClick={onRetrySites}>
-              <RefreshCw className="h-3.5 w-3.5" /> Try again
+            <Button size="sm" variant="soft" className="mt-2" onClick={onRetrySites}>
+              <RefreshCw /> Try again
             </Button>
           )}
-        </div>
+        </Notice>
       ) : (
         sites.length > 0 && (
-          <ul aria-label="WordPress sites" className="flex flex-col gap-1.5">
+          <ul aria-label="WordPress sites" className="flex flex-col gap-px">
             {sites.map((site) => (
               <SiteRailItem
                 key={site.id}
@@ -185,8 +223,8 @@ function SiteGroup({
         )
       )}
       {onConnectSite && (
-        <Button variant="outline" size="sm" className="justify-start" onClick={onConnectSite}>
-          <Plus className="h-3.5 w-3.5" /> Connect a WordPress site
+        <Button variant="soft" size="sm" className="mx-1 mt-1" onClick={onConnectSite}>
+          <Plus /> Connect a WordPress site
         </Button>
       )}
     </div>
@@ -222,45 +260,42 @@ export function ServerRail({
   onConnectSite?: () => void;
 }): React.JSX.Element {
   return (
-    <nav aria-label="Servers" className="flex flex-col gap-2">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Servers</p>
-        <span className="text-xs tabular-nums text-muted-foreground">{servers.length}</span>
-      </div>
-      {servers.length === 0 && (
-        <p className="px-1 text-xs text-muted-foreground">No servers yet.</p>
-      )}
-      <ul className="flex flex-col gap-1.5">
-        {servers.map((server) => (
-          <RailItem
-            key={server.id}
-            server={server}
-            selected={server.id === selectedId}
-            onSelect={onSelect}
+    <nav aria-label="Servers" className="flex flex-col gap-1">
+      <LayoutGroup id="deploy-rail">
+        <GroupHeading label="Servers" count={servers.length} />
+        {servers.length === 0 && (
+          <p className="px-3 text-xs text-muted-foreground">No servers yet.</p>
+        )}
+        <ul className="flex flex-col gap-px">
+          {servers.map((server) => (
+            <RailItem
+              key={server.id}
+              server={server}
+              selected={server.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </ul>
+        <div className="flex flex-col gap-px">
+          <Link to="/remote" className={LINK_ROW}>
+            <ExternalLink /> Add or edit servers in Remote
+          </Link>
+          <Link to="/deploy/cloudflare" className={LINK_ROW}>
+            <CloudflareMark /> Cloudflare: domains and DNS
+          </Link>
+        </div>
+        {(sites !== undefined || sitesLoading || sitesError !== null) && onSelectSite && (
+          <SiteGroup
+            sites={sites ?? []}
+            loading={sitesLoading}
+            error={sitesError}
+            selectedSiteId={selectedSiteId}
+            onSelectSite={onSelectSite}
+            onRetrySites={onRetrySites}
+            onConnectSite={onConnectSite}
           />
-        ))}
-      </ul>
-      <Button asChild variant="ghost" size="sm" className="justify-start text-muted-foreground">
-        <Link to="/remote">
-          <ExternalLink className="h-3.5 w-3.5" /> Add or edit servers in Remote
-        </Link>
-      </Button>
-      <Button asChild variant="outline" size="sm" className="justify-start">
-        <Link to="/deploy/cloudflare">
-          <CloudflareMark className="h-3.5 w-3.5" /> Cloudflare: domains and DNS
-        </Link>
-      </Button>
-      {(sites !== undefined || sitesLoading || sitesError !== null) && onSelectSite && (
-        <SiteGroup
-          sites={sites ?? []}
-          loading={sitesLoading}
-          error={sitesError}
-          selectedSiteId={selectedSiteId}
-          onSelectSite={onSelectSite}
-          onRetrySites={onRetrySites}
-          onConnectSite={onConnectSite}
-        />
-      )}
+        )}
+      </LayoutGroup>
     </nav>
   );
 }

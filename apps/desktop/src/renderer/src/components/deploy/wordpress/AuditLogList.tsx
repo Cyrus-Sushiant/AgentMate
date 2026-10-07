@@ -1,10 +1,10 @@
 import type { DeployWordPressSite } from '@shared/deployWordPressTypes';
 import { FileText, RefreshCw, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { DeployCard } from '../deployKit';
 import { SetupFailure } from '../SetupFailure';
 import { useSiteAudit } from './hooks';
 import { AUDIT_EVENT_LABEL, AUDIT_EVENT_WARNS, siteTimeText, wpProblem } from './messages';
@@ -23,7 +23,7 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
     body = (
       <div className="space-y-2" aria-busy="true">
         {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-9 w-full rounded-md" />
+          <Skeleton key={index} className="h-9 w-full rounded-lg" />
         ))}
       </div>
     );
@@ -31,8 +31,8 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
     body = (
       <div className="space-y-3">
         <SetupFailure message={wpProblem(audit.error)} />
-        <Button size="sm" variant="outline" onClick={() => void audit.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
+        <Button size="sm" variant="soft" onClick={() => void audit.refetch()}>
+          <RefreshCw /> Try again
         </Button>
       </div>
     );
@@ -41,10 +41,10 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
   } else {
     body = (
       <div className="space-y-3">
-        <div className="overflow-x-auto rounded-lg border border-border/70">
+        <div className="overflow-x-auto rounded-xl bg-foreground/[0.02] ring-1 ring-inset ring-foreground/[0.07]">
           <table className="w-full min-w-[36rem] border-collapse text-left text-xs">
             <caption className="sr-only">Audit log, newest first</caption>
-            <thead className="bg-secondary/40 text-muted-foreground">
+            <thead className="bg-foreground/[0.04] text-muted-foreground">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">
                   When
@@ -60,9 +60,13 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60">
+            <tbody>
               {entries.map((entry) => (
-                <tr key={entry.id} className="align-top">
+                // A hairline as an inset shadow, since a border would take the global colour.
+                <tr
+                  key={entry.id}
+                  className="align-top [&>td]:shadow-[inset_0_1px_0_hsl(var(--foreground)/0.07)]"
+                >
                   <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                     {siteTimeText(entry.at)}
                   </td>
@@ -95,13 +99,11 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
         {audit.hasNextPage && (
           <Button
             size="sm"
-            variant="outline"
+            variant="soft"
             disabled={audit.isFetchingNextPage}
             onClick={() => void audit.fetchNextPage()}
           >
-            {audit.isFetchingNextPage && (
-              <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-            )}
+            {audit.isFetchingNextPage && <Spinner className="motion-safe:animate-spin" />}
             Load older entries
           </Button>
         )}
@@ -110,28 +112,22 @@ export function AuditLogList({ site }: { site: DeployWordPressSite }): React.JSX
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" /> Audit log
-          </CardTitle>
-          <CardDescription className="max-w-2xl">
-            What the connector recorded on the site, newest first: keys, connections, refused
-            requests, pulls, deploys and rollbacks. wp-admin shows the same log under Tools &gt;
-            AgentMate Connector.
-          </CardDescription>
-        </div>
+    <DeployCard
+      icon={<FileText />}
+      title="Audit log"
+      description="What the connector recorded on the site, newest first: keys, connections, refused requests, pulls, deploys and rollbacks. wp-admin shows the same log under Tools > AgentMate Connector."
+      actions={
         <Button
           size="sm"
-          variant="outline"
+          variant="soft"
           disabled={audit.isFetching}
           onClick={() => void audit.refetch()}
         >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <RefreshCw /> Refresh
         </Button>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
-    </Card>
+      }
+    >
+      {body}
+    </DeployCard>
   );
 }

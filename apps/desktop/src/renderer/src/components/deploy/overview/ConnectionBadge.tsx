@@ -1,5 +1,6 @@
 import type { DeployConnection, DeployConnectionState, DeployTransport } from '@shared/deployTypes';
 import { Lock, Spinner, TriangleAlert } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useDeployConnection } from './hooks';
@@ -98,7 +99,10 @@ export function ConnectionMark({
     return (
       <span
         aria-hidden
-        className={cn('h-2 w-2 rounded-full border-2 border-muted-foreground/60', className)}
+        className={cn(
+          'h-2 w-2 rounded-full ring-[1.5px] ring-inset ring-muted-foreground/60',
+          className,
+        )}
       />
     );
   }
@@ -113,29 +117,25 @@ export function ConnectionBadge({ serverId }: { serverId: string }): React.JSX.E
   const via = state === 'online' && connection?.transport ? VIA[connection.transport] : null;
   return (
     <SimpleTooltip label={explain(connection, Date.now())}>
-      <span
+      <Chip
         role="status"
         aria-label={`Live connection: ${label}${via ? `, ${via}` : ''}`}
         tabIndex={0}
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        tone={
           mismatch
-            ? 'border-destructive/40 bg-destructive/10 text-foreground'
+            ? 'destructive'
             : state === 'online'
-              ? 'border-success/40 bg-success/10 text-foreground'
+              ? 'success'
               : state === 'reconnecting' || state === 'needs-sign-in' || state === 'locked'
-                ? 'border-warning/40 bg-warning/10 text-foreground'
-                : 'border-border bg-secondary/40 text-muted-foreground',
-        )}
+                ? 'warning'
+                : 'neutral'
+        }
+        className="h-6 gap-1.5 px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {mismatch ? (
-          <TriangleAlert className="h-3 w-3 text-destructive" aria-hidden />
-        ) : (
-          <ConnectionMark state={state} />
-        )}
+        {mismatch ? <TriangleAlert aria-hidden /> : <ConnectionMark state={state} />}
         {label}
-        {via && <span className="font-normal text-muted-foreground">over {via}</span>}
-      </span>
+        {via && <span className="font-normal opacity-75">over {via}</span>}
+      </Chip>
     </SimpleTooltip>
   );
 }

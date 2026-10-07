@@ -79,7 +79,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <Button onClick={() => this.setState({ error: null, componentStack: null })}>
                 <RefreshCw className="h-3.5 w-3.5" /> Try again
               </Button>
-              <Button variant="outline" onClick={() => window.location.reload()}>
+              <Button variant="soft" onClick={() => window.location.reload()}>
                 Reload window
               </Button>
               <Button

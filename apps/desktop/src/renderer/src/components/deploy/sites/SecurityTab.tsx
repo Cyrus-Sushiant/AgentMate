@@ -8,6 +8,7 @@ import { Plus, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AccessFields } from './AccessFields';
 import { FieldError, SELECT_CLASS, Section, TextField, ToggleRow } from './fields';
 import type { SiteTabProps } from './tabTypes';
@@ -71,7 +72,7 @@ export function SecurityTab(props: SiteTabProps): React.JSX.Element {
     set({ headers: draft.headers.map((row, at) => (at === index ? { ...row, ...patch } : row)) });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Section title="Security headers" description="Sent with every response.">
         <ToggleRow
           label="Add security headers"
@@ -129,17 +130,20 @@ export function SecurityTab(props: SiteTabProps): React.JSX.Element {
                     className="font-mono"
                   />
                   {!readOnly && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Remove header ${row.name || index + 1}`}
-                      onClick={() =>
-                        set({ headers: draft.headers.filter((_, at) => at !== index) })
-                      }
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <SimpleTooltip label="Remove">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Remove header ${row.name || index + 1}`}
+                        onClick={() =>
+                          set({ headers: draft.headers.filter((_, at) => at !== index) })
+                        }
+                      >
+                        <Trash2 />
+                      </Button>
+                    </SimpleTooltip>
                   )}
                 </div>
                 <FieldError message={error(`responseHeaders[${index}].name`)} />
@@ -149,7 +153,7 @@ export function SecurityTab(props: SiteTabProps): React.JSX.Element {
           {!readOnly && (
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               size="sm"
               onClick={() => set({ headers: [...draft.headers, { name: '', value: '' }] })}
             >

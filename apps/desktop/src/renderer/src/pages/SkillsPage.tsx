@@ -33,23 +33,17 @@ import {
 } from '@/components/icons';
 import {
   CARD_GRID,
-  CARD_PILL,
-  CARD_PILL_SOFT,
   CatalogCardShimmer,
   CatalogSplit,
   Chip,
   EmptyState,
   FilterChip,
   GLASS_CARD,
-  HEADER_ICON_BUTTON,
-  PILL_PRIMARY,
-  PILL_SOFT,
   PillTabs,
   RepositorySourceIcon,
   SECTION_HEADING,
   SearchPill,
   SideNavRow,
-  TILE_ACTION,
 } from '@/components/pageKit';
 import { AdHocSkillScanner } from '@/components/skills/AdHocSkillScanner';
 import { SkillAuditReport, SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
@@ -236,23 +230,17 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
       meta={skill.repo}
       actions={
         <>
-          <Button size="sm" className={CARD_PILL} onClick={() => onInstall(skill)}>
+          <Button size="sm" onClick={() => onInstall(skill)}>
             <Download /> Install
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={CARD_PILL_SOFT}
-            onClick={() => onView(skill)}
-          >
+          <Button variant="soft" size="sm" onClick={() => onView(skill)}>
             <Eye /> View
           </Button>
           <div className="ml-auto flex items-center gap-0.5">
             <SimpleTooltip label="Check this skill for unsafe instructions">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 aria-label={`Check ${skill.name} for unsafe instructions`}
                 onClick={() => onCheckSecurity(skill)}
               >
@@ -262,8 +250,7 @@ const SkillsShDirectoryCard = memo(function SkillsShDirectoryCard({
             <SimpleTooltip label="Open on skills.sh">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 aria-label={`Open ${skill.name} on skills.sh`}
                 onClick={() => void window.agentmat.shell.openExternal(skill.url)}
               >
@@ -311,7 +298,7 @@ function ShowMoreButton({
 }): React.JSX.Element {
   return (
     <div className="flex justify-center pt-1">
-      <Button variant="ghost" className={PILL_SOFT} onClick={onClick}>
+      <Button variant="soft" onClick={onClick}>
         Show more ({remaining} remaining)
       </Button>
     </div>
@@ -923,9 +910,8 @@ export default function SkillsPage(): React.JSX.Element {
           onChange={setActiveTab}
         />
         <Button
-          variant="ghost"
-          size="sm"
-          className={cn(PILL_SOFT, 'ml-auto shrink-0')}
+          variant="soft"
+          className="ml-auto shrink-0"
           onClick={() => setGlobalSkillsModalOpen(true)}
         >
           <Globe />
@@ -958,14 +944,14 @@ export default function SkillsPage(): React.JSX.Element {
               <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-2">
                 <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Repositories</h2>
                 <SimpleTooltip label="Add repository">
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label="Add repository"
                     onClick={() => setAddRepoOpen(true)}
-                    className={HEADER_ICON_BUTTON}
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+                    <Plus />
+                  </Button>
                 </SimpleTooltip>
               </div>
               <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -1040,8 +1026,7 @@ export default function SkillsPage(): React.JSX.Element {
                   <SimpleTooltip label={showingAllRepos ? 'Refresh all repositories' : 'Refresh'}>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className={TILE_ACTION}
+                      size="icon-sm"
                       aria-label={
                         showingAllRepos ? 'Refresh all repositories' : 'Refresh repository'
                       }
@@ -1061,8 +1046,8 @@ export default function SkillsPage(): React.JSX.Element {
                   <SimpleTooltip label="Remove repository">
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className={cn(TILE_ACTION, 'hover:text-destructive')}
+                      size="icon-sm"
+                      className="hover:text-destructive"
                       aria-label="Remove repository"
                       onClick={() => removeRepoMutation.mutate(selectedRepoId)}
                     >
@@ -1118,7 +1103,7 @@ export default function SkillsPage(): React.JSX.Element {
                   }
                   action={
                     repoCount === 0 ? (
-                      <Button className={PILL_PRIMARY} onClick={() => setAddRepoOpen(true)}>
+                      <Button onClick={() => setAddRepoOpen(true)}>
                         <Plus /> Add a repository
                       </Button>
                     ) : undefined
@@ -1182,7 +1167,6 @@ export default function SkillsPage(): React.JSX.Element {
                         <>
                           <Button
                             size="sm"
-                            className={CARD_PILL}
                             onClick={() =>
                               openInstallPicker({
                                 kind: 'repo',
@@ -1196,9 +1180,8 @@ export default function SkillsPage(): React.JSX.Element {
                           </Button>
                           {skill.documentationUrl && (
                             <Button
-                              variant="ghost"
+                              variant="soft"
                               size="sm"
-                              className={CARD_PILL_SOFT}
                               onClick={() =>
                                 void window.agentmat.shell.openExternal(skill.documentationUrl!)
                               }
@@ -1209,8 +1192,8 @@ export default function SkillsPage(): React.JSX.Element {
                           <SimpleTooltip label="Check this skill for unsafe instructions">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={cn(TILE_ACTION, 'ml-auto')}
+                              size="icon-sm"
+                              className="ml-auto"
                               aria-label={`Check ${skill.name} for unsafe instructions`}
                               onClick={() =>
                                 setSecuritySubject({
@@ -1410,9 +1393,7 @@ export default function SkillsPage(): React.JSX.Element {
               </div>
               {auditCount > 0 && (
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className={PILL_SOFT}
+                  variant="soft"
                   onClick={() => {
                     void confirmDialog({
                       title: 'Clear the security check history?',
@@ -1473,19 +1454,14 @@ export default function SkillsPage(): React.JSX.Element {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={CARD_PILL_SOFT}
-                        onClick={() => setAuditDetail(audit)}
-                      >
+                      <Button variant="soft" size="sm" onClick={() => setAuditDetail(audit)}>
                         <Eye /> View
                       </Button>
                       <SimpleTooltip label="Delete this check">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className={cn(TILE_ACTION, 'hover:text-destructive')}
+                          size="icon-sm"
+                          className="hover:text-destructive"
                           aria-label={`Delete the check of ${audit.skillName}`}
                           onClick={() => removeAuditMutation.mutate(audit.id)}
                         >
@@ -1566,8 +1542,9 @@ export default function SkillsPage(): React.JSX.Element {
                   <SimpleTooltip label="Browse for a folder">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="soft"
                       size="icon"
+                      className="h-9 w-9"
                       onClick={() => void handlePickLocalFolder()}
                     >
                       <FolderOpen className="h-4 w-4" />
@@ -1671,8 +1648,9 @@ export default function SkillsPage(): React.JSX.Element {
                 <SimpleTooltip label="Copy">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="soft"
                     size="icon"
+                    className="h-9 w-9"
                     onClick={() =>
                       shSelected && handleCopyInstallCommand(shSelected.installCommand)
                     }
@@ -1695,7 +1673,7 @@ export default function SkillsPage(): React.JSX.Element {
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               onClick={() => shSelected && void window.agentmat.shell.openExternal(shSelected.url)}
             >
               <ExternalLink /> Open on skills.sh
@@ -1875,8 +1853,7 @@ export default function SkillsPage(): React.JSX.Element {
                       <SimpleTooltip label="Check this skill for unsafe instructions">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className={TILE_ACTION}
+                          size="icon-sm"
                           aria-label={`Check ${skill.skillId} for unsafe instructions`}
                           onClick={() =>
                             setSecuritySubject({
@@ -1896,7 +1873,6 @@ export default function SkillsPage(): React.JSX.Element {
                       {update?.hasUpdate && (
                         <Button
                           size="sm"
-                          className={CARD_PILL}
                           disabled={
                             updateGlobalSkillMutation.isPending &&
                             updateGlobalSkillMutation.variables?.skillId === skill.skillId
@@ -1908,8 +1884,8 @@ export default function SkillsPage(): React.JSX.Element {
                       )}
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className={cn(TILE_ACTION, 'hover:text-destructive')}
+                        size="icon-sm"
+                        className="hover:text-destructive"
                         aria-label={`Remove ${skill.skillId}`}
                         onClick={() => {
                           void confirmDialog({

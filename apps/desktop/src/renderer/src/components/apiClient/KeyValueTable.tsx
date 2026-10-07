@@ -1,6 +1,7 @@
 import type { KeyValueRow } from '@agentmat/core';
 import { useState } from 'react';
 import { Trash2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -77,8 +78,10 @@ export function KeyValueTable({
 
   const toggle = allowBulkEdit ? (
     <div className="flex justify-end">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={() => {
           if (bulk === null) {
             setBulk(rowsToBulk(rows));
@@ -87,10 +90,10 @@ export function KeyValueTable({
             setBulk(null);
           }
         }}
-        className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="text-muted-foreground hover:text-foreground"
       >
         {bulk === null ? 'Bulk edit' : 'Key-value edit'}
-      </button>
+      </Button>
     </div>
   ) : null;
 

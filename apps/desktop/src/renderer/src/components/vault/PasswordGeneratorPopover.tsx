@@ -56,13 +56,7 @@ export function PasswordGeneratorPopover({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <SimpleTooltip label="Generate a password">
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
-            aria-label="Generate a password"
-          >
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Generate a password">
             <Dice className="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
@@ -78,8 +72,8 @@ export function PasswordGeneratorPopover({
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="-mr-1.5 -mt-1 h-7 w-7 shrink-0"
+              size="icon-sm"
+              className="-mr-1.5 -mt-1 shrink-0"
               aria-label="Generate another"
               onClick={() => setPassword(generatePassword(options))}
             >

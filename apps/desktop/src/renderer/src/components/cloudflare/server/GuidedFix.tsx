@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Key, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { queryKeys } from '@/lib/queryKeys';
+import { Notice } from '../fields';
 
 /**
  * What went wrong with a Cloudflare step, and when Cloudflare refused it for want of a
@@ -40,22 +41,16 @@ export function GuidedFix({
   }
   const needed = cloudflarePermission(permission);
   return (
-    <div
-      role="alert"
-      className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground"
-    >
-      <p className="flex items-start gap-2">
-        <Key className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-        <span>
+    <Notice role="alert" tone="warning" icon={Key}>
+      <div className="space-y-2">
+        <p>
           The Cloudflare token cannot {needed.action} yet. On Cloudflare, edit the token and add{' '}
           <span className="font-mono text-xs">{needed.label}</span>, then try again.
-        </span>
-      </p>
-      <div className="flex flex-wrap gap-2">
+        </p>
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="soft"
           onClick={() => {
             void window.agentmat.shell.openExternal(TOKEN_PAGE);
             void queryClient.invalidateQueries({ queryKey: queryKeys.cloudflareStatus });
@@ -63,8 +58,8 @@ export function GuidedFix({
         >
           <ExternalLink className="h-3.5 w-3.5" /> Open Cloudflare's token page
         </Button>
+        {alternative}
       </div>
-      {alternative}
-    </div>
+    </Notice>
   );
 }

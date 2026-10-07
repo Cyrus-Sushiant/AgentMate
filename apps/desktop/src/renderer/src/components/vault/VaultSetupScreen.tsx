@@ -95,7 +95,7 @@ export function VaultSetupScreen(): React.JSX.Element {
           </p>
         )}
 
-        <Button type="submit" className="h-10 w-full rounded-full" disabled={!ready}>
+        <Button type="submit" size="lg" className="h-10 w-full" disabled={!ready}>
           {busy && <Spinner className="h-3.5 w-3.5 animate-spin" />}
           Create vault
         </Button>

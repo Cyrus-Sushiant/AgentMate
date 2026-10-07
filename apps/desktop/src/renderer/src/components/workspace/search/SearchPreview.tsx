@@ -6,6 +6,7 @@ import { formatImageSize, type ImageSize, ImageView } from '@/components/editor/
 import { languageFor } from '@/components/editor/MonacoDiffEditor';
 import { currentMonacoTheme } from '@/components/editor/MonacoEditor';
 import { File, ImageIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { formatBytes } from '@/lib/format';
@@ -247,7 +248,7 @@ export function SearchPreview({ target }: { target: PreviewTarget | null }): Rea
 
   return (
     <section aria-label="Preview" className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border/50 px-3 text-[11px]">
+      <header className="flex h-7 shrink-0 items-center gap-1.5 px-3.5 text-[11px] shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]">
         {target ? (
           <>
             {targetIsPicture ? (
@@ -267,21 +268,21 @@ export function SearchPreview({ target }: { target: PreviewTarget | null }): Rea
                 <SimpleTooltip
                   label={showImages ? 'Hide picture previews' : 'Show picture previews'}
                 >
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label={showImages ? 'Hide picture previews' : 'Show picture previews'}
                     aria-pressed={showImages}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => setPreview({ images: !showImages })}
                     className={cn(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded',
-                      showImages
-                        ? 'text-primary hover:bg-primary/15'
-                        : 'text-muted-foreground hover:bg-foreground/10 hover:text-foreground',
+                      'h-5 w-5 [&_svg]:size-2.5',
+                      showImages && 'text-primary hover:bg-primary/15 hover:text-primary',
                     )}
                   >
-                    <ImageIcon className="h-2.5 w-2.5" />
-                  </button>
+                    <ImageIcon />
+                  </Button>
                 </SimpleTooltip>
               </>
             ) : (

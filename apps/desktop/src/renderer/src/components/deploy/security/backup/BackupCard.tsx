@@ -2,8 +2,8 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useState } from 'react';
 import { Archive, ArchiveRestore } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { CARD_BODY, SecurityCard } from '../SecurityCard';
 import { useStepUp } from '../useStepUp';
 import { CreateBackupDialog } from './CreateBackupDialog';
 import { RestoreDialog } from './RestoreDialog';
@@ -23,31 +23,24 @@ export function BackupCard({
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Archive className="h-4 w-4 text-primary" /> Backups
-        </CardTitle>
-        <CardDescription className="max-w-2xl leading-relaxed">
-          A backup holds the core's database (users, computers, sites, certificates, settings), the
-          keys that open what it keeps encrypted, and the apps' files. It is encrypted on the server
-          with a passphrase you choose (AES-256-GCM, the key stretched with PBKDF2), saved on this
-          computer, and deleted from the server.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap gap-2">
-        <Button onClick={() => setCreating(true)}>
-          <Archive className="h-4 w-4" /> Back up now
+    <SecurityCard
+      icon={<Archive />}
+      title="Backups"
+      description="A backup holds the core's database (users, computers, sites, certificates, settings), the keys that open what it keeps encrypted, and the apps' files. It is encrypted on the server with a passphrase you choose (AES-256-GCM, the key stretched with PBKDF2), saved on this computer, and deleted from the server."
+    >
+      <div className={`${CARD_BODY} flex flex-wrap gap-2`}>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Archive className="h-3.5 w-3.5" /> Back up now
         </Button>
         <SimpleTooltip
           label={server.dev ? 'The DevHost has no SSH to restore over.' : undefined}
           wrapTrigger
         >
-          <Button variant="outline" disabled={server.dev} onClick={() => setRestoring(true)}>
-            <ArchiveRestore className="h-4 w-4" /> Restore a backup
+          <Button size="sm" variant="soft" disabled={server.dev} onClick={() => setRestoring(true)}>
+            <ArchiveRestore className="h-3.5 w-3.5" /> Restore a backup
           </Button>
         </SimpleTooltip>
-      </CardContent>
+      </div>
       <CreateBackupDialog
         server={server}
         open={creating}
@@ -61,6 +54,6 @@ export function BackupCard({
         onOpenChange={setRestoring}
       />
       {stepUp.dialog}
-    </Card>
+    </SecurityCard>
   );
 }

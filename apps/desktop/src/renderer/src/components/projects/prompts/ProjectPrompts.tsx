@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, FileText, History, Plus, Search, Sparkles } from '@/components/icons';
-import { PILL_PRIMARY, PILL_SOFT, PillTabs, SearchPill } from '@/components/pageKit';
+import { PillTabs, SearchPill } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
@@ -362,15 +362,10 @@ export function ProjectPrompts({ project }: { project: Project }): React.JSX.Ele
           Everything you've sent, are still writing, or have lined up to run on this project.
         </p>
         <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={PILL_SOFT}
-            onClick={() => navigate('/prompt-builder')}
-          >
+          <Button variant="soft" onClick={() => navigate('/prompt-builder')}>
             <Sparkles /> Prompt Builder
           </Button>
-          <Button size="sm" className={PILL_PRIMARY} onClick={openNew}>
+          <Button onClick={openNew}>
             <Plus /> New prompt
           </Button>
         </div>

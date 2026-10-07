@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { TriangleAlert } from '@/components/icons';
+import { SECTION_WELL } from '@/components/pageKit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -7,8 +8,13 @@ import { cn } from '@/lib/utils';
 
 /** The small form pieces every tab of the site editor is made of. */
 
+/**
+ * A native select in the shared field look (see `.field-surface` in index.css), the same pill
+ * as ui/input and the Cloudflare page's NativeSelect. The `.dark .field-surface` rule sets the
+ * colour scheme, so the option popup follows the theme too.
+ */
 export const SELECT_CLASS =
-  'h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50';
+  'field-surface flex h-9 w-full cursor-pointer rounded-full pl-3 pr-2 text-sm text-foreground disabled:cursor-not-allowed';
 
 /** A problem with a field, marked with an icon and announced, not only coloured. */
 export function FieldError({
@@ -102,7 +108,7 @@ export function TextField({
           autoComplete="off"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-          className={cn(mono && 'font-mono', error && 'border-destructive')}
+          className={cn(mono && 'font-mono')}
         />
         {suffix && <span className="shrink-0 text-xs text-muted-foreground">{suffix}</span>}
       </div>
@@ -127,9 +133,9 @@ export function Section({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <section className="space-y-3 rounded-lg border border-border/70 p-4">
-      <div>
-        <h4 className="text-sm font-medium text-foreground">{title}</h4>
+    <section className={cn(SECTION_WELL, 'space-y-3 p-4')}>
+      <div className="space-y-0.5">
+        <h4 className="text-[13px] font-semibold text-foreground">{title}</h4>
         {description && <p className="text-xs text-muted-foreground">{description}</p>}
       </div>
       {children}

@@ -7,20 +7,24 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Globe, Pencil, Plus, Server, Trash2 } from '@/components/icons';
+import { Chip, EmptyState, FOOTER_HAIRLINE, SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cloudflareFailureText, useCloudflareError } from '@/lib/cloudflare/feedback';
 import { relativeName, ttlLabel } from '@/lib/cloudflare/labels';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
-import { Problem } from './fields';
+import { CardBody, CloudflareCard, Problem } from './fields';
 import { PointDomainDialog } from './PointDomainDialog';
 import { RecordDialog } from './RecordDialog';
 
 const LONG_CONTENT = 40;
+
+/** The hairline under the column headings. It sits on the cells, since a row paints no shadow. */
+const HEADER_LINE = 'shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]';
 
 /** The same record with the proxy turned on or off, and nothing else changed. */
 function withProxy(record: CloudflareDnsRecord, proxied: boolean): CloudflareRecordInput {
@@ -35,9 +39,14 @@ function withProxy(record: CloudflareDnsRecord, proxied: boolean): CloudflareRec
 
 function RecordsSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-2" aria-busy="true">
+    <div className={cn(FOOTER_HAIRLINE, 'settings-rows')} aria-busy="true">
       {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-9 w-full rounded-md" />
+        <div key={index} className="flex items-center gap-3 px-4 py-2.5">
+          <Skeleton className="h-5 w-12 rounded-full" />
+          <Skeleton className="h-3.5 w-24" />
+          <Skeleton className="h-3.5 flex-1" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
       ))}
     </div>
   );
@@ -95,30 +104,43 @@ export function DnsRecordsCard({ zone }: { zone: CloudflareZone }): React.JSX.El
   if (records.isPending) {
     body = <RecordsSkeleton />;
   } else if (records.isError) {
-    body = <Problem message={loadError ?? ''} onRetry={() => void records.refetch()} />;
+    body = (
+      <CardBody>
+        <Problem message={loadError ?? ''} onRetry={() => void records.refetch()} />
+      </CardBody>
+    );
   } else if (records.data.length === 0) {
     body = (
-      <p className="text-sm text-muted-foreground">
-        No DNS records yet. Add one, or point the domain to one of your servers.
-      </p>
+      <EmptyState
+        size="sm"
+        icon={Globe}
+        title="No DNS records yet"
+        description="Add one, or point the domain to one of your servers."
+        className={FOOTER_HAIRLINE}
+      />
     );
   } else {
     body = (
-      <div className="overflow-x-auto rounded-lg border border-border/70">
-        <table className="w-full text-sm">
-          <thead className="bg-secondary/30 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Type</th>
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Content</th>
-              <th className="px-3 py-2 font-medium">Proxy</th>
-              <th className="px-3 py-2 font-medium">TTL</th>
-              <th className="px-3 py-2 font-medium">
+      // Hairline rows like a Settings card. Wider than the card on a narrow window, the table
+      // scrolls sideways on its own instead of squeezing the content column away.
+      <div className={cn(FOOTER_HAIRLINE, 'overflow-x-auto')}>
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="text-left">
+              {['Type', 'Name', 'Content', 'Proxy', 'TTL'].map((heading) => (
+                <th
+                  key={heading}
+                  className={cn(SECTION_HEADING, HEADER_LINE, 'px-3 py-2 first:pl-4')}
+                >
+                  {heading}
+                </th>
+              ))}
+              <th className={cn(HEADER_LINE, 'px-3 py-2 pr-4')}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/60">
+          <tbody className="settings-rows">
             {records.data.map((record) => {
               const what = `the ${record.type} record for ${record.name}`;
               const content = (
@@ -127,11 +149,11 @@ export function DnsRecordsCard({ zone }: { zone: CloudflareZone }): React.JSX.El
                 </span>
               );
               return (
-                <tr key={record.id}>
-                  <td className="px-3 py-2">
-                    <span className="rounded border border-border/70 bg-secondary/40 px-1.5 py-0.5 font-mono text-xs">
+                <tr key={record.id} className="transition-colors hover:bg-foreground/[0.03]">
+                  <td className="py-2 pl-4 pr-3">
+                    <Chip tone="primary" className="font-mono">
                       {record.type}
-                    </span>
+                    </Chip>
                   </td>
                   <td className="max-w-[14rem] truncate px-3 py-2 font-mono text-xs">
                     {relativeName(record.name, zone.name)}
@@ -153,42 +175,41 @@ export function DnsRecordsCard({ zone }: { zone: CloudflareZone }): React.JSX.El
                           onCheckedChange={(checked) => void setProxy(record, checked)}
                         />
                       )}
-                      <span className="text-xs text-muted-foreground">
+                      <Chip tone={record.proxied ? 'warning' : 'neutral'}>
                         {record.proxied ? 'Proxied' : 'DNS only'}
-                      </span>
+                      </Chip>
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                     {ttlLabel(record.ttl)}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="py-2 pl-3 pr-3">
                     {record.editable ? (
-                      <span className="flex justify-end gap-1">
+                      <span className="flex justify-end gap-0.5">
                         <SimpleTooltip label="Edit record">
                           <Button
-                            size="icon"
+                            size="icon-sm"
                             variant="ghost"
-                            className="h-8 w-8"
                             aria-label={`Edit ${what}`}
                             onClick={() => setEditing(record)}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil />
                           </Button>
                         </SimpleTooltip>
                         <SimpleTooltip label="Delete record">
                           <Button
-                            size="icon"
+                            size="icon-sm"
                             variant="ghost"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            className="hover:bg-destructive/10 hover:text-destructive"
                             aria-label={`Delete ${what}`}
                             onClick={() => void remove(record)}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 />
                           </Button>
                         </SimpleTooltip>
                       </span>
                     ) : (
-                      <span className="block text-right text-xs text-muted-foreground">
+                      <span className="block whitespace-nowrap pr-1 text-right text-xs text-muted-foreground">
                         Edit on Cloudflare
                       </span>
                     )}
@@ -203,28 +224,26 @@ export function DnsRecordsCard({ zone }: { zone: CloudflareZone }): React.JSX.El
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-primary" /> DNS records
-          </CardTitle>
-          <CardDescription>
-            {records.data
-              ? `${records.data.length} ${records.data.length === 1 ? 'record' : 'records'} in ${zone.name}.`
-              : `The records in ${zone.name}.`}
-          </CardDescription>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => setPointing(true)}>
+    <CloudflareCard
+      icon={<Globe />}
+      title="DNS records"
+      description={
+        records.data
+          ? `${records.data.length} ${records.data.length === 1 ? 'record' : 'records'} in ${zone.name}.`
+          : `The records in ${zone.name}.`
+      }
+      actions={
+        <>
+          <Button size="sm" variant="soft" onClick={() => setPointing(true)}>
             <Server className="h-3.5 w-3.5" /> Point domain to a server
           </Button>
           <Button size="sm" onClick={() => setEditing(null)}>
             <Plus className="h-3.5 w-3.5" /> Add record
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
+        </>
+      }
+    >
+      {body}
       {editing !== undefined && (
         <RecordDialog
           key={editing?.id ?? 'new'}
@@ -237,6 +256,6 @@ export function DnsRecordsCard({ zone }: { zone: CloudflareZone }): React.JSX.El
         />
       )}
       {pointing && <PointDomainDialog zone={zone} open onOpenChange={setPointing} />}
-    </Card>
+    </CloudflareCard>
   );
 }

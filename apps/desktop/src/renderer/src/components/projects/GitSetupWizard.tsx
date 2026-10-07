@@ -344,7 +344,8 @@ export function GitSetupWizard({
                         placeholder="my-project"
                       />
                       <Button
-                        variant="outline"
+                        variant="soft"
+                        className="h-9"
                         disabled={!canLookUp || lookupMutation.isPending}
                         onClick={() => lookupMutation.mutate()}
                       >

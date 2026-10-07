@@ -4,14 +4,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
-import { GitPullRequest, Sparkles, Spinner, TriangleAlert } from '@/components/icons';
+import { GitPullRequest, Sparkles, Spinner } from '@/components/icons';
+import { GLASS_CARD, Notice } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
-import { PR_GHOST_BUTTON, useRevealInPanel } from './PrCard';
+import { useRevealInPanel } from './PrCard';
 
 /** The shared field surface (see index.css); the title adds the pill, the body the box corner. */
 const FIELD = 'field-surface block w-full px-3 py-1.5 text-[13px] outline-none';
@@ -160,13 +162,12 @@ export function CreatePrForm({
   return (
     <section
       aria-label="New pull request"
-      className={cn(
-        'space-y-2.5 rounded-lg border border-border/70 bg-card/40',
-        roomy ? 'p-4' : 'mx-2 p-3',
-      )}
+      className={cn(GLASS_CARD, 'space-y-2.5', roomy ? 'p-4' : 'mx-2 p-3')}
     >
       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <GitPullRequest className="h-3 w-3 shrink-0" />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+          <GitPullRequest className="h-3 w-3" />
+        </span>
         <span className="truncate font-mono text-foreground/85">{status.branch}</span>
         <span aria-hidden="true">→</span>
         {baseOptions.length > 0 ? (
@@ -185,20 +186,24 @@ export function CreatePrForm({
       </div>
 
       {status.dirty ? (
-        <div className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/[0.06] px-2 py-1.5 text-[11px] leading-snug">
-          <TriangleAlert className="mt-0.5 h-2.5 w-2.5 shrink-0 text-warning" />
-          <span className="min-w-0 flex-1">
-            You have uncommitted changes. They are not part of the pull request until you commit
-            them.
-          </span>
-          <button
-            type="button"
-            onClick={() => revealPanelSection('changes')}
-            className={cn(PR_GHOST_BUTTON, 'h-5 shrink-0 px-1.5')}
-          >
-            Review changes
-          </button>
-        </div>
+        <Notice
+          tone="warning"
+          size="sm"
+          className="px-2.5 text-[11px] leading-snug"
+          action={
+            <Button
+              type="button"
+              variant="soft"
+              size="xs"
+              onClick={() => revealPanelSection('changes')}
+              className="h-5 px-2"
+            >
+              Review changes
+            </Button>
+          }
+        >
+          You have uncommitted changes. They are not part of the pull request until you commit them.
+        </Notice>
       ) : null}
 
       <div className="relative">
@@ -217,13 +222,15 @@ export function CreatePrForm({
           )}
         />
         <SimpleTooltip label={writing ? 'Stop writing' : 'Write the title and description with AI'}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label={writing ? 'Stop writing' : 'Write the title and description with AI'}
             onClick={() => void write()}
             disabled={creating}
             className={cn(
-              'absolute right-1 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40',
+              'absolute right-1 hover:bg-primary/10 hover:text-primary',
               roomy ? 'top-1.5' : 'top-1',
             )}
           >
@@ -232,7 +239,7 @@ export function CreatePrForm({
             ) : (
               <Sparkles className="h-3.5 w-3.5" />
             )}
-          </button>
+          </Button>
         </SimpleTooltip>
       </div>
 
@@ -263,11 +270,10 @@ export function CreatePrForm({
 
       {pushNote ? <p className="text-[11px] text-muted-foreground">{pushNote}</p> : null}
 
-      <button
-        type="button"
+      <Button
         onClick={() => void create()}
         disabled={!title.trim() || creating || writing !== null}
-        className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-8px_hsl(var(--primary)/0.8)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:bg-foreground/[0.08] disabled:text-muted-foreground disabled:shadow-none"
+        className="w-full gap-1.5"
       >
         {creating ? (
           <Spinner className="h-3 w-3 animate-spin motion-reduce:animate-none" />
@@ -275,7 +281,7 @@ export function CreatePrForm({
           <GitPullRequest className="h-3 w-3" />
         )}
         {creating ? 'Pushing and creating…' : 'Create pull request'}
-      </button>
+      </Button>
     </section>
   );
 }

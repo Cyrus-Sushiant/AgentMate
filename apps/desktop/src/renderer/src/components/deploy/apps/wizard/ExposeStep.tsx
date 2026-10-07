@@ -2,6 +2,7 @@ import type { ComposePortBinding } from '@agentmat/core';
 import type { DeployStackPreview } from '@shared/deployStacksTypes';
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Globe, Lock, LockOpen, Spinner } from '@/components/icons';
+import { SECTION_WELL } from '@/components/pageKit';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { bindingAddress, isPublicBinding } from '@/lib/deploy/apps/format';
@@ -12,6 +13,9 @@ import { cn } from '@/lib/utils';
  * ports to 127.0.0.1 with an override file, and public access goes through Websites (nginx),
  * where the server's firewall applies.
  */
+
+/** A hairline above each table row, drawn on the cells since rows take no shadow. */
+const CELL_HAIRLINE = '[&>td]:shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]';
 
 function hostPort(binding: Pick<ComposePortBinding, 'hostIp' | 'published'>): string {
   const host = binding.hostIp ?? '*';
@@ -34,7 +38,7 @@ export function ExposeStep({
 
   return (
     <div className="space-y-5">
-      <p className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-foreground">
+      <p className="flex items-start gap-2 rounded-xl bg-primary/[0.06] px-3 py-2 text-xs text-foreground ring-1 ring-inset ring-primary/25">
         <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         <span>
           Private ports are bound to 127.0.0.1, so only this server reaches them. Public access
@@ -54,11 +58,7 @@ export function ExposeStep({
             const after = preview.bindings.filter((binding) => binding.service === service.name);
             const label = `Keep ${service.name} private`;
             return (
-              <li
-                key={service.name}
-                aria-label={service.name}
-                className="rounded-lg border border-border p-3"
-              >
+              <li key={service.name} aria-label={service.name} className={cn(SECTION_WELL, 'p-3')}>
                 <div className="flex flex-wrap items-center gap-3">
                   {keepPrivate ? (
                     <Lock className="h-3.5 w-3.5 text-success" />
@@ -109,7 +109,7 @@ export function ExposeStep({
                       return (
                         <tr
                           key={`${port.index}-${port.target}-${port.protocol}-${port.published}`}
-                          className="border-t border-border/60"
+                          className={CELL_HAIRLINE}
                         >
                           <td className="py-1 text-foreground">
                             {port.target}/{port.protocol}
@@ -147,7 +147,7 @@ export function ExposeStep({
             type="button"
             aria-expanded={showOverride}
             onClick={() => setShowOverride((value) => !value)}
-            className="flex items-center gap-1.5 rounded-md text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex cursor-pointer items-center gap-1.5 rounded-md text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {showOverride ? (
               <ChevronDown className="h-3 w-3" />
@@ -159,7 +159,7 @@ export function ExposeStep({
           {showOverride && (
             <pre
               aria-label="Override file"
-              className="mt-2 max-h-60 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs"
+              className={cn(SECTION_WELL, 'mt-2 max-h-60 overflow-auto font-mono text-xs')}
             >
               {preview.overrideText}
             </pre>

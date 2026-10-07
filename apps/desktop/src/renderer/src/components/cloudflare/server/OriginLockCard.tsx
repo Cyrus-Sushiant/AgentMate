@@ -8,12 +8,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Clock, Lock, LockOpen, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { relative } from '@/lib/deploy/sites/certificates';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { CloudflareMark } from '../CloudflareMark';
+import { CardBody, CloudflareCard, Notice } from '../fields';
 import { OriginLockDialog } from './OriginLockDialog';
 
 /**
@@ -91,16 +91,12 @@ export function OriginLockCard({
   const now = Date.now();
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CloudflareMark className="h-4 w-4" /> Cloudflare-only origin
-        </CardTitle>
-        <CardDescription>
-          Stops visitors from going around Cloudflare to the server's own address.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CloudflareCard
+      icon={<CloudflareMark />}
+      title="Cloudflare-only origin"
+      description="Stops visitors from going around Cloudflare to the server's own address."
+    >
+      <CardBody className="space-y-3">
         {lock.isPending ? (
           <div className="space-y-2" aria-busy="true">
             <Skeleton className="h-5 w-2/3" />
@@ -132,11 +128,13 @@ export function OriginLockCard({
               </p>
             )}
             {status.state === 'drifted' && (
-              <div className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-                <Differences label="Not allowed yet" items={status.missingRules} />
-                <Differences label="Still open to everyone" items={status.openRules} />
-                <Differences label="No longer Cloudflare's" items={status.staleRules} />
-              </div>
+              <Notice tone="destructive">
+                <div className="space-y-2">
+                  <Differences label="Not allowed yet" items={status.missingRules} />
+                  <Differences label="Still open to everyone" items={status.openRules} />
+                  <Differences label="No longer Cloudflare's" items={status.staleRules} />
+                </div>
+              </Notice>
             )}
             {status.warnings.map((warning) => (
               <p key={warning} className="text-xs text-warning">
@@ -144,7 +142,7 @@ export function OriginLockCard({
               </p>
             ))}
             {canAdmin && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {status.state !== 'on' && (
                   <Button
                     size="sm"
@@ -158,7 +156,7 @@ export function OriginLockCard({
                 {status.enabled && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="soft"
                     disabled={busy || status.state === 'pending'}
                     onClick={() => setDialog('off')}
                   >
@@ -169,7 +167,7 @@ export function OriginLockCard({
             )}
           </>
         )}
-      </CardContent>
+      </CardBody>
       <OriginLockDialog
         open={dialog !== null}
         serverId={serverId}
@@ -183,6 +181,6 @@ export function OriginLockCard({
           if (change) onApplied(change);
         }}
       />
-    </Card>
+    </CloudflareCard>
   );
 }

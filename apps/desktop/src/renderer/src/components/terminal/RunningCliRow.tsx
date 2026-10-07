@@ -99,11 +99,8 @@ function IconAction({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className={cn(
-          'h-7 w-7 text-muted-foreground hover:text-foreground',
-          destructive && 'hover:text-destructive',
-        )}
+        size="icon-sm"
+        className={cn(destructive && 'hover:text-destructive')}
         disabled={disabled}
         aria-label={label}
         onClick={onClick}

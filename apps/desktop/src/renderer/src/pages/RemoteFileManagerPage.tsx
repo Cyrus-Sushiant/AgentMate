@@ -19,6 +19,7 @@ import {
   TriangleAlert,
   Upload,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { TransfersCard } from '@/components/remote/TransfersCard';
 import { Button } from '@/components/ui/button';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
@@ -27,20 +28,12 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { PANE_WIDTHS, usePaneWidth } from '@/stores/paneLayoutStore';
+import { PANEL_WIDTHS, usePanelWidth } from '@/stores/panelWidthStore';
 import { useRemoteFileManagerStore } from '@/stores/remoteFileManagerStore';
 import { useRemoteStore } from '@/stores/remoteStore';
 
 /** The page's cards: the app's glass card, rounded like the API Client and Settings cards. */
 const PANEL = 'glass flex min-h-0 flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
-/** A round icon button for the toolbar and the rows, with the main menu's hover wash. */
-const ICON_BUTTON =
-  'h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground';
 
 /** An inline name field (rename, new folder), drawn with the shared field surface. */
 const NAME_FIELD = 'field-surface h-7 w-full min-w-0 rounded-full px-3 text-sm outline-none';
@@ -147,10 +140,10 @@ function EntryRow({ entry }: { entry: RemoteFileManagerEntry }): React.JSX.Eleme
         {!entry.isDirectory && (
           <SimpleTooltip label="Download">
             <Button
-              size="icon"
               variant="ghost"
+              size="icon"
+              className="shrink-0"
               aria-label={`Download ${entry.name}`}
-              className={ICON_BUTTON}
               onClick={() => void download(entry)}
             >
               <Download className="h-3.5 w-3.5" />
@@ -159,10 +152,10 @@ function EntryRow({ entry }: { entry: RemoteFileManagerEntry }): React.JSX.Eleme
         )}
         <SimpleTooltip label="Rename">
           <Button
-            size="icon"
             variant="ghost"
+            size="icon"
+            className="shrink-0"
             aria-label={`Rename ${entry.name}`}
-            className={ICON_BUTTON}
             onClick={() => setRenaming(true)}
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -170,10 +163,10 @@ function EntryRow({ entry }: { entry: RemoteFileManagerEntry }): React.JSX.Eleme
         </SimpleTooltip>
         <SimpleTooltip label="Delete">
           <Button
-            size="icon"
             variant="ghost"
+            size="icon"
+            className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
             aria-label={`Delete ${entry.name}`}
-            className={cn(ICON_BUTTON, 'hover:bg-destructive/10 hover:text-destructive')}
             onClick={() => void remove()}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -191,12 +184,7 @@ function NewFolderRow(): React.JSX.Element {
 
   if (!editing) {
     return (
-      <Button
-        size="sm"
-        variant="ghost"
-        className="search-pill h-8 shrink-0 rounded-full px-3 text-foreground/85 hover:text-foreground"
-        onClick={() => setEditing(true)}
-      >
+      <Button variant="soft" className="shrink-0" onClick={() => setEditing(true)}>
         <FolderPlus className="h-3.5 w-3.5" /> New folder
       </Button>
     );
@@ -294,7 +282,7 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
   const transfers = useRemoteStore((s) => s.transfers);
   const { path, entries, roots, loading, error, loadRoots, navigate, upload } =
     useRemoteFileManagerStore();
-  const [placesWidth, setPlacesWidth] = usePaneWidth('remoteFilesPlaces');
+  const [placesWidth, setPlacesWidth] = usePanelWidth('remoteFilesPlaces');
   const reduceMotion = useReducedMotion();
   const pillTransition = reduceMotion
     ? { duration: 0 }
@@ -325,7 +313,7 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
               connect with a pairing code first.
             </p>
           </div>
-          <Button className="rounded-full px-5" onClick={() => routerNavigate('/remote')}>
+          <Button onClick={() => routerNavigate('/remote')}>
             <Link /> Open Remote
           </Button>
         </div>
@@ -381,9 +369,9 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
           orientation="vertical"
           label="Resize places"
           size={placesWidth}
-          min={PANE_WIDTHS.remoteFilesPlaces.min}
-          max={PANE_WIDTHS.remoteFilesPlaces.max}
-          defaultSize={PANE_WIDTHS.remoteFilesPlaces.default}
+          min={PANEL_WIDTHS.remoteFilesPlaces.min}
+          max={PANEL_WIDTHS.remoteFilesPlaces.max}
+          defaultSize={PANEL_WIDTHS.remoteFilesPlaces.default}
           onSizeChange={setPlacesWidth}
           quiet
           className="w-2"
@@ -395,10 +383,10 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
             {path !== null && (
               <SimpleTooltip label="Up one folder">
                 <Button
-                  size="icon"
                   variant="ghost"
+                  size="icon"
+                  className="shrink-0"
                   aria-label="Up one folder"
-                  className={ICON_BUTTON}
                   onClick={() => void (up ? navigate(up) : loadRoots())}
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
@@ -407,10 +395,10 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
             )}
             <SimpleTooltip label="Refresh">
               <Button
-                size="icon"
                 variant="ghost"
+                size="icon"
+                className="shrink-0"
                 aria-label="Refresh"
-                className={ICON_BUTTON}
                 onClick={() => void (path === null ? loadRoots() : navigate(path))}
               >
                 <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
@@ -429,11 +417,7 @@ export default function RemoteFileManagerPage(): React.JSX.Element {
             </div>
             {path !== null && <NewFolderRow />}
             {path !== null && (
-              <Button
-                size="sm"
-                className="h-8 shrink-0 rounded-full px-3.5"
-                onClick={() => void upload()}
-              >
+              <Button className="shrink-0" onClick={() => void upload()}>
                 <Upload className="h-3.5 w-3.5" /> Upload
               </Button>
             )}

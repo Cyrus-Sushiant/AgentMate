@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import { ArrowDown, ArrowUp, GripVertical, RefreshCw } from '@/components/icons';
-import { PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { orderedClis } from '@/components/workspace/useAgentChoices';
@@ -45,13 +44,7 @@ export function CliOrderSettings(): React.JSX.Element {
         <p className="text-xs text-muted-foreground">
           Installed agents get number keys 1 to 9 in this order.
         </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={PILL_SOFT}
-          disabled={cliOrder.length === 0}
-          onClick={() => setCliOrder([])}
-        >
+        <Button variant="soft" disabled={cliOrder.length === 0} onClick={() => setCliOrder([])}>
           <RefreshCw /> Default order
         </Button>
       </div>
@@ -121,26 +114,26 @@ export function CliOrderSettings(): React.JSX.Element {
               )}
               <span className="flex items-center gap-0.5">
                 <SimpleTooltip label="Move up">
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label={`Move ${cli.name} up`}
                     disabled={index === 0}
                     onClick={() => move(cli.id, index - 1)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
                   >
-                    <ArrowUp className="h-2.5 w-2.5" />
-                  </button>
+                    <ArrowUp />
+                  </Button>
                 </SimpleTooltip>
                 <SimpleTooltip label="Move down">
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label={`Move ${cli.name} down`}
                     disabled={index === clis.length - 1}
                     onClick={() => move(cli.id, index + 1)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
                   >
-                    <ArrowDown className="h-2.5 w-2.5" />
-                  </button>
+                    <ArrowDown />
+                  </Button>
                 </SimpleTooltip>
               </span>
             </li>

@@ -121,7 +121,7 @@ export function JobLogDialog({
           role="log"
           aria-label="Job log"
           aria-live="polite"
-          className="max-h-80 min-h-40 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs leading-relaxed"
+          className="max-h-80 min-h-40 overflow-auto rounded-xl bg-foreground/[0.04] p-3 font-mono text-xs leading-relaxed ring-1 ring-inset ring-foreground/[0.07]"
         >
           {log.lines.length === 0 ? (
             <p className="text-muted-foreground">
@@ -150,12 +150,8 @@ export function JobLogDialog({
         )}
         <DialogFooter>
           {canCancel && running && current?.cancellable && (
-            <Button variant="outline" disabled={cancelling} onClick={() => void cancel()}>
-              {cancelling ? (
-                <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-              ) : (
-                <StopCircle className="h-3.5 w-3.5" />
-              )}
+            <Button variant="danger" disabled={cancelling} onClick={() => void cancel()}>
+              {cancelling ? <Spinner className="motion-safe:animate-spin" /> : <StopCircle />}
               {cancelling ? 'Cancelling…' : 'Cancel the job'}
             </Button>
           )}

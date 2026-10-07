@@ -36,17 +36,12 @@ import {
   Wrench,
 } from '@/components/icons';
 import {
-  CARD_PILL,
-  CARD_PILL_SOFT,
   Chip,
   type ChipTone,
   GLASS_CARD,
   NoMatches,
-  PILL_PRIMARY,
-  PILL_SOFT,
   SECTION_HEADING,
   SearchPill,
-  TILE_ACTION,
   TOOLBAR,
   UpdateSummary,
 } from '@/components/pageKit';
@@ -139,10 +134,6 @@ const DOCKER_TONES: Record<string, ChipTone> = {
   running: 'success',
   stopped: 'warning',
 };
-
-/** One of the container controls inside the Docker pill. */
-const DOCKER_ACTION =
-  'h-6 w-6 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground [&_svg]:size-3';
 
 export default function ToolsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -595,8 +586,7 @@ export default function ToolsPage(): React.JSX.Element {
             </div>
             <div className="ml-auto flex items-center gap-2">
               <Button
-                variant="ghost"
-                className={PILL_SOFT}
+                variant="soft"
                 disabled={checkingAll}
                 onClick={() => void handleCheckAllForUpdates()}
               >
@@ -604,8 +594,7 @@ export default function ToolsPage(): React.JSX.Element {
                 {checkingAll ? 'Checking updates…' : 'Check all for updates'}
               </Button>
               <Button
-                variant="ghost"
-                className={PILL_SOFT}
+                variant="soft"
                 onClick={() => {
                   void queryClient.invalidateQueries({ queryKey: queryKeys.toolsStatus });
                   toast.info('Re-checking installed tools…');
@@ -718,8 +707,7 @@ export default function ToolsPage(): React.JSX.Element {
                           <>
                             <Button
                               size="sm"
-                              variant={status?.installed ? 'ghost' : 'default'}
-                              className={status?.installed ? CARD_PILL_SOFT : CARD_PILL}
+                              variant={status?.installed ? 'soft' : 'default'}
                               onClick={() =>
                                 void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)
                               }
@@ -728,9 +716,8 @@ export default function ToolsPage(): React.JSX.Element {
                             </Button>
                             <SimpleTooltip label="Extract the zip here, then start the server">
                               <Button
+                                variant="soft"
                                 size="sm"
-                                variant="ghost"
-                                className={CARD_PILL_SOFT}
                                 onClick={() => void openToolsFolder()}
                               >
                                 <FolderOpen /> Open tools folder
@@ -738,18 +725,16 @@ export default function ToolsPage(): React.JSX.Element {
                             </SimpleTooltip>
                             {languageTool?.serverState === 'running' ? (
                               <Button
+                                variant="soft"
                                 size="sm"
-                                variant="ghost"
-                                className={CARD_PILL_SOFT}
                                 onClick={() => void toggleLanguageToolServer('stop')}
                               >
                                 <StopCircle /> Stop server
                               </Button>
                             ) : (
                               <Button
+                                variant="soft"
                                 size="sm"
-                                variant="ghost"
-                                className={CARD_PILL_SOFT}
                                 disabled={!status?.installed}
                                 onClick={() => void toggleLanguageToolServer('start')}
                               >
@@ -757,9 +742,9 @@ export default function ToolsPage(): React.JSX.Element {
                               </Button>
                             )}
                             <Button
-                              size="sm"
                               variant="ghost"
-                              className="h-7 rounded-full px-3 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                              size="sm"
+                              className="text-muted-foreground hover:text-foreground"
                               onClick={() => navigate('/settings?tab=ai')}
                             >
                               <Wrench /> Writing settings
@@ -768,19 +753,14 @@ export default function ToolsPage(): React.JSX.Element {
                         ) : canShellInstall ? (
                           status?.installed ? (
                             <Button
+                              variant="soft"
                               size="sm"
-                              variant="ghost"
-                              className={CARD_PILL_SOFT}
                               onClick={() => void handleUninstall(tool)}
                             >
                               <Trash2 /> Uninstall
                             </Button>
                           ) : (
-                            <Button
-                              size="sm"
-                              className={CARD_PILL}
-                              onClick={() => void handleInstall(tool)}
-                            >
+                            <Button size="sm" onClick={() => void handleInstall(tool)}>
                               <TerminalSquare /> {installLabel(osInstallCommand)}
                             </Button>
                           )
@@ -788,11 +768,7 @@ export default function ToolsPage(): React.JSX.Element {
                           <SimpleTooltip
                             label={`Opens a terminal running ${tool.name}'s target agent and copies the setup commands to paste in`}
                           >
-                            <Button
-                              size="sm"
-                              className={CARD_PILL}
-                              onClick={() => void handleInteractiveInstall(tool)}
-                            >
+                            <Button size="sm" onClick={() => void handleInteractiveInstall(tool)}>
                               <TerminalSquare /> Install
                             </Button>
                           </SimpleTooltip>
@@ -805,9 +781,8 @@ export default function ToolsPage(): React.JSX.Element {
                             }
                           >
                             <Button
+                              variant="soft"
                               size="sm"
-                              variant="ghost"
-                              className={CARD_PILL_SOFT}
                               onClick={() => handleCopyManualInstructions(tool)}
                             >
                               <TerminalSquare />
@@ -820,10 +795,9 @@ export default function ToolsPage(): React.JSX.Element {
 
                         {tool.quickActions?.map((qa) => (
                           <Button
-                            key={qa.id}
-                            variant="ghost"
+                            variant="soft"
                             size="sm"
-                            className={CARD_PILL_SOFT}
+                            key={qa.id}
                             onClick={() => void runAction(qa.action, tool, qa.label)}
                           >
                             {qa.label}
@@ -833,15 +807,14 @@ export default function ToolsPage(): React.JSX.Element {
                         {tool.docker &&
                           (status?.dockerStatus === 'unavailable' ? (
                             <SimpleTooltip label="Docker isn't installed on this machine">
-                              <Button variant="ghost" size="sm" className={CARD_PILL_SOFT} disabled>
+                              <Button variant="soft" size="sm" disabled>
                                 Install with Docker
                               </Button>
                             </SimpleTooltip>
                           ) : status?.dockerStatus === 'not-created' ? (
                             <Button
-                              variant="ghost"
+                              variant="soft"
                               size="sm"
-                              className={CARD_PILL_SOFT}
                               onClick={() => void handleDockerAction(tool, 'run')}
                             >
                               <Play /> Install with Docker
@@ -853,8 +826,7 @@ export default function ToolsPage(): React.JSX.Element {
                               <SimpleTooltip label="Start container">
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={DOCKER_ACTION}
+                                  size="icon-xs"
                                   disabled={status?.dockerStatus === 'running'}
                                   onClick={() => void handleDockerAction(tool, 'start')}
                                 >
@@ -864,8 +836,7 @@ export default function ToolsPage(): React.JSX.Element {
                               <SimpleTooltip label="Stop container">
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={DOCKER_ACTION}
+                                  size="icon-xs"
                                   disabled={status?.dockerStatus === 'stopped'}
                                   onClick={() => void handleDockerAction(tool, 'stop')}
                                 >
@@ -875,8 +846,7 @@ export default function ToolsPage(): React.JSX.Element {
                               <SimpleTooltip label="Reset container (recreate from image)">
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={DOCKER_ACTION}
+                                  size="icon-xs"
                                   onClick={() => void handleDockerAction(tool, 'reset')}
                                 >
                                   <RefreshCw />
@@ -885,8 +855,7 @@ export default function ToolsPage(): React.JSX.Element {
                               <SimpleTooltip label="Delete container">
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={DOCKER_ACTION}
+                                  size="icon-xs"
                                   onClick={() => void handleDockerAction(tool, 'remove')}
                                 >
                                   <Trash2 />
@@ -896,8 +865,7 @@ export default function ToolsPage(): React.JSX.Element {
                                 <SimpleTooltip label="Open dashboard">
                                   <Button
                                     variant="ghost"
-                                    size="icon"
-                                    className={DOCKER_ACTION}
+                                    size="icon-xs"
                                     onClick={() =>
                                       void window.agentmat.shell.openExternal(
                                         tool.docker!.dashboardUrl!,
@@ -924,8 +892,7 @@ export default function ToolsPage(): React.JSX.Element {
                           >
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={TILE_ACTION}
+                              size="icon-sm"
                               disabled={checkingToolId === tool.id}
                               onClick={() => void handleCheckForUpdate(tool, status.version)}
                             >
@@ -939,8 +906,7 @@ export default function ToolsPage(): React.JSX.Element {
                           <SimpleTooltip label="Copy uninstall commands">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={TILE_ACTION}
+                              size="icon-sm"
                               onClick={() => handleCopyManualUninstall(tool)}
                             >
                               <Trash2 />
@@ -951,8 +917,7 @@ export default function ToolsPage(): React.JSX.Element {
                           <SimpleTooltip label="Configure">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={TILE_ACTION}
+                              size="icon-sm"
                               onClick={() => openSettings(tool)}
                             >
                               <Wrench />
@@ -963,8 +928,7 @@ export default function ToolsPage(): React.JSX.Element {
                           <SimpleTooltip label="Website">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={TILE_ACTION}
+                              size="icon-sm"
                               onClick={() =>
                                 void window.agentmat.shell.openExternal(tool.websiteUrl!)
                               }
@@ -976,8 +940,7 @@ export default function ToolsPage(): React.JSX.Element {
                         <SimpleTooltip label="GitHub">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             onClick={() =>
                               void window.agentmat.shell.openExternal(tool.repositoryUrl)
                             }
@@ -1012,12 +975,10 @@ export default function ToolsPage(): React.JSX.Element {
             command={pendingUpdate?.command ?? ''}
           />
           <DialogFooter>
-            <Button variant="ghost" className={PILL_SOFT} onClick={dismissPendingUpdate}>
+            <Button variant="soft" onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button className={PILL_PRIMARY} onClick={handleConfirmUpdate}>
-              Update
-            </Button>
+            <Button onClick={handleConfirmUpdate}>Update</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1083,7 +1044,6 @@ export default function ToolsPage(): React.JSX.Element {
           </div>
           <DialogFooter>
             <Button
-              className={PILL_PRIMARY}
               disabled={!preview || (requiresProject && !selectedProject)}
               onClick={() => void handleApplySettings()}
             >

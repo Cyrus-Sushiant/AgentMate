@@ -206,7 +206,7 @@ function GroupMenu({
           ) : null}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={6} className="min-w-[12rem] rounded-xl">
+      <DropdownMenuContent align="start" sideOffset={6} className="min-w-[12rem]">
         {items.map((item) => {
           const current = isNavItemActive(item, pathname);
           return (
@@ -214,10 +214,7 @@ function GroupMenu({
               <Link
                 to={item.to}
                 aria-current={current ? 'page' : undefined}
-                className={cn(
-                  'rounded-lg',
-                  current && 'font-semibold text-primary focus:text-primary',
-                )}
+                className={cn(current && 'font-semibold text-primary')}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
                 <span>{item.label}</span>

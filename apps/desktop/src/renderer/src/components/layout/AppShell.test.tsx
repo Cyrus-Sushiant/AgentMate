@@ -2,6 +2,7 @@ import type { AppSettings } from '@agentmat/core';
 import { act, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { queryKeys } from '@/lib/queryKeys';
+import { useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 
 /**
@@ -12,6 +13,7 @@ import { renderWithProviders } from '../../../../test/renderer/renderWithProvide
  *
  * Everything the shell hosts that has nothing to do with the menu (the workspace, the terminal
  * drawer, the dialogs, the status bar) is stubbed out, as are the app-wide listeners it starts.
+ * The drawer's stub still says where the shell put it, for the layout tests at the end.
  */
 
 const toast = vi.hoisted(() =>
@@ -28,7 +30,12 @@ vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 vi.mock('@/components/askAi/AskAiModal', () => ({ AskAiModal: () => null }));
 vi.mock('@/components/search/CommandPalette', () => ({ CommandPalette: () => null }));
 vi.mock('@/components/terminal/RunningClisDialog', () => ({ RunningClisDialog: () => null }));
-vi.mock('@/components/terminal/TerminalDrawer', () => ({ TerminalDrawer: () => null }));
+// A stand-in that says where the shell put it; the drawer's own frame is tested beside it.
+vi.mock('@/components/terminal/TerminalDrawer', () => ({
+  TerminalDrawer: ({ placement }: { placement?: string }) => (
+    <section aria-label="Terminal" data-placement={placement} />
+  ),
+}));
 vi.mock('@/components/toast/ToastHistoryPanel', () => ({ ToastHistoryPanel: () => null }));
 vi.mock('@/components/UpdateManager', () => ({ UpdateStatusChip: () => null }));
 vi.mock('@/components/workspace/WorkspaceHeaderActions', () => ({
@@ -67,9 +74,9 @@ function settingsWith(menuPosition: AppSettings['menuPosition']): AppSettings {
 }
 
 /** Renders the shell and waits for its settings read, so what is on screen is the saved choice. */
-async function renderShell(menuPosition: AppSettings['menuPosition']) {
+async function renderShell(menuPosition: AppSettings['menuPosition'], route = '/usage') {
   const view = renderWithProviders(<AppShell />, {
-    route: '/usage',
+    route,
     bridge: { 'settings.get': settingsWith(menuPosition) },
   });
   await waitFor(() =>
@@ -115,5 +122,55 @@ describe('AppShell main menu position', () => {
     await waitFor(() => expect(sidebar()).not.toBeNull());
     expect(topMenu()).toBeNull();
     expect(bridge.$fn('settings.get')).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The terminal drawer used to sit inside the page island: clipped to its corners on a page, and
+ * flush edge to edge on the Workspace (where the island is a plain box). It is now a sibling of
+ * the page in the same page area, so it is one more island on every route.
+ */
+describe('AppShell terminal drawer', () => {
+  const drawer = (): HTMLElement => screen.getByRole('region', { name: 'Terminal' });
+
+  it.each(['left', 'top'] as const)(
+    'stacks the drawer under the page island, not inside it (menu %s)',
+    async (menuPosition) => {
+      await renderShell(menuPosition);
+
+      const page = drawer().previousElementSibling as HTMLElement;
+      expect(page).toHaveAttribute('data-page-island');
+      expect(page).toHaveClass('chrome-island');
+      expect(drawer().closest('.chrome-island')).toBeNull();
+      expect(drawer()).toHaveAttribute('data-placement', 'page');
+    },
+  );
+
+  it('stacks the drawer under the Workspace too, lined up with its panes', async () => {
+    await renderShell('left', '/workspace');
+
+    const page = drawer().previousElementSibling as HTMLElement;
+    // The Workspace draws its own islands, so the box above the drawer is plain.
+    expect(page).not.toHaveAttribute('data-page-island');
+    expect(page).not.toHaveClass('chrome-island');
+    expect(drawer().closest('.chrome-island')).toBeNull();
+    expect(drawer()).toHaveAttribute('data-placement', 'workspace');
+    // Same parent as on a page: the page area under the top bar.
+    expect(drawer().parentElement).toBe(page.parentElement);
+  });
+
+  it('hides the page under a maximized drawer without unmounting it', async () => {
+    await renderShell('left', '/workspace');
+    const page = drawer().previousElementSibling as HTMLElement;
+    expect(page).not.toHaveClass('invisible');
+
+    act(() => useTerminalStore.setState({ isOpen: true, isMaximized: true }));
+    expect(page).toHaveClass('invisible');
+    expect(drawer().previousElementSibling).toBe(page);
+
+    // Closed, the drawer covers nothing, even if it opens maximized next time.
+    act(() => useTerminalStore.setState({ isOpen: false }));
+    expect(page).not.toHaveClass('invisible');
+    act(() => useTerminalStore.setState({ isMaximized: false }));
   });
 });

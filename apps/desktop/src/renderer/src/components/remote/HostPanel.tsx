@@ -11,7 +11,7 @@ import {
   Upload,
   Users,
 } from '@/components/icons';
-import { Chip, EmptyState, FOOTER_HAIRLINE, PILL_SOFT } from '@/components/pageKit';
+import { Chip, EmptyState, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
@@ -150,7 +150,6 @@ export function HostPanel(): React.JSX.Element {
                 <Button
                   onClick={() => void toggleHosting()}
                   variant={hosting ? 'destructive' : 'default'}
-                  className="rounded-full px-4"
                   disabled={!ip && !hosting}
                 >
                   <Power className="h-4 w-4" />
@@ -193,13 +192,11 @@ export function HostPanel(): React.JSX.Element {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" className="rounded-full px-3.5" onClick={copyCode}>
+                    <Button onClick={copyCode}>
                       <Copy className="h-3.5 w-3.5" /> Copy code
                     </Button>
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      className={PILL_SOFT}
+                      variant="soft"
                       onClick={() => void generateCode()}
                       disabled={generating}
                     >
@@ -209,11 +206,7 @@ export function HostPanel(): React.JSX.Element {
                 </div>
               </div>
             ) : (
-              <Button
-                className="rounded-full px-5"
-                onClick={() => void generateCode()}
-                disabled={generating}
-              >
+              <Button size="lg" onClick={() => void generateCode()} disabled={generating}>
                 <QrCode className="h-4 w-4" /> Generate pairing code
               </Button>
             )}
@@ -230,19 +223,12 @@ export function HostPanel(): React.JSX.Element {
               peers.length > 0 ? (
                 <>
                   <Button
-                    size="sm"
-                    variant="ghost"
-                    className={PILL_SOFT}
+                    variant="soft"
                     onClick={() => void window.agentmat.remote.sendClipboard()}
                   >
                     <Send className="h-3.5 w-3.5" /> Send clipboard
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className={PILL_SOFT}
-                    onClick={() => void window.agentmat.remote.sendFile()}
-                  >
+                  <Button variant="soft" onClick={() => void window.agentmat.remote.sendFile()}>
                     <Upload className="h-3.5 w-3.5" /> Send file
                   </Button>
                 </>

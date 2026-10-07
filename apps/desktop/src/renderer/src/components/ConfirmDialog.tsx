@@ -120,7 +120,7 @@ export function ConfirmDialogHost(): React.JSX.Element {
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => resolveConfirm(false)}>
+          <Button variant="soft" onClick={() => resolveConfirm(false)}>
             {cancelLabel}
           </Button>
           <Button

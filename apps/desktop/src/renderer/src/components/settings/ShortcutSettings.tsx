@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Plus, RefreshCw, X } from '@/components/icons';
-import { PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
@@ -15,7 +14,6 @@ import {
   shortcutFromEvent,
   shortcutId,
 } from '@/lib/shortcuts';
-import { cn } from '@/lib/utils';
 import { bindingsFor, conflictingCommand, useShortcutStore } from '@/stores/shortcutStore';
 
 /**
@@ -155,38 +153,35 @@ function CommandRow({ command }: { command: ShortcutCommand }): React.JSX.Elemen
           />
         ) : (
           <SimpleTooltip label="Add a shortcut">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label={`Add a shortcut for ${command.label}`}
               onClick={() => {
                 setError(null);
                 setRecording(true);
               }}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-dashed text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+              className="border border-dashed [&_svg]:size-3"
             >
-              <Plus className="h-3 w-3" />
-            </button>
+              <Plus />
+            </Button>
           </SimpleTooltip>
         )}
 
         <SimpleTooltip label="Restore the default">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={`Reset ${command.label} to its default`}
             disabled={!customized}
             onClick={() => {
               resetCommand(command.id);
               setError(null);
             }}
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors',
-              customized
-                ? 'cursor-pointer hover:bg-accent hover:text-foreground'
-                : 'pointer-events-none opacity-30',
-            )}
+            className="[&_svg]:size-3"
           >
-            <RefreshCw className="h-3 w-3" />
-          </button>
+            <RefreshCw />
+          </Button>
         </SimpleTooltip>
       </div>
     </div>
@@ -207,11 +202,10 @@ export function ShortcutSettings(): React.JSX.Element {
           open.
         </p>
         <Button
-          variant="ghost"
-          size="sm"
+          variant="soft"
+          className="shrink-0"
           disabled={!anyCustom}
           onClick={() => resetAll()}
-          className={cn(PILL_SOFT, 'shrink-0')}
         >
           <RefreshCw /> Restore defaults
         </Button>

@@ -15,6 +15,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Notice } from '../../deployKit';
+import { CODE_WELL } from '../SecurityCard';
 import type { StepUp } from '../useStepUp';
 import { SshStepList, type SshSteps } from './SshChangeBanner';
 
@@ -80,7 +82,7 @@ export function SshFixDialog({
         <p role="alert" className="text-sm text-destructive">
           {coreErrorMessage(preview.error)}
         </p>
-        <Button size="sm" variant="outline" onClick={() => void preview.refetch()}>
+        <Button size="sm" variant="soft" onClick={() => void preview.refetch()}>
           <RefreshCw className="h-3.5 w-3.5" /> Try again
         </Button>
       </div>
@@ -89,36 +91,27 @@ export function SshFixDialog({
     const proven = data.proof.keyLoginProven;
     body = (
       <div className="space-y-3">
-        <div
-          className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
-            proven ? 'border-success/40 bg-success/10' : 'border-destructive/40 bg-destructive/10'
-          }`}
+        <Notice
+          tone={proven ? 'success' : 'destructive'}
+          icon={proven ? CircleCheck : TriangleAlert}
         >
-          {proven ? (
-            <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-          ) : (
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          )}
-          <p className="text-foreground">
+          <p>
             <span className="font-medium">
               {proven ? 'Key login proven. ' : 'Key login not proven. '}
             </span>
             {data.proof.explanation}
           </p>
-        </div>
+        </Notice>
         <div>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
             The file the core writes: <span className="font-mono">{data.path}</span>
           </p>
-          <pre
-            aria-label="File contents"
-            className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-relaxed text-foreground"
-          >
+          <pre aria-label="File contents" className={CODE_WELL}>
             {data.content}
           </pre>
         </div>
         <div>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">Then, in order</p>
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">Then, in order</p>
           <ol
             aria-label="Commands"
             className="list-decimal space-y-0.5 pl-5 font-mono text-xs text-foreground"
@@ -154,7 +147,7 @@ export function SshFixDialog({
         </DialogHeader>
         {body}
         <DialogFooter>
-          <Button variant="ghost" disabled={applying} onClick={() => onOpenChange(false)}>
+          <Button variant="soft" disabled={applying} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button disabled={!data?.allowed || applying} onClick={() => void apply()}>

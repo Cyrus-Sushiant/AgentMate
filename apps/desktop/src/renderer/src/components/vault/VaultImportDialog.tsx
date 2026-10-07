@@ -329,7 +329,7 @@ export function VaultImportDialog({
             <Button onClick={() => onOpenChange(false)}>Done</Button>
           ) : (
             <>
-              <Button variant="outline" onClick={close}>
+              <Button variant="soft" onClick={close}>
                 Cancel
               </Button>
               {preview && (

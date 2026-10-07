@@ -5,10 +5,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Problem } from '@/components/cloudflare/fields';
+import { Lock } from '@/components/icons';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { suggestId } from '@/lib/deploy/sites/draft';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { useAppsAccess } from '../apps/hooks';
+import { Notice } from '../deployKit';
 import { CatalogGrid } from './CatalogGrid';
 import { useInstalledApps } from './hooks';
 import { type ExposeStep, InstalledAppView } from './InstalledAppView';
@@ -45,12 +49,18 @@ export function AppStorePanel({ server }: { server: DeployServer }): React.JSX.E
   const show = (extra: Record<string, string>) =>
     setParams({ server: serverId, view: 'store', ...extra }, { replace: false });
 
-  if (access.pending) return <Skeleton className="h-40 w-full rounded-xl" aria-busy="true" />;
+  if (access.pending) {
+    return (
+      <div className={cn(GLASS_CARD, 'p-4')} aria-busy="true">
+        <Skeleton className="h-32 w-full rounded-lg" />
+      </div>
+    );
+  }
   if (!access.signedIn) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <Notice icon={Lock}>
         Sign in to {server.nickname} on its Overview to install apps on it.
-      </p>
+      </Notice>
     );
   }
 
@@ -200,7 +210,7 @@ export function AppStorePanel({ server }: { server: DeployServer }): React.JSX.E
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-2">
       {installed.error ? (
         <Problem message={coreErrorMessage(installed.error)} onRetry={installed.refetch} />
       ) : (

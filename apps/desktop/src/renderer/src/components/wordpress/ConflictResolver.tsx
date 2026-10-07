@@ -89,17 +89,15 @@ export function ConflictResolver(props: ConflictResolverProps): React.JSX.Elemen
       {props.mode === 'pull' ? (
         <div className="flex flex-wrap gap-1.5">
           <Button
-            variant="outline"
+            variant="soft"
             size="sm"
-            className="h-7 text-xs"
             onClick={() => props.onResolutionsChange(defaultResolutions(conflicts))}
           >
             Keep all of mine
           </Button>
           <Button
-            variant="outline"
+            variant="soft"
             size="sm"
-            className="h-7 text-xs"
             onClick={() =>
               props.onResolutionsChange(
                 Object.fromEntries(conflicts.map((change) => [changeKey(change), 'takeRemote'])),

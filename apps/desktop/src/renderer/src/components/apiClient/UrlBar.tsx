@@ -85,17 +85,13 @@ export function UrlBar({
           className="h-full min-w-0 flex-1 bg-transparent px-2 font-mono text-[13px] outline-none placeholder:font-sans placeholder:text-muted-foreground/70"
         />
         {sending ? (
-          <Button
-            variant="secondary"
-            className="h-8 shrink-0 rounded-full px-3.5 @lg/request:w-[6rem]"
-            onClick={onCancel}
-          >
+          <Button variant="soft" className="shrink-0 @lg/request:w-[6rem]" onClick={onCancel}>
             <StopCircle /> Cancel
           </Button>
         ) : (
           <SimpleTooltip label="Send (Ctrl+Enter)" wrapTrigger={!canSend}>
             <Button
-              className="h-8 shrink-0 rounded-full px-3.5 @lg/request:w-[6rem]"
+              className="shrink-0 px-3.5 @lg/request:w-[6rem]"
               disabled={!canSend}
               onClick={onSend}
             >
@@ -107,9 +103,9 @@ export function UrlBar({
 
       <SimpleTooltip label="Save (Ctrl+S)">
         <Button
-          variant="ghost"
+          variant="soft"
           aria-label="Save"
-          className="search-pill h-10 shrink-0 rounded-full px-3 text-foreground/85 hover:text-foreground @lg/request:px-4"
+          className="h-10 shrink-0 px-3 @lg/request:px-4"
           onClick={onSave}
         >
           <Save />

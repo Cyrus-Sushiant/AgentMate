@@ -1,5 +1,12 @@
 import { createContext, useContext, useState } from 'react';
-import { ChevronDown } from '@/components/icons';
+import { ChevronRight } from '@/components/icons';
+import {
+  Chip,
+  type ChipTone,
+  FOOTER_HAIRLINE,
+  GLASS_CARD,
+  SECTION_HEADING,
+} from '@/components/pageKit';
 import { cn } from '@/lib/utils';
 import { type SourceControlSection, useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -20,11 +27,34 @@ export function useRevealInPanel(): (section: SourceControlSection) => void {
 
 export type PrTone = 'default' | 'success' | 'warning' | 'destructive';
 
+/**
+ * The card's tinted edge. It is a ring, which renders on `.glass`, since the app's global border
+ * colour would repaint a tinted border.
+ */
 const TONE_RING: Record<PrTone, string> = {
-  default: 'border-border/70',
-  success: 'border-success/35',
-  warning: 'border-warning/40',
-  destructive: 'border-destructive/40',
+  default: '',
+  success: 'ring-1 ring-inset ring-success/30',
+  warning: 'ring-1 ring-inset ring-warning/35',
+  destructive: 'ring-1 ring-inset ring-destructive/35',
+};
+
+/** What a PR tone looks like as a kit chip. */
+export const PR_CHIP_TONE: Record<PrTone, ChipTone> = {
+  default: 'neutral',
+  success: 'success',
+  warning: 'warning',
+  destructive: 'destructive',
+};
+
+/** The PR flow's cards sit in the narrow panel, so they inset from its edges. */
+export const PR_CARD = cn(GLASS_CARD, 'mx-2');
+
+/** The small tinted icon tile in a card's header, coloured by how the card stands. */
+const TILE_TONE: Record<PrTone, string> = {
+  default: 'bg-foreground/[0.06] text-muted-foreground',
+  success: 'bg-success/12 text-success',
+  warning: 'bg-warning/12 text-warning',
+  destructive: 'bg-destructive/12 text-destructive',
 };
 
 /**
@@ -51,41 +81,45 @@ export function PrCard({
 }): React.JSX.Element {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section
-      aria-label={title}
-      className={cn('mx-2 rounded-lg border bg-card/40 transition-colors', TONE_RING[tone])}
-    >
-      <div className="flex h-8 items-center gap-1 pl-1 pr-1.5">
+    <section aria-label={title} className={cn(PR_CARD, 'transition-shadow', TONE_RING[tone])}>
+      <div className="flex h-9 items-center gap-1 pl-1.5 pr-1.5">
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="group/card flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-full px-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         >
-          <ChevronDown
+          <ChevronRight
             className={cn(
-              'h-2.5 w-2.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none',
-              !open && '-rotate-90',
+              'h-2.5 w-2.5 shrink-0 text-muted-foreground/60 transition-transform group-hover/card:text-muted-foreground motion-reduce:transition-none',
+              open && 'rotate-90',
             )}
           />
-          <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span
+            className={cn(
+              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md [&_svg]:size-3',
+              TILE_TONE[tone],
+            )}
+          >
+            <Icon />
+          </span>
+          <span className={cn(SECTION_HEADING, 'shrink-0 group-hover/card:text-muted-foreground')}>
             {title}
           </span>
           {summary ? (
-            <span className="ml-1 min-w-0 truncate text-[11px] text-muted-foreground">
+            <span className="ml-0.5 min-w-0 truncate text-[11px] text-muted-foreground">
               {summary}
             </span>
           ) : null}
         </button>
         {actions ? <span className="flex shrink-0 items-center gap-0.5">{actions}</span> : null}
       </div>
-      {open ? <div className="border-t border-border/50 pb-2 pt-1.5">{children}</div> : null}
+      {open ? <div className={cn(FOOTER_HAIRLINE, 'pb-2.5 pt-2')}>{children}</div> : null}
     </section>
   );
 }
 
-/** Small rounded label for PR state and review decisions. */
+/** PR state and review decisions as the kit's tinted chip, sized for the panel. */
 export function PrPill({
   tone = 'default',
   children,
@@ -94,27 +128,11 @@ export function PrPill({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <span
-      className={cn(
-        'inline-flex h-[18px] shrink-0 items-center rounded-full px-2 text-[10px] font-semibold',
-        tone === 'success' && 'bg-success/15 text-success',
-        tone === 'warning' && 'bg-warning/15 text-warning',
-        tone === 'destructive' && 'bg-destructive/12 text-destructive',
-        tone === 'default' && 'bg-foreground/[0.07] text-muted-foreground',
-      )}
-    >
+    <Chip tone={PR_CHIP_TONE[tone]} className="h-[18px] px-2 text-[10px] font-semibold">
       {children}
-    </span>
+    </Chip>
   );
 }
-
-/** The quiet secondary button used inside the cards. */
-export const PR_GHOST_BUTTON =
-  'inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-50';
-
-/** The tinted call-to-action used for AI actions, same as the pipeline "Fix with AI". */
-export const PR_AI_BUTTON =
-  'inline-flex h-6 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:pointer-events-none disabled:opacity-50';
 
 /** Sends a textarea on Ctrl+Enter (Cmd+Enter on macOS). */
 export function isSubmitKey(event: React.KeyboardEvent): boolean {

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { ExternalLink, Github, History, RefreshCw, X } from '@/components/icons';
-import { CARD_PILL_SOFT, Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
+import { Chip, TileHeader } from '@/components/pageKit';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
 import { StopRunButton } from '@/components/pipelines/StopRunButton';
@@ -228,8 +228,7 @@ export function GithubActionsCard({
                 <SimpleTooltip label="Actions history">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={TILE_ACTION}
+                    size="icon-sm"
                     onClick={() => setHistoryOpen(true)}
                     aria-label="Actions history"
                   >
@@ -239,8 +238,7 @@ export function GithubActionsCard({
                 <SimpleTooltip label="Refresh GitHub Actions">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={TILE_ACTION}
+                    size="icon-sm"
                     onClick={() => {
                       void queryClient.invalidateQueries({
                         queryKey: queryKeys.githubActionsActivity,
@@ -254,7 +252,7 @@ export function GithubActionsCard({
                 {dragHandle}
                 {onRemove && (
                   <SimpleTooltip label="Remove from dashboard">
-                    <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                    <Button variant="ghost" size="icon-sm" onClick={onRemove}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </SimpleTooltip>
@@ -391,12 +389,7 @@ export function GithubActionsCard({
             >
               All runs and filters
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={CARD_PILL_SOFT}
-              onClick={() => setHistoryOpen(false)}
-            >
+            <Button variant="soft" size="sm" onClick={() => setHistoryOpen(false)}>
               Close
             </Button>
           </DialogFooter>

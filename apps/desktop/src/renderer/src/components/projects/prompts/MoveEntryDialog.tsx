@@ -79,7 +79,7 @@ export function MoveEntryDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
+          <Button variant="soft" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
           <Button disabled={!selected || pending} onClick={() => onMove(selected)}>

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Crosshair, MessageSquarePlus } from '@/components/icons';
+import { OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { elementLabel } from '@/lib/browser/annotationPrompt';
 import { browserRuntime } from '@/lib/browser/browserRuntime';
@@ -11,6 +12,7 @@ import { copyAnnotations, sendAnnotations } from '@/lib/browser/sendAnnotations'
 import type { BrowserAnnotation } from '@/lib/browser/types';
 import { viewportPreset } from '@/lib/browser/viewportPresets';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
+import { cn } from '@/lib/utils';
 import { listAgentTerminals } from '@/lib/workspace/agentTarget';
 import { projectCliId } from '@/lib/workspace/launch';
 import { useBrowserStore } from '@/stores/browserStore';
@@ -73,7 +75,13 @@ function PickingHint({ intent }: { intent: 'copy' | 'comment' }): React.JSX.Elem
   const Icon = intent === 'copy' ? Crosshair : MessageSquarePlus;
   return (
     <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-3">
-      <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-popover/90 py-1 pl-2.5 pr-3 text-[11px] text-foreground shadow-xl backdrop-blur-xl animate-in fade-in-0 slide-in-from-top-1">
+      {/* The app's frosted overlay, like a menu. The !-radius beats the overlay's own corners. */}
+      <div
+        className={cn(
+          OVERLAY_SURFACE,
+          'flex items-center gap-2 rounded-full! py-1 pl-2.5 pr-3 text-[11px] text-foreground animate-in fade-in-0 slide-in-from-top-1',
+        )}
+      >
         <Icon className="h-3 w-3 text-primary" />
         {intent === 'copy' ? (
           <span>Click an element to copy its details · Esc to stop</span>

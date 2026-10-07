@@ -118,12 +118,15 @@ export function ProjectFileBrowser({
             <span className="truncate text-xs font-medium">{relativePath || '/'}</span>
           </SimpleTooltip>
           <SimpleTooltip label="Refresh">
-            <button
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Refresh"
+              className="shrink-0"
               onClick={() => void dirQuery.refetch()}
             >
-              <RefreshCw className={cn('h-3 w-3', dirQuery.isFetching && 'animate-spin')} />
-            </button>
+              <RefreshCw className={cn(dirQuery.isFetching && 'animate-spin')} />
+            </Button>
           </SimpleTooltip>
         </div>
         {currentPath !== rootPath && (

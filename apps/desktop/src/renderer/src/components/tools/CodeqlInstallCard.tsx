@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Download, FolderOpen, StopCircle, Trash2 } from '@/components/icons';
-import { CARD_PILL, CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -111,7 +110,7 @@ export function CodeqlInstallCard(): React.JSX.Element {
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 rounded-full px-2.5 text-xs hover:bg-foreground/[0.06]"
+            className="gap-1 px-2.5 hover:bg-foreground/[0.06]"
             onClick={() => void window.agentmat.security.cancelCodeqlInstall()}
           >
             <StopCircle className="h-3.5 w-3.5" /> Cancel
@@ -157,8 +156,7 @@ export function CodeqlInstallCard(): React.JSX.Element {
       >
         <Button
           size="sm"
-          variant={status?.installed ? 'ghost' : 'default'}
-          className={status?.installed ? CARD_PILL_SOFT : CARD_PILL}
+          variant={status?.installed ? 'soft' : 'default'}
           onClick={() => install.mutate()}
         >
           <Download /> {status?.installed ? 'Reinstall' : 'Download CodeQL'}
@@ -166,9 +164,8 @@ export function CodeqlInstallCard(): React.JSX.Element {
       </SimpleTooltip>
 
       <Button
+        variant="soft"
         size="sm"
-        variant="ghost"
-        className={CARD_PILL_SOFT}
         onClick={() => void window.agentmat.security.openCodeqlFolder()}
       >
         <FolderOpen /> Open folder
@@ -176,9 +173,8 @@ export function CodeqlInstallCard(): React.JSX.Element {
 
       {status?.installed && (
         <Button
+          variant="soft"
           size="sm"
-          variant="ghost"
-          className={CARD_PILL_SOFT}
           onClick={() => {
             void (async () => {
               const confirmed = await confirmDialog({

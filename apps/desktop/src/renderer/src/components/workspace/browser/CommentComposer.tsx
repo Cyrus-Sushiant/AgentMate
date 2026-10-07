@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Send } from '@/components/icons';
+import { SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -72,7 +73,7 @@ export function CommentComposer({
   return (
     <div className="flex w-[21rem] flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-[repeating-conic-gradient(hsl(var(--foreground)/0.06)_0_25%,transparent_0_50%)] bg-[length:8px_8px]">
+        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-inset ring-foreground/10 bg-[repeating-conic-gradient(hsl(var(--foreground)/0.06)_0_25%,transparent_0_50%)] bg-[length:8px_8px]">
           {thumbDataUrl ? (
             <img
               src={thumbDataUrl}
@@ -92,7 +93,7 @@ export function CommentComposer({
       <div
         role="radiogroup"
         aria-label="Kind of comment"
-        className="grid grid-cols-3 gap-0.5 rounded-lg bg-foreground/[0.06] p-0.5"
+        className={cn(SEGMENT_TRACK, 'grid grid-cols-3')}
       >
         {INTENTS.map((option) => (
           <SimpleTooltip key={option.id} label={option.hint} delayDuration={500}>
@@ -101,12 +102,7 @@ export function CommentComposer({
               role="radio"
               aria-checked={intent === option.id}
               onClick={() => setIntent(option.id)}
-              className={cn(
-                'h-6 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                intent === option.id
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
+              className={segmentClass(intent === option.id)}
             >
               {option.label}
             </button>
@@ -139,14 +135,14 @@ export function CommentComposer({
 
       <div className="flex items-center gap-1.5">
         <span className="mr-auto text-[10px] text-muted-foreground/80">{MOD}+Enter to add</span>
-        <Button variant="ghost" size="sm" className="h-7 px-2.5" onClick={onCancel}>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
         <SimpleTooltip label={`Add and send all comments (${MOD}+Shift+Enter)`}>
           <Button
-            variant="outline"
+            variant="soft"
             size="sm"
-            className="h-7 px-2.5 [&_svg]:size-3"
+            className="[&_svg]:size-3"
             disabled={!ready}
             aria-label={sendLabel}
             onClick={() => onSend(draft())}
@@ -155,13 +151,7 @@ export function CommentComposer({
             Send
           </Button>
         </SimpleTooltip>
-        <Button
-          size="sm"
-          className="h-7 px-3"
-          disabled={!ready}
-          aria-label="Add comment"
-          onClick={() => onAdd(draft())}
-        >
+        <Button size="sm" disabled={!ready} aria-label="Add comment" onClick={() => onAdd(draft())}>
           Add
         </Button>
       </div>

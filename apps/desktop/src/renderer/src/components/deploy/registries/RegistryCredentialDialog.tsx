@@ -126,7 +126,7 @@ export function RegistryCredentialDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+            <Button type="button" variant="soft" disabled={busy} onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !username || !secret}>

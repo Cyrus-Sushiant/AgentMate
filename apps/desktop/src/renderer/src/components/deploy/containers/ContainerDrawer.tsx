@@ -6,7 +6,17 @@ import type {
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Globe, Pause, Play, RefreshCw, StopCircle, Wand2 } from '@/components/icons';
+import {
+  Globe,
+  HardDrive,
+  NetworkIcon,
+  Pause,
+  Play,
+  RefreshCw,
+  StopCircle,
+  Wand2,
+} from '@/components/icons';
+import { Chip, EmptyState, SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,6 +31,7 @@ import { isPublic, portText } from '@/lib/deploy/containers/list';
 import { cpuText, type StatsHistory } from '@/lib/deploy/containers/stats';
 import { formatBytes } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import type { ProofStepUp } from '../overview/useProofStepUp';
 import { ago } from '../security/format';
 import { ContainerConsoleTab } from './ContainerConsoleTab';
@@ -40,8 +51,8 @@ export type DrawerTab = 'overview' | 'stats' | 'logs' | 'inspect' | 'mounts' | '
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="min-w-0 space-y-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+    <div className="min-w-0 space-y-1">
+      <dt className={SECTION_HEADING}>{label}</dt>
       <dd className="break-words text-sm text-foreground">{children}</dd>
     </div>
   );
@@ -63,7 +74,7 @@ function OverviewTab({
   const latest = history.get(container.id)?.at(-1);
   const now = Date.now();
   return (
-    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+    <dl className={cn(SECTION_WELL, 'grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2')}>
       <Fact label="Image">
         <span className="font-mono text-xs">{container.image}</span>
       </Fact>
@@ -138,59 +149,63 @@ function OverviewTab({
 
 function MountsTab({ details }: { details: ContainerDetails }): React.JSX.Element {
   if (details.mounts.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing is mounted into this container.</p>;
+    return (
+      <EmptyState size="sm" icon={HardDrive} title="Nothing is mounted into this container." />
+    );
   }
   return (
-    <table className="w-full text-left text-sm" aria-label="Mounts">
-      <thead className="text-xs text-muted-foreground">
-        <tr>
-          <th className="py-1.5 pr-3 font-medium">Inside the container</th>
-          <th className="py-1.5 pr-3 font-medium">From</th>
-          <th className="py-1.5 font-medium">Access</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border">
-        {details.mounts.map((mount) => (
-          <tr key={mount.destination}>
-            <td className="py-1.5 pr-3 font-mono text-xs">{mount.destination}</td>
-            <td className="py-1.5 pr-3 text-xs">
-              <span className="text-muted-foreground">{mount.type} </span>
-              <span className="font-mono">{mount.name ?? mount.source ?? ''}</span>
-            </td>
-            <td className="py-1.5 text-xs">{mount.readWrite ? 'Read and write' : 'Read only'}</td>
+    <div className={cn(SECTION_WELL, 'overflow-x-auto p-0')}>
+      <table className="w-full text-left text-sm" aria-label="Mounts">
+        <thead>
+          <tr className={SECTION_HEADING}>
+            <th className="px-3 py-2 font-semibold">Inside the container</th>
+            <th className="px-3 py-2 font-semibold">From</th>
+            <th className="px-3 py-2 font-semibold">Access</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {details.mounts.map((mount) => (
+            <tr
+              key={mount.destination}
+              className="[&>td]:shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]"
+            >
+              <td className="px-3 py-2 font-mono text-xs">{mount.destination}</td>
+              <td className="px-3 py-2 text-xs">
+                <span className="text-muted-foreground">{mount.type} </span>
+                <span className="font-mono">{mount.name ?? mount.source ?? ''}</span>
+              </td>
+              <td className="px-3 py-2 text-xs">
+                {mount.readWrite ? 'Read and write' : 'Read only'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function PortsTab({ container }: { container: ContainerSummary }): React.JSX.Element {
   if (container.ports.length === 0) {
-    return <p className="text-sm text-muted-foreground">This container has no ports.</p>;
+    return <EmptyState size="sm" icon={NetworkIcon} title="This container has no ports." />;
   }
   return (
-    <ul className="space-y-1.5" aria-label="Ports">
+    <ul className={cn(SECTION_WELL, 'settings-rows p-0')} aria-label="Ports">
       {container.ports.map((port) => {
         const open = isPublic(port);
         const text = portText(port);
         return (
-          <li
-            key={text}
-            className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-          >
+          <li key={text} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
             <span className="font-mono text-xs">{text}</span>
             {port.hostPort === undefined ? (
               <span className="text-xs text-muted-foreground">
                 Only other containers on its network reach it
               </span>
             ) : open ? (
-              <span className="flex items-center gap-1 text-xs text-warning">
-                <Globe className="h-3 w-3" />
-                <span className="text-foreground">
-                  Public: anyone who can reach the server reaches it
-                </span>
-              </span>
+              <Chip tone="warning">
+                <Globe />
+                <span>Public: anyone who can reach the server reaches it</span>
+              </Chip>
             ) : (
               <span className="text-xs text-muted-foreground">Only this address on the server</span>
             )}
@@ -248,8 +263,7 @@ export function ContainerDrawer({
         <>
           <Button
             size="sm"
-            variant="outline"
-            className="gap-1.5"
+            variant="soft"
             onClick={() => actions.act?.(container, 'restart')}
             disabled={actions.busyId === container.id}
           >
@@ -257,8 +271,7 @@ export function ContainerDrawer({
           </Button>
           <Button
             size="sm"
-            variant="outline"
-            className="gap-1.5"
+            variant="soft"
             onClick={() => actions.act?.(container, 'stop')}
             disabled={actions.busyId === container.id}
           >
@@ -268,8 +281,7 @@ export function ContainerDrawer({
       ) : container.state === 'paused' ? (
         <Button
           size="sm"
-          variant="outline"
-          className="gap-1.5"
+          variant="soft"
           onClick={() => actions.act?.(container, 'unpause')}
           disabled={actions.busyId === container.id}
         >
@@ -278,8 +290,7 @@ export function ContainerDrawer({
       ) : (
         <Button
           size="sm"
-          variant="outline"
-          className="gap-1.5"
+          variant="soft"
           onClick={() => actions.act?.(container, 'start')}
           disabled={actions.busyId === container.id}
         >
@@ -299,7 +310,7 @@ export function ContainerDrawer({
     ) : (
       <div className="grid gap-4 sm:grid-cols-2" aria-busy="true">
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-10" />
+          <Skeleton key={i} className="h-10 rounded-lg" />
         ))}
       </div>
     );
@@ -312,7 +323,7 @@ export function ContainerDrawer({
       >
         {container && (
           <>
-            <DialogHeader className="space-y-2 border-b border-border px-5 py-4 pr-12">
+            <DialogHeader className="space-y-2 px-5 py-4 pr-12">
               <div className="flex flex-wrap items-center gap-2">
                 <DialogTitle className="truncate text-base">{container.name}</DialogTitle>
                 <StateChip container={container} />
@@ -322,12 +333,7 @@ export function ContainerDrawer({
               </DialogDescription>
               <div className="flex flex-wrap items-center gap-2">
                 {quick}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={() => onSendToCli(container, revealed)}
-                >
+                <Button size="sm" variant="soft" onClick={() => onSendToCli(container, revealed)}>
                   <Wand2 className="h-3.5 w-3.5" /> Send logs to the project CLI
                 </Button>
                 <ActionMenu container={container} actions={actions} align="start" />
@@ -338,7 +344,11 @@ export function ContainerDrawer({
               onValueChange={(next) => onTab(next as DrawerTab)}
               className="flex min-h-0 flex-1 flex-col"
             >
-              <TabsList containerClassName="px-5">
+              {/* The API Client's strip: hairlines above and below instead of a border. */}
+              <TabsList
+                className="h-9 border-none bg-transparent"
+                containerClassName="border-b-0 px-3 shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08),inset_0_1px_0_hsl(var(--foreground)/0.08)]"
+              >
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="stats">Stats</TabsTrigger>
                 <TabsTrigger value="logs">Logs</TabsTrigger>

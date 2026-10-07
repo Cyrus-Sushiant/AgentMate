@@ -21,11 +21,12 @@ export function AssistantLauncher({ server }: { server: DeployServer }): React.J
     <>
       {openServerId !== server.id && (
         <Button
-          className="fixed bottom-6 right-6 z-30 gap-2 shadow-lg"
+          size="lg"
+          className="fixed bottom-6 right-6 z-30 shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.7)]"
           onClick={() => open(server.id)}
           aria-label={waiting ? 'Deploy AI, waiting for you' : 'Deploy AI'}
         >
-          <Robot className="h-4 w-4" />
+          <Robot />
           Deploy AI
           {waiting && (
             <span className="rounded-full bg-warning px-1.5 text-[10px] font-medium text-warning-foreground">

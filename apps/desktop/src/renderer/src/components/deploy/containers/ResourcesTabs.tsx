@@ -11,13 +11,24 @@ import { isImageReference } from '@shared/dockerNames';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { CloudDownload, RefreshCw, Spinner, Trash2 } from '@/components/icons';
+import {
+  CloudDownload,
+  Docker,
+  HardDrive,
+  NetworkIcon,
+  Package,
+  Spinner,
+  Trash2,
+  Wrench,
+} from '@/components/icons';
+import { Chip, EmptyState, GLASS_CARD, LoadFailure, TileHeader } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { formatBytes } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { ago } from '../security/format';
 
@@ -32,35 +43,58 @@ export interface ResourceRoles {
   canAdmin: boolean;
 }
 
+/** The glass card a resource list sits in, its rows split by the .settings-rows hairlines. */
+const LIST_CARD = cn(GLASS_CARD, 'settings-rows overflow-hidden');
+
+/** One resource in a list card, with its remove button on the right. */
+const ROW = 'flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-foreground/[0.03]';
+
 function Rows({ count, label }: { count: number; label: string }): React.JSX.Element {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label={label}>
+    <div className={cn(GLASS_CARD, 'space-y-2 p-3')} aria-busy="true" aria-label={label}>
       {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-11 w-full rounded-lg" />
+        <Skeleton key={i} className="h-10 w-full rounded-lg" />
       ))}
     </div>
   );
 }
 
 function Failure({ error, retry }: { error: unknown; retry: () => void }): React.JSX.Element {
-  return (
-    <div
-      role="alert"
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-    >
-      {coreErrorMessage(error)}
-      <Button size="sm" variant="ghost" className="gap-1.5" onClick={retry}>
-        <RefreshCw className="h-3.5 w-3.5" /> Try again
-      </Button>
-    </div>
-  );
+  return <LoadFailure message={coreErrorMessage(error)} retry={retry} />;
 }
 
-function Empty({ children }: { children: React.ReactNode }): React.JSX.Element {
+function Empty({
+  icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  children: string;
+}): React.JSX.Element {
+  return <EmptyState card size="sm" icon={icon} title={children} />;
+}
+
+function RemoveButton({
+  label,
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}): React.JSX.Element {
   return (
-    <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-      {children}
-    </p>
+    <SimpleTooltip label={disabled ? 'In use, so it cannot be removed' : 'Remove'} wrapTrigger>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="hover:bg-destructive/10 hover:text-destructive"
+        aria-label={label}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        <Trash2 />
+      </Button>
+    </SimpleTooltip>
   );
 }
 
@@ -133,18 +167,22 @@ export function ImagesTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-2">
       {roles.canOperate && (
-        <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => void pull(event)}>
+        <form
+          className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-2 px-2.5 py-2')}
+          onSubmit={(event) => void pull(event)}
+        >
           <Input
             value={reference}
             onChange={(event) => setReference(event.target.value)}
             placeholder="nginx:1.29 or ghcr.io/org/app:1.0"
             aria-label="Image to pull"
-            className="h-8 max-w-sm font-mono text-xs"
+            aria-invalid={reference.trim() !== '' && !valid ? true : undefined}
+            className="h-8 min-w-48 max-w-sm flex-1 font-mono text-xs"
             spellCheck={false}
           />
-          <Button type="submit" size="sm" className="gap-1.5" disabled={!valid || pulling}>
+          <Button type="submit" size="sm" disabled={!valid || pulling}>
             {pulling ? (
               <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
             ) : (
@@ -162,15 +200,11 @@ export function ImagesTab({
       ) : images.error ? (
         <Failure error={images.error} retry={() => void images.refetch()} />
       ) : images.data.length === 0 ? (
-        <Empty>No images on this server yet.</Empty>
+        <Empty icon={Package}>No images on this server yet.</Empty>
       ) : (
-        <ul className="space-y-1.5" aria-label="Images">
+        <ul className={LIST_CARD} aria-label="Images">
           {images.data.map((image) => (
-            <li
-              key={image.id}
-              aria-label={image.tags[0] ?? image.id}
-              className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2"
-            >
+            <li key={image.id} aria-label={image.tags[0] ?? image.id} className={ROW}>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-mono text-xs text-foreground">
                   {image.tags.length > 0 ? image.tags.join(', ') : 'No tag'}
@@ -183,15 +217,10 @@ export function ImagesTab({
                 </p>
               </div>
               {roles.canOperate && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0"
-                  aria-label={`Remove ${image.tags[0] ?? image.id}`}
+                <RemoveButton
+                  label={`Remove ${image.tags[0] ?? image.id}`}
                   onClick={() => void remove(image)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                />
               )}
             </li>
           ))}
@@ -242,15 +271,11 @@ export function VolumesTab({
 
   if (volumes.isPending) return <Rows count={3} label="Loading volumes" />;
   if (volumes.error) return <Failure error={volumes.error} retry={() => void volumes.refetch()} />;
-  if (volumes.data.length === 0) return <Empty>No volumes on this server.</Empty>;
+  if (volumes.data.length === 0) return <Empty icon={HardDrive}>No volumes on this server.</Empty>;
   return (
-    <ul className="space-y-1.5" aria-label="Volumes">
+    <ul className={LIST_CARD} aria-label="Volumes">
       {volumes.data.map((volume) => (
-        <li
-          key={volume.name}
-          aria-label={volume.name}
-          className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2"
-        >
+        <li key={volume.name} aria-label={volume.name} className={ROW}>
           <div className="min-w-0 flex-1">
             <p className="truncate font-mono text-xs text-foreground">{volume.name}</p>
             <p className="truncate text-xs text-muted-foreground">
@@ -266,16 +291,11 @@ export function VolumesTab({
             </p>
           </div>
           {roles.canAdmin && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label={`Remove ${volume.name}`}
+            <RemoveButton
+              label={`Remove ${volume.name}`}
               disabled={volume.containers > 0}
               onClick={() => void remove(volume)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            />
           )}
         </li>
       ))}
@@ -318,20 +338,17 @@ export function NetworksTab({
   if (networks.isPending) return <Rows count={3} label="Loading networks" />;
   if (networks.error)
     return <Failure error={networks.error} retry={() => void networks.refetch()} />;
-  if (networks.data.length === 0) return <Empty>No networks on this server.</Empty>;
+  if (networks.data.length === 0)
+    return <Empty icon={NetworkIcon}>No networks on this server.</Empty>;
   return (
-    <ul className="space-y-1.5" aria-label="Networks">
+    <ul className={LIST_CARD} aria-label="Networks">
       {networks.data.map((network) => (
-        <li
-          key={network.id}
-          aria-label={network.name}
-          className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 py-2"
-        >
+        <li key={network.id} aria-label={network.name} className={ROW}>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-xs text-foreground">
-              {network.name}
+            <p className="flex min-w-0 items-center gap-2 font-mono text-xs text-foreground">
+              <span className="truncate">{network.name}</span>
               {network.builtIn && (
-                <span className="ml-2 font-sans text-muted-foreground">Built in</span>
+                <Chip className="h-4 px-1.5 font-sans text-[10px]">Built in</Chip>
               )}
             </p>
             <p className="truncate text-xs text-muted-foreground">
@@ -346,16 +363,11 @@ export function NetworksTab({
             </p>
           </div>
           {roles.canOperate && !network.builtIn && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label={`Remove ${network.name}`}
+            <RemoveButton
+              label={`Remove ${network.name}`}
               disabled={network.containers > 0}
               onClick={() => void remove(network)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            />
           )}
         </li>
       ))}
@@ -363,16 +375,37 @@ export function NetworksTab({
   );
 }
 
+type DiskKey = 'images' | 'containers' | 'volumes' | 'buildCache';
+
 const DISK_KINDS: Array<{
-  key: 'images' | 'containers' | 'volumes' | 'buildCache';
+  key: DiskKey;
   label: string;
+  icon: React.ReactNode;
   prune?: DockerPruneTarget;
   what: string;
 }> = [
-  { key: 'images', label: 'Images', prune: 'images', what: 'images no container uses' },
-  { key: 'containers', label: 'Containers', prune: 'containers', what: 'stopped containers' },
-  { key: 'volumes', label: 'Volumes', prune: 'volumes', what: 'volumes no container uses' },
-  { key: 'buildCache', label: 'Build cache', what: 'the build cache' },
+  {
+    key: 'images',
+    label: 'Images',
+    icon: <Package />,
+    prune: 'images',
+    what: 'images no container uses',
+  },
+  {
+    key: 'containers',
+    label: 'Containers',
+    icon: <Docker />,
+    prune: 'containers',
+    what: 'stopped containers',
+  },
+  {
+    key: 'volumes',
+    label: 'Volumes',
+    icon: <HardDrive />,
+    prune: 'volumes',
+    what: 'volumes no container uses',
+  },
+  { key: 'buildCache', label: 'Build cache', icon: <Wrench />, what: 'the build cache' },
 ];
 
 export function DiskUsageTab({
@@ -432,22 +465,42 @@ export function DiskUsageTab({
   const free = DISK_KINDS.reduce((sum, kind) => sum + data[kind.key].reclaimableBytes, 0);
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Docker uses {formatBytes(total)} on {serverName}; up to {formatBytes(free)} of it could be
-        freed.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2" role="list" aria-label="Disk use">
+    <div className="flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-2 px-3.5 py-2.5')}>
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+          Docker uses {formatBytes(total)} on {serverName}; up to {formatBytes(free)} of it could be
+          freed.
+        </p>
+        {roles.canAdmin && (
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={pruning !== null}
+            onClick={() => void prune('system', 'everything unused')}
+          >
+            {pruning === 'system' ? (
+              <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            Clean up everything unused
+          </Button>
+        )}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2" role="list" aria-label="Disk use">
         {DISK_KINDS.map((kind) => {
           const entry: DockerDiskUsageEntry = data[kind.key];
           return (
-            <Card key={kind.key} role="listitem" aria-label={kind.label} className="space-y-2 p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-medium text-foreground">{kind.label}</span>
-                <span className="text-sm tabular-nums text-foreground">
-                  {formatBytes(entry.sizeBytes)}
-                </span>
-              </div>
+            <div
+              key={kind.key}
+              role="listitem"
+              aria-label={kind.label}
+              className={cn(GLASS_CARD, 'flex flex-col gap-2 p-4')}
+            >
+              <TileHeader icon={kind.icon} title={kind.label} />
+              <span className="text-2xl font-semibold tabular-nums tracking-tight">
+                {formatBytes(entry.sizeBytes)}
+              </span>
               <p className="text-xs text-muted-foreground">
                 {entry.count} in all, {entry.active} in use, {formatBytes(entry.reclaimableBytes)}{' '}
                 could be freed
@@ -455,8 +508,8 @@ export function DiskUsageTab({
               {roles.canAdmin && kind.prune && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="gap-1.5"
+                  variant="soft"
+                  className="mt-auto self-start"
                   disabled={pruning !== null || entry.reclaimableBytes === 0}
                   onClick={() => void prune(kind.prune as DockerPruneTarget, kind.what)}
                 >
@@ -468,26 +521,10 @@ export function DiskUsageTab({
                   Remove {kind.what}
                 </Button>
               )}
-            </Card>
+            </div>
           );
         })}
       </div>
-      {roles.canAdmin && (
-        <Button
-          size="sm"
-          variant="destructive"
-          className="gap-1.5"
-          disabled={pruning !== null}
-          onClick={() => void prune('system', 'everything unused')}
-        >
-          {pruning === 'system' ? (
-            <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-          ) : (
-            <Trash2 className="h-3.5 w-3.5" />
-          )}
-          Clean up everything unused
-        </Button>
-      )}
     </div>
   );
 }

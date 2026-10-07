@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RefreshCw, Search, StopCircle } from '@/components/icons';
-import { PILL_SOFT } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -181,18 +180,14 @@ function ProviderRow({
           />
           {running ? (
             <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_SOFT}
+              variant="soft"
               onClick={() => void window.agentmat.help.cancelReindex(provider)}
             >
               <StopCircle className="h-3.5 w-3.5" /> Stop
             </Button>
           ) : (
             <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_SOFT}
+              variant="soft"
               disabled={!ready || saveModel.isPending}
               onClick={() => reindex.mutate(complete)}
             >

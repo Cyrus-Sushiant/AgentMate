@@ -6,14 +6,15 @@ import type {
 import type { DeployServer } from '@shared/deployTypes';
 import { lazy, Suspense, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, Save, Spinner, Trash2, TriangleAlert } from '@/components/icons';
+import { ArrowLeft, Save, Spinner, Trash2, TriangleAlert } from '@/components/icons';
+import { GLASS_PANEL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { blankDraft, draftFromSite, type SiteDraft, suggestId } from '@/lib/deploy/sites/draft';
 import { problemsByTab, problemsFor, type SiteTab, tabOf } from '@/lib/deploy/sites/problems';
 import { type DraftErrors, settingsFromDraft } from '@/lib/deploy/sites/settings';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { DomainsTab } from './DomainsTab';
 import { LogsTab } from './LogsTab';
@@ -32,6 +33,10 @@ import { SslTab } from './SslTab';
 const AdvancedTab = lazy(() =>
   import('./AdvancedTab').then((module) => ({ default: module.AdvancedTab })),
 );
+
+/** A hairline under the tab strip, drawn as a shadow like the API Client's. */
+const HAIRLINE_BELOW =
+  'shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08),inset_0_1px_0_hsl(var(--foreground)/0.08)]';
 
 const TABS: ReadonlyArray<{ value: SiteTab; label: string }> = [
   { value: 'domains', label: 'Domains' },
@@ -148,14 +153,14 @@ export function SiteEditor({
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex flex-row flex-wrap items-center gap-3 space-y-0">
-        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-          <ArrowRight className="h-3.5 w-3.5 rotate-180" /> All sites
+    <section aria-label={`Site ${title}`} className={cn(GLASS_PANEL, 'min-w-0')}>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <Button type="button" variant="soft" size="sm" onClick={onClose}>
+          <ArrowLeft className="h-3.5 w-3.5" /> All sites
         </Button>
-        <CardTitle className="min-w-0 flex-1 truncate font-mono text-base">{title}</CardTitle>
+        <h3 className="min-w-0 flex-1 truncate font-mono text-sm font-semibold">{title}</h3>
         {admin && site && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => void remove()}>
+          <Button type="button" variant="danger" size="sm" onClick={() => void remove()}>
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </Button>
         )}
@@ -169,49 +174,54 @@ export function SiteEditor({
             {site ? 'Save changes' : 'Save the site'}
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {failure && (
-          <p role="alert" className="flex items-center gap-2 text-sm text-destructive">
-            <TriangleAlert className="h-3.5 w-3.5" /> {failure}
-          </p>
-        )}
-        <Tabs value={tab} onValueChange={(value) => setTab(value as SiteTab)} className="space-y-4">
-          <TabsList aria-label="Site settings" className="flex-wrap">
-            {TABS.filter((entry) => entry.value !== 'logs' || site).map((entry) => {
-              const count = counts[entry.value] ?? 0;
-              return (
-                <TabsTrigger key={entry.value} value={entry.value}>
-                  {entry.label}
-                  {count > 0 && (
-                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-destructive">
-                      <TriangleAlert className="h-3 w-3" aria-hidden />
-                      <span className="sr-only">
-                        , {count === 1 ? 'one problem' : `${count} problems`}
-                      </span>
-                      <span aria-hidden>{count}</span>
+      </div>
+      {failure && (
+        <p role="alert" className="flex items-center gap-2 px-4 pb-2 text-sm text-destructive">
+          <TriangleAlert className="h-3.5 w-3.5" /> {failure}
+        </p>
+      )}
+      <Tabs value={tab} onValueChange={(value) => setTab(value as SiteTab)} className="min-w-0">
+        {/* The API Client's tab strip: a quiet hairline under the tabs instead of a border. */}
+        <TabsList
+          aria-label="Site settings"
+          className="h-9 border-none bg-transparent px-1.5"
+          containerClassName={cn('border-b-0', HAIRLINE_BELOW)}
+        >
+          {TABS.filter((entry) => entry.value !== 'logs' || site).map((entry) => {
+            const count = counts[entry.value] ?? 0;
+            return (
+              <TabsTrigger key={entry.value} value={entry.value}>
+                {entry.label}
+                {count > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 items-center gap-0.5 rounded-full bg-destructive/12 px-1.5 text-[10px] font-semibold text-destructive">
+                    <TriangleAlert className="h-2.5 w-2.5" aria-hidden />
+                    <span className="sr-only">
+                      , {count === 1 ? 'one problem' : `${count} problems`}
                     </span>
-                  )}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-          <TabsContent value="domains">
+                    <span aria-hidden>{count}</span>
+                  </span>
+                )}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+        <div className="p-3">
+          <TabsContent value="domains" className="mt-0">
             <DomainsTab {...tabProps} />
           </TabsContent>
-          <TabsContent value="proxy">
+          <TabsContent value="proxy" className="mt-0">
             <ProxyTab {...tabProps} />
           </TabsContent>
-          <TabsContent value="ssl">
+          <TabsContent value="ssl" className="mt-0">
             <SslTab {...tabProps} server={server} site={site} admin={admin} onChanged={onChanged} />
           </TabsContent>
-          <TabsContent value="performance">
+          <TabsContent value="performance" className="mt-0">
             <PerformanceTab {...tabProps} />
           </TabsContent>
-          <TabsContent value="security">
+          <TabsContent value="security" className="mt-0">
             <SecurityTab {...tabProps} />
           </TabsContent>
-          <TabsContent value="advanced">
+          <TabsContent value="advanced" className="mt-0">
             <Suspense fallback={<Skeleton className="h-40 w-full" aria-busy="true" />}>
               <AdvancedTab
                 serverId={server.id}
@@ -223,12 +233,12 @@ export function SiteEditor({
             </Suspense>
           </TabsContent>
           {site && (
-            <TabsContent value="logs">
+            <TabsContent value="logs" className="mt-0">
               <LogsTab serverId={server.id} siteId={site.settings.id} />
             </TabsContent>
           )}
-        </Tabs>
-      </CardContent>
-    </Card>
+        </div>
+      </Tabs>
+    </section>
   );
 }

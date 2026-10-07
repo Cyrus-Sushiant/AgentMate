@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import { X } from '@/components/icons';
 import { Input } from '@/components/ui/input';
+import { OVERLAY_SURFACE } from '@/components/ui/overlay';
+import { cn } from '@/lib/utils';
 
 const MAX_SUGGESTIONS = 6;
 
@@ -83,7 +85,10 @@ export function TagInput({
             id={listId}
             role="listbox"
             aria-label="Tag suggestions"
-            className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-border bg-popover/95 p-1 shadow-lg backdrop-blur-xl"
+            className={cn(
+              OVERLAY_SURFACE,
+              'absolute inset-x-0 top-full z-10 mt-1 overflow-hidden p-1 animate-in fade-in-0',
+            )}
           >
             {matches.map((tag) => (
               <div
@@ -91,7 +96,7 @@ export function TagInput({
                 role="option"
                 aria-selected={false}
                 tabIndex={-1}
-                className="cursor-pointer rounded px-2 py-1 text-sm hover:bg-accent"
+                className="cursor-pointer rounded-lg px-2.5 py-1.5 text-[13px] transition-colors hover:bg-foreground/[0.07]"
                 // mousedown so the input's blur doesn't add the half-typed draft first.
                 onMouseDown={(event) => {
                   event.preventDefault();

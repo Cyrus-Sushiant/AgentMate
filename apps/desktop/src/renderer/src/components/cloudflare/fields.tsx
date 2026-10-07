@@ -1,5 +1,4 @@
-import { TriangleAlert } from '@/components/icons';
-import { Button } from '@/components/ui/button';
+import { SectionCard } from '@/components/pageKit';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
@@ -43,28 +42,25 @@ export function Field({
   );
 }
 
-/** A failed load or change, said in words, with a way to try again when there is one. */
-export function Problem({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry?: () => void;
-}): React.JSX.Element {
+/**
+ * The kit's notice and card under the names the Cloudflare page has always used. A Cloudflare
+ * card is flush: its parts pad themselves, so tables and hairline rows can run edge to edge.
+ */
+export {
+  Notice,
+  type NoticeTone,
+  Problem,
+  SectionCardBody as CardBody,
+} from '@/components/pageKit';
+
+export function CloudflareCard({
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<typeof SectionCard>, 'flush' | 'bodyClassName'>): React.JSX.Element {
   return (
-    <div
-      role="alert"
-      className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3"
-    >
-      <p className="flex min-w-0 flex-1 items-start gap-2 text-sm text-foreground">
-        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-        <span className="whitespace-pre-wrap break-words">{message}</span>
-      </p>
-      {onRetry && (
-        <Button size="sm" variant="outline" onClick={onRetry}>
-          Try again
-        </Button>
-      )}
-    </div>
+    <SectionCard flush className={cn('flex min-w-0 flex-col', className)} {...props}>
+      {children}
+    </SectionCard>
   );
 }

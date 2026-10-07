@@ -46,7 +46,7 @@ export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.El
         <button
           type="button"
           onClick={() => revealPanelSection('pullRequest')}
-          className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-dashed border-primary/40 px-1.5 text-[10.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary/12 px-2 text-[10.5px] font-semibold text-primary ring-1 ring-inset ring-primary/25 transition-colors hover:bg-primary/20"
         >
           <GitPullRequest className="h-2.5 w-2.5" />
           Create PR
@@ -81,18 +81,18 @@ export function BranchPrPill({ projectId }: { projectId: string }): React.JSX.El
       <button
         type="button"
         onClick={() => revealPanelSection('pullRequest')}
-        className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-foreground/[0.06] px-1.5 text-[10.5px] font-medium tabular-nums transition-colors hover:bg-foreground/[0.1]"
+        className="inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded-full bg-foreground/[0.06] px-2 text-[10.5px] font-medium tabular-nums transition-colors hover:bg-foreground/[0.1]"
       >
         <span
           aria-hidden="true"
           className={cn(
             'h-1.5 w-1.5 rounded-full',
             pr.state === 'MERGED'
-              ? 'bg-violet-500'
+              ? 'bg-primary'
               : pr.state === 'CLOSED' || failing
                 ? 'bg-destructive'
                 : running || changesRequested
-                  ? 'bg-amber-500'
+                  ? 'bg-warning'
                   : pr.isDraft
                     ? 'bg-muted-foreground'
                     : 'bg-success',

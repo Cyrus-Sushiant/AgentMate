@@ -77,7 +77,7 @@ export function HostKeyChangedDialogHost(): React.JSX.Element {
               </p>
             </div>
             <DialogFooter>
-              <Button ref={safeChoice} variant="outline" onClick={() => answerHostKeyPrompt(false)}>
+              <Button ref={safeChoice} variant="soft" onClick={() => answerHostKeyPrompt(false)}>
                 Don't connect
               </Button>
               <Button variant="destructive" onClick={() => answerHostKeyPrompt(true)}>

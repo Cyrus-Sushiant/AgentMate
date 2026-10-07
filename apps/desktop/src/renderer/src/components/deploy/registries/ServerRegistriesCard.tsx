@@ -6,10 +6,11 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Lock, Plus, Server, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { DeployCard, LIST_ROW, LIST_WELL } from '../deployKit';
 import type { ProofStepUp } from '../overview/useProofStepUp';
 import { dateTime } from '../security/format';
 import { ServerCredentialDialog } from './ServerCredentialDialog';
@@ -68,69 +69,66 @@ export function ServerRegistriesCard({
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Server className="h-4 w-4 text-primary" /> Stored on this server
-        </CardTitle>
-        <CardDescription>
-          For deploys and pulls nobody is there to sign in for. Encrypted with the server's own keys
-          and never shown again, not even to you.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {loading ? (
-          <Skeleton className="h-12 w-full" aria-busy="true" />
-        ) : !credentials ? (
-          <p role="alert" className="text-sm text-muted-foreground">
-            The stored credentials did not load{error ? `: ${error}` : '.'}
-          </p>
-        ) : credentials.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing is stored on {server.nickname}.</p>
-        ) : (
-          <ul aria-label="Stored on this server" className="space-y-2">
-            {credentials.map((credential) => (
-              <li
-                key={credential.id}
-                aria-label={`${registryLabel(credential.registry)}, stored on this server`}
-                className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2.5"
-              >
-                <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-foreground">
-                    {registryLabel(credential.registry)}{' '}
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {credential.registry}
-                    </span>
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {credential.username} · stored on this server
-                    {credential.lastUsedAtUnixMs
-                      ? ` · last used ${dateTime(credential.lastUsedAtUnixMs)}`
-                      : ' · not used yet'}
+    <DeployCard
+      icon={<Server />}
+      title="Stored on this server"
+      description="For deploys and pulls nobody is there to sign in for. Encrypted with the server's own keys and never shown again, not even to you."
+      bodyClassName="space-y-3"
+    >
+      {loading ? (
+        <div aria-busy="true">
+          <Skeleton className="h-12 w-full rounded-lg" />
+        </div>
+      ) : !credentials ? (
+        <p role="alert" className="text-sm text-muted-foreground">
+          The stored credentials did not load{error ? `: ${error}` : '.'}
+        </p>
+      ) : credentials.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing is stored on {server.nickname}.</p>
+      ) : (
+        <ul aria-label="Stored on this server" className={LIST_WELL}>
+          {credentials.map((credential) => (
+            <li
+              key={credential.id}
+              aria-label={`${registryLabel(credential.registry)}, stored on this server`}
+              className={cn(LIST_ROW, 'flex flex-wrap items-center gap-3')}
+            >
+              <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {registryLabel(credential.registry)}{' '}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {credential.registry}
                   </span>
                 </span>
-                <SimpleTooltip label={canAdmin ? null : ADMIN_ONLY} wrapTrigger>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={!canAdmin}
-                    aria-label={`Remove the stored credential for ${credential.registry}`}
-                    onClick={() => void remove(credential)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </SimpleTooltip>
-              </li>
-            ))}
-          </ul>
-        )}
-        <SimpleTooltip label={canAdmin ? null : ADMIN_ONLY} wrapTrigger>
-          <Button size="sm" variant="outline" disabled={!canAdmin} onClick={() => setAdding(true)}>
-            <Plus className="h-3.5 w-3.5" /> Store a credential
-          </Button>
-        </SimpleTooltip>
-      </CardContent>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {credential.username} · stored on this server
+                  {credential.lastUsedAtUnixMs
+                    ? ` · last used ${dateTime(credential.lastUsedAtUnixMs)}`
+                    : ' · not used yet'}
+                </span>
+              </span>
+              <SimpleTooltip label={canAdmin ? 'Remove' : ADMIN_ONLY} wrapTrigger>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="hover:text-destructive"
+                  disabled={!canAdmin}
+                  aria-label={`Remove the stored credential for ${credential.registry}`}
+                  onClick={() => void remove(credential)}
+                >
+                  <Trash2 />
+                </Button>
+              </SimpleTooltip>
+            </li>
+          ))}
+        </ul>
+      )}
+      <SimpleTooltip label={canAdmin ? null : ADMIN_ONLY} wrapTrigger>
+        <Button size="sm" variant="soft" disabled={!canAdmin} onClick={() => setAdding(true)}>
+          <Plus /> Store a credential
+        </Button>
+      </SimpleTooltip>
       <ServerCredentialDialog
         server={server}
         open={adding}
@@ -139,6 +137,6 @@ export function ServerRegistriesCard({
         onClose={() => setAdding(false)}
         onSaved={onChanged}
       />
-    </Card>
+    </DeployCard>
   );
 }

@@ -5,7 +5,9 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Copy, Spinner, Wand2 } from '@/components/icons';
-import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
+import { Chip } from '@/components/pageKit';
+import { RunStatusIcon, type RunTone, runTone } from '@/components/pipelines/runStatus';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -23,6 +25,29 @@ const RANK: Record<string, number> = {
   cancelled: 4,
   other: 5,
 };
+
+/** A run's outcome as a small tinted chip, live runs with a pulsing dot. */
+export function RunChip({ tone }: { tone: RunTone }): React.JSX.Element {
+  const live = tone.outcome === 'running' || tone.outcome === 'queued';
+  const chipTone =
+    tone.outcome === 'failed'
+      ? 'destructive'
+      : tone.warned || live
+        ? 'warning'
+        : tone.outcome === 'passed'
+          ? 'success'
+          : 'neutral';
+  return (
+    <Chip
+      tone={chipTone}
+      dot={live}
+      pulse={tone.outcome === 'running'}
+      className="h-[18px] px-1.5 text-[10px]"
+    >
+      {tone.label}
+    </Chip>
+  );
+}
 
 /** GitHub Actions for the project: each workflow's latest run, failures first. */
 export function PipelinesSection({ project }: { project: Project }): React.JSX.Element {
@@ -42,12 +67,9 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
 
   if (status.isPending) {
     return (
-      <div className="space-y-2 p-3">
+      <div className="space-y-1 px-2 py-1.5">
         {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <Skeleton className="h-5 w-5 rounded" />
-            <Skeleton className="h-3.5 flex-1 rounded" />
-          </div>
+          <Skeleton key={i} className="h-10 rounded-lg" style={{ width: `${96 - i * 10}%` }} />
         ))}
       </div>
     );
@@ -113,15 +135,17 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   const repo = `${data.github.owner}/${data.github.repo}`;
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto py-1">
+    <div className="min-h-0 flex-1 space-y-px overflow-y-auto py-1">
       {rows.map(({ workflow, run, tone }) => {
         const failed = tone?.outcome === 'failed' && run;
         return (
           <div
             key={workflow.id}
             className={cn(
-              'group/run mx-1 rounded-md transition-colors hover:bg-foreground/[0.05]',
-              failed && 'bg-destructive/[0.04]',
+              'group/run mx-1.5 rounded-lg transition-colors',
+              failed
+                ? 'bg-destructive/[0.05] ring-1 ring-inset ring-destructive/15'
+                : 'hover:bg-foreground/[0.06]',
             )}
           >
             <button
@@ -129,10 +153,10 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
               onClick={() =>
                 void window.agentmat.shell.openExternal(run?.htmlUrl ?? workflow.htmlUrl)
               }
-              className="flex w-full items-center gap-2.5 px-2 py-1.5 text-left"
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             >
               {tone ? (
-                <RunStatusIcon tone={tone} className="h-6 w-6 shrink-0" />
+                <RunStatusIcon tone={tone} className="h-6 w-6 shrink-0 rounded-md" />
               ) : (
                 <span className="h-6 w-6 shrink-0 rounded-md bg-foreground/[0.06]" />
               )}
@@ -144,20 +168,7 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
                     : 'Never run'}
                 </span>
               </span>
-              {tone ? (
-                <span
-                  className={cn(
-                    'shrink-0 text-[10px] font-medium',
-                    tone.outcome === 'failed'
-                      ? 'text-destructive'
-                      : tone.outcome === 'passed'
-                        ? 'text-success'
-                        : 'text-muted-foreground',
-                  )}
-                >
-                  {tone.label}
-                </span>
-              ) : null}
+              {tone ? <RunChip tone={tone} /> : null}
             </button>
             {failed ? (
               <FailedRunActions
@@ -209,27 +220,21 @@ export function FailedRunActions({
 
   return (
     <div className={cn('flex items-center gap-1 pb-1.5 pl-[2.625rem] pr-2', className)}>
-      <button
-        type="button"
-        onClick={() => setFixing(true)}
-        className="inline-flex h-6 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
-      >
-        <Wand2 className="h-2.5 w-2.5" />
+      <Button type="button" variant="tint" size="xs" onClick={() => setFixing(true)}>
+        <Wand2 />
         Fix with AI
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         onClick={() => void copy()}
         disabled={copying}
-        className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:opacity-60"
+        className="text-muted-foreground"
       >
-        {copying ? (
-          <Spinner className="h-2.5 w-2.5 animate-spin" />
-        ) : (
-          <Copy className="h-2.5 w-2.5" />
-        )}
+        {copying ? <Spinner className="animate-spin" /> : <Copy />}
         Copy error
-      </button>
+      </Button>
       {fixing ? (
         <FixRunDialog project={project} run={run} open={fixing} onOpenChange={setFixing} />
       ) : null}

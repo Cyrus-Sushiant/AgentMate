@@ -3,8 +3,8 @@ import type { MetricsSample } from '@shared/deploy/protocol/generated/AgentMate.
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ChartSimple, Table } from '@/components/icons';
+import { SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChartColors } from '@/lib/chartColors';
 import {
@@ -21,6 +21,7 @@ import {
 import { formatPercent } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { DeployCard } from '../deployKit';
 import { type ChartSeries, MetricChart } from './MetricChart';
 
 /** The table view keeps to the newest readings, so a 30-day range stays a page long. */
@@ -106,7 +107,11 @@ function ReadingsTable({ samples, spanMs }: { samples: MetricsSample[]; spanMs: 
         </thead>
         <tbody>
           {rows.map((sample) => (
-            <tr key={sample.atUnixMs} className="border-t border-border/60">
+            // A hairline as an inset shadow, since a border would take the global colour.
+            <tr
+              key={sample.atUnixMs}
+              className="[&>td]:shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]"
+            >
               <td className="py-1 pr-3">{formatPointTime(sample.atUnixMs, spanMs)}</td>
               <td className="py-1 pr-3">{formatPercent(sample.cpuPercent)}</td>
               <td className="py-1 pr-3">{wholePercent(memoryPercent(sample))}</td>
@@ -167,20 +172,13 @@ export function MetricsCard({
   const times = samples.map((sample) => sample.atUnixMs);
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <ChartSimple className="h-4 w-4 text-primary" /> History
-          </CardTitle>
-          <CardDescription>Showing {option.description}.</CardDescription>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div
-            role="radiogroup"
-            aria-label="Range"
-            className="flex rounded-lg border border-border p-0.5"
-          >
+    <DeployCard
+      icon={<ChartSimple />}
+      title="History"
+      description={`Showing ${option.description}.`}
+      actions={
+        <>
+          <div role="radiogroup" aria-label="Range" className={SEGMENT_TRACK}>
             {RANGES.map((item) => (
               <button
                 key={item.value}
@@ -188,12 +186,7 @@ export function MetricsCard({
                 role="radio"
                 aria-checked={item.value === range}
                 onClick={() => setRange(item.value)}
-                className={cn(
-                  'cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  item.value === range
-                    ? 'bg-primary/12 text-foreground shadow-[inset_0_-2px_0_hsl(var(--primary))]'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
+                className={segmentClass(item.value === range)}
               >
                 {item.label}
               </button>
@@ -201,71 +194,68 @@ export function MetricsCard({
           </div>
           <Button
             size="sm"
-            variant="ghost"
+            variant="soft"
             aria-pressed={table}
             onClick={() => setTable((current) => !current)}
           >
-            {table ? <ChartSimple className="h-3.5 w-3.5" /> : <Table className="h-3.5 w-3.5" />}
+            {table ? <ChartSimple /> : <Table />}
             {table ? 'Charts' : 'Table'}
           </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <div className="grid gap-6 md:grid-cols-2" aria-busy="true">
+          {CHARTS.map((chart) => (
+            <Skeleton key={chart.key} className="h-40 w-full rounded-lg" />
+          ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="grid gap-6 md:grid-cols-2" aria-busy="true">
-            {CHARTS.map((chart) => (
-              <Skeleton key={chart.key} className="h-40 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : error && samples.length === 0 ? (
-          <p role="alert" className="text-sm text-muted-foreground">
-            The readings did not load: {error}
-          </p>
-        ) : samples.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {range === 'live'
-              ? 'Waiting for the first reading from the server.'
-              : 'No readings stored for this range yet. The core keeps them from the time it was installed.'}
-          </p>
-        ) : table ? (
-          <div className={cn('transition-opacity', dimmed && 'opacity-50')}>
-            <ReadingsTable samples={samples} spanMs={option.spanMs} />
-          </div>
-        ) : (
-          <div
-            className={cn('grid gap-6 transition-opacity md:grid-cols-2', dimmed && 'opacity-50')}
-          >
-            {CHARTS.map((chart) => {
-              const series: ChartSeries[] = chart.series.map((item, slot) => ({
-                key: item.key,
-                label: item.label,
-                color: categorical[slot],
-                values: samples.map(item.pick),
-              }));
-              const yMax = chart.percent ? 100 : niceRateMax(series.flatMap((item) => item.values));
-              const format = chart.percent ? formatPercent : formatRate;
-              return (
-                <div key={chart.key} className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="text-sm font-medium text-foreground">{chart.title}</h4>
-                    <Legend series={series} />
-                  </div>
-                  <MetricChart
-                    title={chart.title}
-                    times={times}
-                    series={series}
-                    yMax={yMax}
-                    formatValue={format}
-                    formatTick={chart.percent ? wholePercent : formatRate}
-                    formatTime={(at) => formatPointTime(at, option.spanMs)}
-                    axisTimes={(at) => formatAxisTime(at, option.spanMs)}
-                  />
+      ) : error && samples.length === 0 ? (
+        <p role="alert" className="text-sm text-muted-foreground">
+          The readings did not load: {error}
+        </p>
+      ) : samples.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {range === 'live'
+            ? 'Waiting for the first reading from the server.'
+            : 'No readings stored for this range yet. The core keeps them from the time it was installed.'}
+        </p>
+      ) : table ? (
+        <div className={cn('transition-opacity', dimmed && 'opacity-50')}>
+          <ReadingsTable samples={samples} spanMs={option.spanMs} />
+        </div>
+      ) : (
+        <div className={cn('grid gap-6 transition-opacity md:grid-cols-2', dimmed && 'opacity-50')}>
+          {CHARTS.map((chart) => {
+            const series: ChartSeries[] = chart.series.map((item, slot) => ({
+              key: item.key,
+              label: item.label,
+              color: categorical[slot],
+              values: samples.map(item.pick),
+            }));
+            const yMax = chart.percent ? 100 : niceRateMax(series.flatMap((item) => item.values));
+            const format = chart.percent ? formatPercent : formatRate;
+            return (
+              <div key={chart.key} className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h4 className="text-sm font-medium text-foreground">{chart.title}</h4>
+                  <Legend series={series} />
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                <MetricChart
+                  title={chart.title}
+                  times={times}
+                  series={series}
+                  yMax={yMax}
+                  formatValue={format}
+                  formatTick={chart.percent ? wholePercent : formatRate}
+                  formatTime={(at) => formatPointTime(at, option.spanMs)}
+                  axisTimes={(at) => formatAxisTime(at, option.spanMs)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </DeployCard>
   );
 }

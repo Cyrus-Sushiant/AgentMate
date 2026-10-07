@@ -12,6 +12,7 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import {
   Ban,
   CircleCheck,
@@ -19,13 +20,12 @@ import {
   Download,
   History,
   Minus,
-  RefreshCw,
   Shield,
   Spinner,
   TriangleAlert,
 } from '@/components/icons';
+import { Chip, type ChipTone, EmptyState, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,11 +34,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
-import { SetupFailure } from '../SetupFailure';
+import { cn } from '@/lib/utils';
+import { Notice } from '../deployKit';
 import { dateTime } from './format';
+import {
+  CARD_BODY,
+  LoadFailure,
+  RowsSkeleton,
+  SecurityCard,
+  TABLE_CELL,
+  TABLE_HEAD,
+} from './SecurityCard';
 
 const PAGE_SIZE = 50;
 
@@ -93,11 +101,11 @@ function toFilter(filters: Filters): DeployAuditFilter {
   };
 }
 
-const OUTCOME: Record<string, { label: string; icon: typeof CircleCheck; tone: string }> = {
-  success: { label: 'Succeeded', icon: CircleCheck, tone: 'text-success' },
-  denied: { label: 'Refused', icon: Ban, tone: 'text-warning' },
-  failed: { label: 'Failed', icon: CircleX, tone: 'text-destructive' },
-  cancelled: { label: 'Cancelled', icon: Minus, tone: 'text-muted-foreground' },
+const OUTCOME: Record<string, { label: string; icon: typeof CircleCheck; tone: ChipTone }> = {
+  success: { label: 'Succeeded', icon: CircleCheck, tone: 'success' },
+  denied: { label: 'Refused', icon: Ban, tone: 'warning' },
+  failed: { label: 'Failed', icon: CircleX, tone: 'destructive' },
+  cancelled: { label: 'Cancelled', icon: Minus, tone: 'neutral' },
 };
 
 /** Who acted, for a reader: a user, a removed one, nobody, or an admin command over SSH. */
@@ -119,43 +127,31 @@ function actor(event: AuditEventInfo): string {
 }
 
 function Outcome({ result }: { result: string }): React.JSX.Element {
-  const outcome = OUTCOME[result] ?? { label: result, icon: Minus, tone: 'text-muted-foreground' };
+  const outcome = OUTCOME[result] ?? { label: result, icon: Minus, tone: 'neutral' };
   const Icon = outcome.icon;
   return (
-    <span className={`flex items-center gap-1.5 whitespace-nowrap font-medium ${outcome.tone}`}>
-      <Icon className="h-3.5 w-3.5" />
+    <Chip tone={outcome.tone}>
+      <Icon />
       {outcome.label}
-    </span>
+    </Chip>
   );
 }
 
 function Verification({ result }: { result: AuditVerificationInfo }): React.JSX.Element {
   if (result.intact) {
     return (
-      <div
-        role="status"
-        className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-foreground"
-      >
-        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-        <span>
-          The trail is intact: all {result.checked.toLocaleString()} events check out. Each one
-          still hashes to what the next one recorded.
-        </span>
-      </div>
+      <Notice role="status" tone="success" icon={CircleCheck}>
+        The trail is intact: all {result.checked.toLocaleString()} events check out. Each one still
+        hashes to what the next one recorded.
+      </Notice>
     );
   }
   return (
-    <div
-      role="alert"
-      className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-foreground"
-    >
-      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-      <span>
-        The trail is broken at event {result.brokenAt}. That event, or one before it, was changed or
-        removed after it was written. The {result.checked.toLocaleString()} events before it check
-        out.
-      </span>
-    </div>
+    <Notice role="alert" tone="destructive" icon={TriangleAlert}>
+      The trail is broken at event {result.brokenAt}. That event, or one before it, was changed or
+      removed after it was written. The {result.checked.toLocaleString()} events before it check
+      out.
+    </Notice>
   );
 }
 
@@ -233,68 +229,67 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
   const events = audit.data?.pages.flatMap((page) => page.events) ?? [];
   let body: React.ReactNode;
   if (audit.isPending) {
-    body = (
-      <div className="space-y-2" aria-busy="true">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-9 w-full rounded-md" />
-        ))}
-      </div>
-    );
+    body = <RowsSkeleton rows={4} />;
   } else if (audit.isError) {
     body = (
-      <div className="space-y-3">
-        <SetupFailure message={coreErrorMessage(audit.error)} />
-        <Button size="sm" variant="outline" onClick={() => void audit.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <LoadFailure message={coreErrorMessage(audit.error)} onRetry={() => void audit.refetch()} />
     );
   } else if (events.length === 0) {
     body = (
-      <p className="text-sm text-muted-foreground">
-        {Object.keys(filter).length > 0
-          ? 'Nothing matches these filters.'
-          : 'Nothing has been recorded yet.'}
-      </p>
+      <div className={CARD_BODY}>
+        <EmptyState
+          size="sm"
+          icon={History}
+          title={
+            Object.keys(filter).length > 0
+              ? 'Nothing matches these filters.'
+              : 'Nothing has been recorded yet.'
+          }
+        />
+      </div>
     );
   } else {
     body = (
-      <div className="space-y-3">
-        <div className="overflow-x-auto rounded-lg border border-border/70">
-          <table className="w-full min-w-[40rem] border-collapse text-left text-xs">
+      <div>
+        <div className="overflow-x-auto">
+          {/* The caption comes first, so .settings-rows also draws the line above the headings. */}
+          <table className="settings-rows w-full min-w-[40rem] border-collapse text-left text-xs">
             <caption className="sr-only">Audit events, newest first</caption>
-            <thead className="bg-secondary/40 text-muted-foreground">
+            <thead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <th scope="col" className={TABLE_HEAD}>
                   When
                 </th>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <th scope="col" className={TABLE_HEAD}>
                   Who
                 </th>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <th scope="col" className={TABLE_HEAD}>
                   What
                 </th>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <th scope="col" className={TABLE_HEAD}>
                   On
                 </th>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <th scope="col" className={TABLE_HEAD}>
                   Result
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60">
+            <tbody className="settings-rows">
               {events.map((event) => (
-                <tr key={event.id} className="align-top">
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                <tr
+                  key={event.id}
+                  className="align-top transition-colors hover:bg-foreground/[0.03]"
+                >
+                  <td className={cn(TABLE_CELL, 'whitespace-nowrap text-muted-foreground')}>
                     {dateTime(event.atUnixMs)}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className={TABLE_CELL}>
                     <span className="block text-foreground">{actor(event)}</span>
                     {event.deviceName && (
                       <span className="block text-muted-foreground">{event.deviceName}</span>
                     )}
                   </td>
-                  <td className="max-w-[18rem] px-3 py-2">
+                  <td className={cn(TABLE_CELL, 'max-w-[18rem]')}>
                     <span className="block font-mono text-foreground">{event.action}</span>
                     {event.parameters && (
                       <SimpleTooltip label={event.parameters} className="font-mono">
@@ -304,10 +299,10 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
                       </SimpleTooltip>
                     )}
                   </td>
-                  <td className="max-w-[12rem] truncate px-3 py-2 text-foreground">
+                  <td className={cn(TABLE_CELL, 'max-w-[12rem] truncate text-foreground')}>
                     {event.target ?? ''}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className={TABLE_CELL}>
                     <Outcome result={event.result} />
                   </td>
                 </tr>
@@ -316,37 +311,32 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
           </table>
         </div>
         {audit.hasNextPage && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={audit.isFetchingNextPage}
-            onClick={() => void audit.fetchNextPage()}
-          >
-            {audit.isFetchingNextPage && (
-              <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-            )}
-            Load older events
-          </Button>
+          <div className={cn(FOOTER_HAIRLINE, 'flex justify-center px-4 py-3')}>
+            <Button
+              size="sm"
+              variant="soft"
+              disabled={audit.isFetchingNextPage}
+              onClick={() => void audit.fetchNextPage()}
+            >
+              {audit.isFetchingNextPage && (
+                <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
+              )}
+              Load older events
+            </Button>
+          </div>
         )}
       </div>
     );
   }
 
-  const selectClass = 'h-9 w-full rounded-md border border-input bg-background px-2 text-sm';
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-4 w-4 text-primary" /> Audit trail
-          </CardTitle>
-          <CardDescription className="max-w-2xl">
-            Every sign-in, change and refusal on this core, newest first. Each entry is chained to
-            the one before it, so an edit or a deletion shows when the chain is checked.
-          </CardDescription>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="outline" disabled={checking} onClick={() => void verify()}>
+    <SecurityCard
+      icon={<History />}
+      title="Audit trail"
+      description="Every sign-in, change and refusal on this core, newest first. Each entry is chained to the one before it, so an edit or a deletion shows when the chain is checked."
+      actions={
+        <>
+          <Button size="sm" variant="soft" disabled={checking} onClick={() => void verify()}>
             {checking ? (
               <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
             ) : (
@@ -356,7 +346,7 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={exporting}>
+              <Button size="sm" variant="soft" disabled={exporting}>
                 <Download className="h-3.5 w-3.5" /> Export
               </Button>
             </DropdownMenuTrigger>
@@ -365,9 +355,10 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
               <DropdownMenuItem onSelect={() => void save('json')}>As JSON</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </>
+      }
+    >
+      <div className={cn(CARD_BODY, 'space-y-3')}>
         {verification && (
           <div className="space-y-1">
             <Verification result={verification} />
@@ -398,37 +389,35 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-action`}>Action</Label>
-            <select
+            <NativeSelect
               id={`${id}-action`}
               value={filters.action}
               onChange={(event) => set({ action: event.target.value })}
-              className={selectClass}
             >
               {ACTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-result`}>Result</Label>
-            <select
+            <NativeSelect
               id={`${id}-result`}
               value={filters.result}
               onChange={(event) => set({ result: event.target.value as Filters['result'] })}
-              className={selectClass}
             >
               {RESULTS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-range`}>When</Label>
-            <select
+            <NativeSelect
               id={`${id}-range`}
               value={filters.range}
               onChange={(event) => {
@@ -438,18 +427,17 @@ export function AuditCard({ server }: { server: DeployServer }): React.JSX.Eleme
                   fromUnixMs: range?.ms ? Date.now() - range.ms : undefined,
                 });
               }}
-              className={selectClass}
             >
               {RANGES.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         </form>
-        {body}
-      </CardContent>
-    </Card>
+      </div>
+      {body}
+    </SecurityCard>
   );
 }

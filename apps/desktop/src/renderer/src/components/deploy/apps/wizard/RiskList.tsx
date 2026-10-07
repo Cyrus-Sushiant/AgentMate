@@ -1,6 +1,7 @@
 import type { ComposeRiskSeverity } from '@agentmat/core';
 import { useId } from 'react';
 import { CircleCheck, CircleInfo } from '@/components/icons';
+import { Chip, type ChipTone, SECTION_WELL } from '@/components/pageKit';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SEVERITY_TEXT, sortRisks } from '@/lib/deploy/apps/format';
 import { cn } from '@/lib/utils';
@@ -18,11 +19,12 @@ export interface RiskItem {
   service?: string | null;
 }
 
-const SEVERITY_CLASS: Record<ComposeRiskSeverity, string> = {
-  critical: 'border-destructive/40 bg-destructive/10 text-destructive',
-  high: 'border-destructive/30 bg-destructive/5 text-destructive',
-  medium: 'border-warning/40 bg-warning/10 text-warning',
-  low: 'border-border bg-secondary/60 text-muted-foreground',
+/** Severity as the page kit's chip tones, which tint without a border. */
+const SEVERITY_TONE: Record<ComposeRiskSeverity, ChipTone> = {
+  critical: 'destructive',
+  high: 'destructive',
+  medium: 'warning',
+  low: 'neutral',
 };
 
 export function RiskList({
@@ -55,8 +57,11 @@ export function RiskList({
               <li
                 key={risk.id}
                 className={cn(
-                  'flex gap-3 rounded-lg border p-3 transition-colors',
-                  checked ? 'border-border' : 'border-warning/40',
+                  // Inset rings, since a tinted border would lose to the global border colour.
+                  'flex gap-3 rounded-xl p-3 ring-1 ring-inset transition-colors',
+                  checked
+                    ? 'bg-foreground/[0.03] ring-foreground/[0.08]'
+                    : 'bg-warning/[0.05] ring-warning/35',
                 )}
               >
                 <Checkbox
@@ -71,14 +76,12 @@ export function RiskList({
                     htmlFor={checkboxId}
                     className="flex cursor-pointer flex-wrap items-center gap-2"
                   >
-                    <span
-                      className={cn(
-                        'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                        SEVERITY_CLASS[risk.severity],
-                      )}
+                    <Chip
+                      tone={SEVERITY_TONE[risk.severity]}
+                      className="text-[10px] font-semibold uppercase tracking-wide"
                     >
                       {SEVERITY_TEXT[risk.severity]}
-                    </span>
+                    </Chip>
                     <span className="text-sm text-foreground">{risk.message}</span>
                   </label>
                   {risk.advice && <p className="text-xs text-muted-foreground">{risk.advice}</p>}
@@ -97,7 +100,7 @@ export function RiskList({
           </p>
           <ul aria-label="Advice" className="space-y-1.5">
             {advice.map((risk) => (
-              <li key={risk.id} className="rounded-lg border border-border/70 px-3 py-2">
+              <li key={risk.id} className={cn(SECTION_WELL, 'px-3 py-2')}>
                 <p className="text-xs text-foreground">{risk.message}</p>
                 {risk.advice && <p className="text-[11px] text-muted-foreground">{risk.advice}</p>}
               </li>

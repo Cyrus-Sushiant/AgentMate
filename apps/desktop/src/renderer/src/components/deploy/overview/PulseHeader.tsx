@@ -8,7 +8,7 @@ import {
   NetworkIcon,
   TriangleAlert,
 } from '@/components/icons';
-import { Card } from '@/components/ui/card';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { CountUp } from '@/components/usage/CountUp';
@@ -31,7 +31,7 @@ function Ribbon({ values, max, color }: { values: number[]; max: number; color: 
   const width = 120;
   const height = 28;
   if (values.length < 2) {
-    return <div className="h-7 w-full rounded bg-secondary/40" aria-hidden />;
+    return <div className="h-7 w-full rounded-md bg-foreground/[0.05]" aria-hidden />;
   }
   const top = Math.max(max, 1);
   const points = values.map((value, i) => {
@@ -80,7 +80,7 @@ function Pulse({
 }): React.JSX.Element {
   return (
     <div className="min-w-0 space-y-1.5" aria-label={label} role="group">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground [&_svg]:text-primary">
         {icon} {label}
       </div>
       <div className="flex items-baseline gap-2">
@@ -139,15 +139,14 @@ export function PulseHeader({
   );
 
   return (
-    <Card
-      className="glass grid gap-5 p-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center"
+    <section
+      className={cn(GLASS_CARD, 'grid gap-5 p-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center')}
       aria-label="Pulse"
-      role="region"
     >
       <SimpleTooltip label={tooltip} className="max-w-sm">
         <button
           type="button"
-          className="flex min-w-44 cursor-help items-center gap-3 rounded-lg px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-w-44 cursor-help items-center gap-3 rounded-xl px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={
             health
               ? `Health score ${health.score} of 100, ${health.label}. ${health.findings.map((f) => f.label).join(', ')}`
@@ -156,7 +155,7 @@ export function PulseHeader({
         >
           {health && Icon ? (
             <>
-              <span className="text-5xl font-semibold leading-none text-foreground">
+              <span className="text-5xl font-semibold leading-none tracking-tight text-foreground tabular-nums">
                 <CountUp value={health.score} format={(n) => String(Math.round(n))} />
               </span>
               <span className="space-y-0.5">
@@ -229,6 +228,6 @@ export function PulseHeader({
           color={categorical[0]}
         />
       </div>
-    </Card>
+    </section>
   );
 }

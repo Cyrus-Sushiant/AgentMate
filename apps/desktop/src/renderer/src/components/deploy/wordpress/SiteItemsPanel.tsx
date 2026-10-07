@@ -3,20 +3,23 @@ import type { DeployWordPressSite, DeployWordPressSiteInfo } from '@shared/deplo
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Blocks,
+  Bolt,
   CloudDownload,
   CloudUpload,
   FolderPlus,
   Lock,
   RefreshCw,
+  Sparkles,
   TriangleAlert,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { DeployFlowDialog } from '@/components/wordpress/DeployFlowDialog';
 import { PullFlowDialog } from '@/components/wordpress/PullFlowDialog';
+import { DeployCard, Notice } from '../deployKit';
 import { SetupFailure } from '../SetupFailure';
 import { siteProjects, useProjects, useSiteInfo, useSiteItems } from './hooks';
 import { fileChangesStatus, SCOPE_SUMMARY, wpProblem } from './messages';
@@ -75,13 +78,21 @@ function ItemRow({
 }): React.JSX.Element {
   const ref: WpItemRef = { kind: item.kind, slug: item.slug };
   return (
-    <li className="grid gap-3 border-t border-border/60 py-3 first:border-t-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+    <li className="grid gap-3 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="break-words text-sm font-medium text-foreground">{item.name}</span>
-          {item.active && <Badge variant="success">Active</Badge>}
-          {item.networkActive && <Badge variant="success">Network active</Badge>}
-          {item.protected && <Badge variant="secondary">Connector</Badge>}
+          {item.active && (
+            <Chip tone="success" dot>
+              Active
+            </Chip>
+          )}
+          {item.networkActive && (
+            <Chip tone="success" dot>
+              Network active
+            </Chip>
+          )}
+          {item.protected && <Chip>Connector</Chip>}
         </div>
         <p className="break-all font-mono text-xs text-muted-foreground">
           {item.slug}
@@ -99,8 +110,8 @@ function ItemRow({
         ) : projects.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Not in a project yet.</span>
-            <Button size="sm" variant="ghost" onClick={onNewProject}>
-              <FolderPlus className="h-3.5 w-3.5" /> Make a WordPress project
+            <Button size="sm" variant="soft" onClick={onNewProject}>
+              <FolderPlus /> Make a WordPress project
             </Button>
           </div>
         ) : (
@@ -112,11 +123,11 @@ function ItemRow({
                 </span>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="soft"
                   aria-label={`Pull ${item.name} into ${project.name}`}
                   onClick={() => onOpen({ kind: 'pull', projectId: project.id, item: ref })}
                 >
-                  <CloudDownload className="h-3.5 w-3.5" /> Pull
+                  <CloudDownload /> Pull
                 </Button>
                 <SimpleTooltip label={deployBlocked} wrapTrigger>
                   <Button
@@ -125,7 +136,7 @@ function ItemRow({
                     aria-label={`Review and deploy ${item.name} from ${project.name}`}
                     onClick={() => onOpen({ kind: 'deploy', projectId: project.id, item: ref })}
                   >
-                    <CloudUpload className="h-3.5 w-3.5" /> Review and deploy
+                    <CloudUpload /> Review and deploy
                   </Button>
                 </SimpleTooltip>
               </li>
@@ -167,73 +178,82 @@ export function SiteItemsPanel({ site }: { site: DeployWordPressSite }): React.J
   const newProject = () => navigate('/projects?new=wordpress');
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       {siteBlock && (
-        <div
-          role="note"
-          className="flex items-start gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground"
-        >
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <span>{siteBlock}</span>
-        </div>
+        <Notice role="note" icon={Lock}>
+          {siteBlock}
+        </Notice>
       )}
       {itemsQuery.isError && (
-        <div className="space-y-3">
-          <SetupFailure message={wpProblem(itemsQuery.error)} />
+        <div className="flex flex-col items-start gap-2">
+          <div className="w-full">
+            <SetupFailure message={wpProblem(itemsQuery.error)} />
+          </div>
           <Button
             size="sm"
-            variant="outline"
+            variant="soft"
             disabled={itemsQuery.isFetching}
             onClick={() => void itemsQuery.refetch()}
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Try again
+            <RefreshCw /> Try again
           </Button>
         </div>
       )}
       {projectsQuery.isError && (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <TriangleAlert className="h-3.5 w-3.5 text-warning" /> Your projects did not load, so the
-          links to them are missing.
-        </p>
+        <Notice tone="warning" icon={TriangleAlert}>
+          Your projects did not load, so the links to them are missing.
+        </Notice>
       )}
       {!itemsQuery.isError &&
         GROUPS.map((group) => {
           const items = (itemsQuery.data ?? []).filter((item) => item.kind === group.kind);
           return (
-            <Card key={group.kind} className="glass">
-              <CardHeader>
-                <CardTitle>{group.title}</CardTitle>
-                {group.kind === 'mu-plugin' && (
-                  <CardDescription>
-                    Loaded on every request and can't be switched off in wp-admin.
-                  </CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                {itemsQuery.isPending ? (
-                  <div className="space-y-2" aria-busy="true">
-                    {Array.from({ length: 3 }, (_, index) => (
-                      <Skeleton key={index} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{group.empty}</p>
+            <DeployCard
+              key={group.kind}
+              icon={
+                group.kind === 'theme' ? (
+                  <Sparkles />
+                ) : group.kind === 'mu-plugin' ? (
+                  <Bolt />
                 ) : (
-                  <ul aria-label={group.title}>
-                    {items.map((item) => (
-                      <ItemRow
-                        key={`${item.kind}/${item.slug}`}
-                        item={item}
-                        projects={linked.filter((project) => linksItem(project, item))}
-                        deployBlocked={deployBlockedReason(site, info, item)}
-                        onOpen={open}
-                        onNewProject={newProject}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+                  <Blocks />
+                )
+              }
+              title={group.title}
+              extra={
+                itemsQuery.isPending ? undefined : (
+                  <Chip className="tabular-nums">{items.length}</Chip>
+                )
+              }
+              description={
+                group.kind === 'mu-plugin'
+                  ? "Loaded on every request and can't be switched off in wp-admin."
+                  : undefined
+              }
+            >
+              {itemsQuery.isPending ? (
+                <div className="space-y-2" aria-busy="true">
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <Skeleton key={index} className="h-10 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{group.empty}</p>
+              ) : (
+                <ul aria-label={group.title} className="settings-rows">
+                  {items.map((item) => (
+                    <ItemRow
+                      key={`${item.kind}/${item.slug}`}
+                      item={item}
+                      projects={linked.filter((project) => linksItem(project, item))}
+                      deployBlocked={deployBlockedReason(site, info, item)}
+                      onOpen={open}
+                      onNewProject={newProject}
+                    />
+                  ))}
+                </ul>
+              )}
+            </DeployCard>
           );
         })}
       {target?.kind === 'deploy' && (

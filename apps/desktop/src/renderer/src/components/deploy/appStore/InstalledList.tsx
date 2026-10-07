@@ -1,8 +1,11 @@
 import { checkCatalogUpdate } from '@agentmat/core';
 import { ChevronRight, RefreshCw } from '@/components/icons';
+import { Chip, GLASS_CARD, SECTION_HEADING } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { STATUS_TEXT, STATUS_TONE } from '@/lib/deploy/apps/format';
+import { cn } from '@/lib/utils';
 import { StatusPill } from '../apps/StatusPill';
+import { GLASS_EDGE } from '../deployKit';
 import type { InstalledStoreApp } from './hooks';
 
 /** The apps this server got from the App Store, each with its status and any update waiting. */
@@ -17,13 +20,17 @@ export function InstalledList({
   onOpen: (stackId: string) => void;
 }): React.JSX.Element | null {
   if (loading && apps.length === 0) {
-    return <Skeleton className="h-16 w-full rounded-xl" aria-busy="true" />;
+    return (
+      <div className={cn(GLASS_CARD, 'p-3')} aria-busy="true">
+        <Skeleton className="h-10 w-full rounded-lg" />
+      </div>
+    );
   }
   if (apps.length === 0) return null;
   return (
     <section aria-label="Installed from the App Store" className="space-y-2">
-      <h3 className="text-base font-semibold">Installed</h3>
-      <ul className="grid gap-2 sm:grid-cols-2">
+      <h3 className={cn(SECTION_HEADING, 'px-1')}>Installed</h3>
+      <ul className="grid gap-2 xl:grid-cols-2">
         {apps.map(({ stack, install }) => {
           const check = checkCatalogUpdate(install.template, install.installed);
           const waiting = check.status === 'update' || check.newerVersions.length > 0;
@@ -33,7 +40,11 @@ export function InstalledList({
               <button
                 type="button"
                 onClick={() => onOpen(stack.id)}
-                className="glass flex w-full items-center gap-3 rounded-xl border border-border/60 px-3 py-2 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={cn(
+                  GLASS_CARD,
+                  GLASS_EDGE.interactive,
+                  'flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-[box-shadow]',
+                )}
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{stack.name}</span>
@@ -43,9 +54,9 @@ export function InstalledList({
                   </span>
                 </span>
                 {waiting && (
-                  <span className="inline-flex items-center gap-1 text-xs text-primary">
-                    <RefreshCw className="h-3 w-3" /> Update available
-                  </span>
+                  <Chip tone="primary">
+                    <RefreshCw /> Update available
+                  </Chip>
                 )}
                 <StatusPill tone={STATUS_TONE[stack.status]}>
                   {STATUS_TEXT[stack.status]}

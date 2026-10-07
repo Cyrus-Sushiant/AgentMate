@@ -12,10 +12,10 @@ import {
   TriangleAlert,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WordPressMark } from '@/components/wordpress/WordPressMark';
 import { cn } from '@/lib/utils';
+import { DeployCard, FactRow, FactRows, Notice } from '../deployKit';
 import { SetupFailure } from '../SetupFailure';
 import { ConnectorDownloadCard } from './ConnectorDownloadCard';
 import { useSaveConnectorZip, useSiteInfo } from './hooks';
@@ -28,15 +28,6 @@ import {
   TRANSPORT_LABEL,
   wpProblem,
 } from './messages';
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3 border-t border-border/60 py-2 first:border-t-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-foreground">{children}</dd>
-    </div>
-  );
-}
 
 function CardSkeleton({ rows }: { rows: number }): React.JSX.Element {
   return (
@@ -95,34 +86,22 @@ function NewerConnector(): React.JSX.Element {
 function ConnectorNotice({ info }: { info: DeployWordPressSiteInfo }): React.JSX.Element | null {
   if (info.protocol < WP_PROTOCOL_VERSION) {
     return (
-      <div className="space-y-3">
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground"
-        >
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <span>
-            The connector on this site ({info.pluginVersion}) is older than this version of
-            AgentMate expects, so pulls and deploys may fail. Download the latest plugin below and
-            upload it in the site's admin. Uploading it over the old one keeps the connection.
-          </span>
-        </div>
+      <div className="flex flex-col gap-2">
+        <Notice role="alert" tone="warning" icon={TriangleAlert}>
+          The connector on this site ({info.pluginVersion}) is older than this version of AgentMate
+          expects, so pulls and deploys may fail. Download the latest plugin below and upload it in
+          the site's admin. Uploading it over the old one keeps the connection.
+        </Notice>
         <ConnectorDownloadCard title="Update the connector" />
       </div>
     );
   }
   if (info.protocol > WP_PROTOCOL_VERSION) {
     return (
-      <div
-        role="alert"
-        className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm text-foreground"
-      >
-        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-        <span>
-          The connector on this site is newer than this version of AgentMate. Update AgentMate so
-          the two speak the same language.
-        </span>
-      </div>
+      <Notice role="alert" tone="warning" icon={TriangleAlert}>
+        The connector on this site is newer than this version of AgentMate. Update AgentMate so the
+        two speak the same language.
+      </Notice>
     );
   }
   return null;
@@ -143,175 +122,157 @@ export function SiteOverviewPanel({ site }: { site: DeployWordPressSite }): Reac
     : false;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       {infoQuery.isError && (
-        <div className="space-y-3">
-          <SetupFailure message={wpProblem(infoQuery.error)} />
+        <div className="flex flex-col items-start gap-2">
+          <div className="w-full">
+            <SetupFailure message={wpProblem(infoQuery.error)} />
+          </div>
           <Button
             size="sm"
-            variant="outline"
+            variant="soft"
             disabled={infoQuery.isFetching}
             onClick={() => void infoQuery.refetch()}
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Try again
+            <RefreshCw /> Try again
           </Button>
           {errorCode === 'connectorOutdated' && (
-            <ConnectorDownloadCard title="Update the connector" />
+            <ConnectorDownloadCard title="Update the connector" className="w-full" />
           )}
         </div>
       )}
       {info && <ConnectorNotice info={info} />}
       {info?.pendingDeploy && (
-        <div
-          role="status"
-          className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2.5 text-sm text-foreground"
-        >
-          <Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <span>
-            A deploy is waiting for confirmation ({DEPLOY_STATE_LABEL[info.pendingDeploy.state]}).
-            If it isn't confirmed by {siteClockText(info.pendingDeploy.deadline)}, the site puts the
-            old files back on its own.
-          </span>
-        </div>
+        <Notice role="status" tone="primary" icon={Clock}>
+          A deploy is waiting for confirmation ({DEPLOY_STATE_LABEL[info.pendingDeploy.state]}). If
+          it isn't confirmed by {siteClockText(info.pendingDeploy.deadline)}, the site puts the old
+          files back on its own.
+        </Notice>
       )}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="glass">
-          <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-            <div className="min-w-0 space-y-1.5">
-              <CardTitle className="flex items-center gap-2">
-                <WordPressMark className="h-4 w-4" /> Site
-              </CardTitle>
-              <CardDescription className="break-words">
-                {info ? info.siteName : 'What the site runs.'}
-              </CardDescription>
-            </div>
+      <div className="grid gap-2 xl:grid-cols-2">
+        <DeployCard
+          icon={<WordPressMark />}
+          tone="neutral"
+          title="Site"
+          description={
+            <span className="break-words">{info ? info.siteName : 'What the site runs.'}</span>
+          }
+          actions={
             <Button
               size="sm"
-              variant="outline"
+              variant="soft"
               disabled={infoQuery.isFetching}
               onClick={() => void infoQuery.refetch()}
             >
               {infoQuery.isFetching ? (
-                <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                <Spinner className="motion-safe:animate-spin" />
               ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
+                <RefreshCw />
               )}
               Check again
             </Button>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <CardSkeleton rows={6} />
-            ) : !info ? (
-              <p className="text-sm text-muted-foreground">The site's details did not load.</p>
-            ) : (
-              <dl>
-                <Row label="WordPress">
-                  {info.wpVersion}
-                  {info.multisite && (
-                    <span className="text-muted-foreground">, a multisite network</span>
-                  )}
-                </Row>
-                <Row label="PHP">{info.phpVersion}</Row>
-                <Row label="Active theme">
-                  <span className="font-mono">{info.activeTheme.stylesheet}</span>
-                  {info.activeTheme.template !== info.activeTheme.stylesheet && (
-                    <span className="block text-xs text-muted-foreground">
-                      A child theme of{' '}
-                      <span className="font-mono">{info.activeTheme.template}</span>
-                    </span>
-                  )}
-                </Row>
-                <Row label="HTTPS">
-                  {info.https ? (
-                    <Status tone="good">Yes</Status>
-                  ) : (
-                    <Status tone="bad">No, the site is served over plain HTTP</Status>
-                  )}
-                </Row>
-                <Row label="Connection">{TRANSPORT_LABEL[site.transport]}</Row>
-                <Row label="Checked">{dateTimeText(info.checkedAt)}</Row>
-              </dl>
-            )}
-          </CardContent>
-        </Card>
+          }
+        >
+          {loading ? (
+            <CardSkeleton rows={6} />
+          ) : !info ? (
+            <p className="text-sm text-muted-foreground">The site's details did not load.</p>
+          ) : (
+            <FactRows>
+              <FactRow label="WordPress">
+                {info.wpVersion}
+                {info.multisite && (
+                  <span className="text-muted-foreground">, a multisite network</span>
+                )}
+              </FactRow>
+              <FactRow label="PHP">{info.phpVersion}</FactRow>
+              <FactRow label="Active theme">
+                <span className="font-mono">{info.activeTheme.stylesheet}</span>
+                {info.activeTheme.template !== info.activeTheme.stylesheet && (
+                  <span className="block text-xs text-muted-foreground">
+                    A child theme of <span className="font-mono">{info.activeTheme.template}</span>
+                  </span>
+                )}
+              </FactRow>
+              <FactRow label="HTTPS">
+                {info.https ? (
+                  <Status tone="good">Yes</Status>
+                ) : (
+                  <Status tone="bad">No, the site is served over plain HTTP</Status>
+                )}
+              </FactRow>
+              <FactRow label="Connection">{TRANSPORT_LABEL[site.transport]}</FactRow>
+              <FactRow label="Checked">{dateTimeText(info.checkedAt)}</FactRow>
+            </FactRows>
+          )}
+        </DeployCard>
 
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plug className="h-4 w-4 text-primary" /> Connector
-            </CardTitle>
-            <CardDescription>The AgentMate Connector plugin on the site.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <CardSkeleton rows={4} />
-            ) : !info ? (
-              <p className="text-sm text-muted-foreground">The connector's details did not load.</p>
-            ) : (
-              <dl>
-                <Row label="Version">
-                  {info.pluginVersion}
-                  <span className="text-muted-foreground">, protocol {info.protocol}</span>
-                  {newerConnector && info.protocol === WP_PROTOCOL_VERSION && <NewerConnector />}
-                </Row>
-                <Row label="Signing">
-                  {info.sodium === 'native'
-                    ? 'PHP sodium extension'
-                    : "WordPress's built-in sodium library (slower, works the same)"}
-                </Row>
-                <Row label="Rescue guard">
-                  {info.guard.installed ? (
-                    <Status tone="good">
-                      Installed. If a deploy breaks the site, the guard puts the old files back,
-                      even when WordPress itself can't load.
-                    </Status>
-                  ) : (
-                    <Status tone="bad">
-                      Not installed, so a deploy that breaks the site can't be rolled back on its
-                      own. Deactivate and activate the connector in wp-admin to put it back.
-                    </Status>
-                  )}
-                </Row>
-                <Row label="Health check">
-                  {info.loopback === 'ok' ? (
-                    <Status tone="good">
-                      The site can reach itself, so every deploy is health-checked.
-                    </Status>
-                  ) : info.loopback === 'failed' ? (
-                    <Status tone="bad">
-                      The site can't reach itself (loopback requests fail), so it can't check a
-                      deploy from the inside. AgentMate still checks the home page from here.
-                    </Status>
-                  ) : (
-                    <Status tone="neutral">Not checked yet.</Status>
-                  )}
-                </Row>
-              </dl>
-            )}
-          </CardContent>
-        </Card>
+        <DeployCard
+          icon={<Plug />}
+          title="Connector"
+          description="The AgentMate Connector plugin on the site."
+        >
+          {loading ? (
+            <CardSkeleton rows={4} />
+          ) : !info ? (
+            <p className="text-sm text-muted-foreground">The connector's details did not load.</p>
+          ) : (
+            <FactRows>
+              <FactRow label="Version">
+                {info.pluginVersion}
+                <span className="text-muted-foreground">, protocol {info.protocol}</span>
+                {newerConnector && info.protocol === WP_PROTOCOL_VERSION && <NewerConnector />}
+              </FactRow>
+              <FactRow label="Signing">
+                {info.sodium === 'native'
+                  ? 'PHP sodium extension'
+                  : "WordPress's built-in sodium library (slower, works the same)"}
+              </FactRow>
+              <FactRow label="Rescue guard">
+                {info.guard.installed ? (
+                  <Status tone="good">
+                    Installed. If a deploy breaks the site, the guard puts the old files back, even
+                    when WordPress itself can't load.
+                  </Status>
+                ) : (
+                  <Status tone="bad">
+                    Not installed, so a deploy that breaks the site can't be rolled back on its own.
+                    Deactivate and activate the connector in wp-admin to put it back.
+                  </Status>
+                )}
+              </FactRow>
+              <FactRow label="Health check">
+                {info.loopback === 'ok' ? (
+                  <Status tone="good">
+                    The site can reach itself, so every deploy is health-checked.
+                  </Status>
+                ) : info.loopback === 'failed' ? (
+                  <Status tone="bad">
+                    The site can't reach itself (loopback requests fail), so it can't check a deploy
+                    from the inside. AgentMate still checks the home page from here.
+                  </Status>
+                ) : (
+                  <Status tone="neutral">Not checked yet.</Status>
+                )}
+              </FactRow>
+            </FactRows>
+          )}
+        </DeployCard>
 
-        <Card className="glass xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-primary" /> File changes
-            </CardTitle>
-            <CardDescription>
-              Deploys only ever write theme, plugin and mu-plugin files. They never activate a
-              plugin or switch the theme.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <CardSkeleton rows={2} />
-            ) : !info ? (
-              <p className="text-sm text-muted-foreground">Not known until the site answers.</p>
-            ) : (
-              <FileChanges info={info} site={site} />
-            )}
-          </CardContent>
-        </Card>
+        <DeployCard
+          className="xl:col-span-2"
+          icon={<Shield />}
+          title="File changes"
+          description="Deploys only ever write theme, plugin and mu-plugin files. They never activate a plugin or switch the theme."
+        >
+          {loading ? (
+            <CardSkeleton rows={2} />
+          ) : !info ? (
+            <p className="text-sm text-muted-foreground">Not known until the site answers.</p>
+          ) : (
+            <FileChanges info={info} site={site} />
+          )}
+        </DeployCard>
       </div>
     </div>
   );
@@ -326,21 +287,21 @@ function FileChanges({
 }): React.JSX.Element {
   const status = fileChangesStatus(info, site);
   return (
-    <dl>
-      <Row label="Deploys">
+    <FactRows>
+      <FactRow label="Deploys">
         <Status tone={status.allowed ? 'good' : 'bad'}>{status.text}</Status>
-      </Row>
+      </FactRow>
       {info.fileEditDisabled && (
-        <Row label="Built-in editors">
+        <FactRow label="Built-in editors">
           Off (DISALLOW_FILE_EDIT). That only hides the theme and plugin editors in wp-admin;
           deploys still work.
-        </Row>
+        </FactRow>
       )}
       {!status.allowed && info.filesystemMethod !== 'direct' && (
-        <Row label="Filesystem">
+        <FactRow label="Filesystem">
           <span className="font-mono">{info.filesystemMethod}</span>
-        </Row>
+        </FactRow>
       )}
-    </dl>
+    </FactRows>
   );
 }

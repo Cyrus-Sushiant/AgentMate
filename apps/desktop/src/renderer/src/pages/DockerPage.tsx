@@ -11,7 +11,6 @@ import {
   CountChip,
   EmptyState,
   GLASS_CARD,
-  PILL_SOFT,
   SECTION_HEADING,
   SearchPill,
 } from '@/components/pageKit';
@@ -19,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { usePageHeader } from '@/stores/pageHeaderStore';
 
 function matchesQuery(container: DockerContainer, query: string): boolean {
   if (!query) return true;
@@ -66,6 +66,7 @@ function ContainerListSkeleton(): React.JSX.Element {
 }
 
 export default function DockerPage(): React.JSX.Element {
+  usePageHeader('Docker', 'Containers on this machine, grouped by Compose project.');
   const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -193,9 +194,8 @@ export default function DockerPage(): React.JSX.Element {
           <CountChip label="Total" value={containers.length} loading={listQuery.isLoading} />
         </div>
         <Button
-          variant="ghost"
-          size="sm"
-          className={cn(PILL_SOFT, 'ml-auto')}
+          variant="soft"
+          className="ml-auto"
           disabled={listQuery.isFetching}
           aria-busy={listQuery.isFetching}
           onClick={() => void listQuery.refetch()}
@@ -247,7 +247,7 @@ export default function DockerPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="ml-auto h-6 gap-1 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                      className="ml-auto h-6 gap-1 px-2.5 text-muted-foreground hover:text-foreground"
                       onClick={() => actions.stopMany(runningContainers, group.label ?? undefined)}
                     >
                       <StopCircle className="h-3 w-3" />

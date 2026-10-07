@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Problem } from '@/components/cloudflare/fields';
 import { ArrowLeft, ArrowRight, Check, Rocket, Spinner, Upload } from '@/components/icons';
+import { FOOTER_HAIRLINE, GLASS_CARD, SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { folderName, needsAcknowledgment, suggestAppName } from '@/lib/deploy/apps/format';
@@ -88,16 +89,17 @@ function StepNav({
             aria-current={here ? 'step' : undefined}
             className="flex items-center gap-1"
           >
-            {position > 0 && <span aria-hidden="true" className="h-px w-4 bg-border" />}
+            {position > 0 && <span aria-hidden="true" className="h-px w-4 bg-foreground/[0.12]" />}
             <button
               type="button"
               disabled={!reachable || here}
               onClick={() => onGo(item.step)}
               className={cn(
-                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default',
-                here && 'border-primary/50 bg-primary/10 font-medium text-foreground',
-                done && 'border-success/30 text-foreground',
-                !here && !done && 'border-border text-muted-foreground',
+                // Inset rings, since a tinted border would lose to the global border colour.
+                'flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default',
+                here && 'bg-primary/12 font-medium text-primary ring-primary/30',
+                done && 'text-foreground ring-success/30 enabled:hover:bg-foreground/[0.06]',
+                !here && !done && 'text-muted-foreground ring-foreground/[0.08]',
               )}
             >
               <span
@@ -107,7 +109,7 @@ function StepNav({
                     ? 'bg-primary text-primary-foreground'
                     : done
                       ? 'bg-success/20 text-success'
-                      : 'bg-secondary',
+                      : 'bg-foreground/[0.08]',
                 )}
               >
                 {done ? <Check className="h-2.5 w-2.5" /> : position + 1}
@@ -147,6 +149,7 @@ function RunningDeploy({
       revision={revision.jobId ? revision : { ...revision, jobId: job.id }}
       canOperate={access.canOperate}
       onSettled={onSettled}
+      flat
     />
   );
 }
@@ -340,8 +343,8 @@ export function NewAppWizard({
     ) : (
       <div className="space-y-3" aria-busy="true">
         <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-16 w-full rounded-xl" />
       </div>
     );
   } else if (step === 'configure' && data) {
@@ -460,34 +463,36 @@ export function NewAppWizard({
   const previous = index > 0 && !deploying ? WIZARD_STEPS[index - 1].step : null;
 
   return (
-    <section aria-labelledby="new-app-heading" className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h3 id="new-app-heading" className="min-w-0 flex-1 text-base font-semibold text-foreground">
+    <section aria-labelledby="new-app-heading" className="flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-3 px-4 py-3')}>
+        <h3 id="new-app-heading" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
           {title}
         </h3>
         <StepNav current={step} reached={reached} onGo={setStep} />
       </div>
-      <div className="glass rounded-xl border border-border p-4">
-        <h4 className="mb-3 text-sm font-semibold text-foreground">{WIZARD_STEPS[index].label}</h4>
-        {body}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {!deploying || run.phase === 'error' || run.phase === 'invalid' ? (
-          <Button variant="ghost" onClick={onCancel}>
-            {deploying ? 'Close' : 'Cancel'}
-          </Button>
-        ) : (
-          <Button variant="ghost" onClick={onCancel}>
-            Back to the apps
-          </Button>
-        )}
-        <span className="flex-1" />
-        {previous && (
-          <Button variant="outline" onClick={() => setStep(previous)}>
-            <ArrowLeft className="h-3.5 w-3.5" /> Back
-          </Button>
-        )}
-        {next}
+      <div className={GLASS_CARD}>
+        <div className="p-4">
+          <h4 className={cn(SECTION_HEADING, 'mb-3')}>{WIZARD_STEPS[index].label}</h4>
+          {body}
+        </div>
+        <div className={cn('flex flex-wrap items-center gap-2 px-4 py-3', FOOTER_HAIRLINE)}>
+          {!deploying || run.phase === 'error' || run.phase === 'invalid' ? (
+            <Button variant="soft" onClick={onCancel}>
+              {deploying ? 'Close' : 'Cancel'}
+            </Button>
+          ) : (
+            <Button variant="soft" onClick={onCancel}>
+              Back to the apps
+            </Button>
+          )}
+          <span className="flex-1" />
+          {previous && (
+            <Button variant="soft" onClick={() => setStep(previous)}>
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </Button>
+          )}
+          {next}
+        </div>
       </div>
     </section>
   );
@@ -544,7 +549,7 @@ function DeployStepBody({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={percent}
-              className="h-1.5 w-full overflow-hidden rounded-full bg-secondary"
+              className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10"
             >
               <div
                 className="h-full bg-primary transition-[width]"
@@ -572,7 +577,7 @@ function DeployStepBody({
           Revision {run.result.revision.number} is kept as invalid. Fix the file in the project and
           deploy again.
         </p>
-        <Button size="sm" variant="outline" onClick={onBack}>
+        <Button size="sm" variant="soft" onClick={onBack}>
           <ArrowLeft className="h-3.5 w-3.5" /> Back to the review
         </Button>
       </div>

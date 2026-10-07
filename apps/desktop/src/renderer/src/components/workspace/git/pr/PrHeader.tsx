@@ -1,5 +1,7 @@
 import { mergeBlockers, type PullRequestInfo, summarizeChecks } from '@agentmat/core';
 import { CircleCheck, ExternalLink, GitMerge, MessageSquare } from '@/components/icons';
+import { SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { PrPill, type PrTone } from './PrCard';
@@ -17,21 +19,23 @@ function statePill(pr: PullRequestInfo): { label: string; tone: PrTone } {
 export function PrHeader({ pr }: { pr: PullRequestInfo }): React.JSX.Element {
   const pill = statePill(pr);
   return (
-    <header className="space-y-1 px-3 pb-1 pt-2">
+    <header className="space-y-1.5 px-3.5 pb-1 pt-2">
       <div className="flex items-start gap-1.5">
         <h3 className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">
           <span className="mr-1 font-normal text-muted-foreground">#{pr.number}</span>
           <span className="break-words">{pr.title}</span>
         </h3>
         <SimpleTooltip label="Open on GitHub">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label="Open on GitHub"
             onClick={() => void window.agentmat.shell.openExternal(pr.url)}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            className="shrink-0"
           >
-            <ExternalLink className="h-3 w-3" />
-          </button>
+            <ExternalLink />
+          </Button>
         </SimpleTooltip>
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -67,8 +71,8 @@ function Stat({
   tone: PrTone;
 }): React.JSX.Element {
   return (
-    <div className="min-w-0 rounded-lg border border-border/60 bg-card/40 px-3 py-2">
-      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className={cn(SECTION_WELL, 'min-w-0 px-3 py-2')}>
+      <p className={cn(SECTION_HEADING, 'flex items-center gap-1.5')}>
         <Icon className="h-2.5 w-2.5" />
         {label}
       </p>
@@ -130,18 +134,18 @@ export function PrOverview({ pr }: { pr: PullRequestInfo }): React.JSX.Element {
   const pill = statePill(pr);
   const stats = prStats(pr);
   return (
-    <header className="space-y-3 border-b border-border/60 px-5 pb-4 pt-4">
+    <header className="space-y-3 px-5 pb-4 pt-4 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
       <h2 className="text-lg font-semibold leading-snug">
         <span className="mr-1.5 font-normal text-muted-foreground">#{pr.number}</span>
         <span className="break-words">{pr.title}</span>
       </h2>
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <PrPill tone={pill.tone}>{pill.label}</PrPill>
-        <span className="min-w-0 truncate rounded bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-foreground/85">
+        <span className="min-w-0 truncate rounded-full bg-foreground/[0.06] px-2 py-0.5 font-mono text-foreground/85">
           {pr.head}
         </span>
         <span aria-hidden="true">→</span>
-        <span className="min-w-0 truncate rounded bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-foreground/85">
+        <span className="min-w-0 truncate rounded-full bg-foreground/[0.06] px-2 py-0.5 font-mono text-foreground/85">
           {pr.base}
         </span>
         <span className="tabular-nums">

@@ -1,4 +1,5 @@
 import type { KeyValueRow } from '@agentmat/core';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { type ApiTab, useApiClientTabsStore } from '@/stores/apiClientTabsStore';
@@ -83,11 +84,7 @@ function Count({ value }: { value: number }): React.JSX.Element | null {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <h3 className="mb-1.5 mt-1 select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-      {children}
-    </h3>
-  );
+  return <h3 className={cn(SECTION_HEADING, 'mb-1.5 mt-1')}>{children}</h3>;
 }
 
 /** Path variables come from `:name` in the URL, so only their values are edited here. */

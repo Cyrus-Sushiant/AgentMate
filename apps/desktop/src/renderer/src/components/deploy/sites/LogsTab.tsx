@@ -1,7 +1,8 @@
 import type { SiteLogKind } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { CircleCheck, RefreshCw, Spinner, TriangleAlert } from '@/components/icons';
-import { Button } from '@/components/ui/button';
+import { PillTabs, SECTION_WELL } from '@/components/pageKit';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useSiteLog } from './hooks';
 
@@ -22,6 +23,7 @@ function LogView({
   const log = useSiteLog(serverId, siteId, kind);
   const bottom = useRef<HTMLDivElement>(null);
   const [follow, setFollow] = useState(true);
+  const followId = useId();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: each new line scrolls to the bottom
   useEffect(() => {
@@ -51,21 +53,22 @@ function LogView({
             , so older lines are gone from this view.
           </span>
         )}
-        <label className="ml-auto flex cursor-pointer items-center gap-1.5">
-          <input
-            type="checkbox"
+        <span className="ml-auto flex items-center gap-1.5">
+          <Checkbox
+            id={followId}
             checked={follow}
-            onChange={(event) => setFollow(event.target.checked)}
-            className="h-3.5 w-3.5 accent-primary"
+            onCheckedChange={(checked) => setFollow(checked === true)}
           />
-          Keep scrolled to the newest line
-        </label>
+          <label htmlFor={followId} className="cursor-pointer">
+            Keep scrolled to the newest line
+          </label>
+        </span>
       </div>
       <div
         role="log"
         aria-label={kind === 'access' ? 'Access log' : 'Error log'}
         aria-live="off"
-        className="h-80 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs leading-relaxed"
+        className={cn(SECTION_WELL, 'h-80 overflow-auto font-mono text-xs leading-relaxed')}
       >
         {log.lines.length === 0 ? (
           <p className="flex items-center gap-2 text-muted-foreground">
@@ -111,21 +114,20 @@ export function LogsTab({
 }): React.JSX.Element {
   const [kind, setKind] = useState<SiteLogKind>('access');
   return (
-    <div className="space-y-3">
-      <fieldset className="flex gap-1" aria-label="Which log">
-        {(['access', 'error'] as const).map((option) => (
-          <Button
-            key={option}
-            type="button"
-            size="sm"
-            variant={kind === option ? 'secondary' : 'ghost'}
-            aria-pressed={kind === option}
-            onClick={() => setKind(option)}
-          >
-            {option === 'access' ? 'Access log' : 'Error log'}
-          </Button>
-        ))}
-      </fieldset>
+    <div className="space-y-2">
+      <PillTabs<SiteLogKind>
+        id="site-log-kind"
+        kind="toggle"
+        label="Which log"
+        size="xs"
+        className="w-fit"
+        items={[
+          { value: 'access', label: 'Access log' },
+          { value: 'error', label: 'Error log' },
+        ]}
+        value={kind}
+        onChange={setKind}
+      />
       <LogView key={kind} serverId={serverId} siteId={siteId} kind={kind} />
     </div>
   );

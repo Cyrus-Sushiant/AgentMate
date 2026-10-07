@@ -91,13 +91,13 @@ export function GhCliDialog({
               <div role="alert" className="space-y-2">
                 <p className="text-destructive">{data.problem}</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
+                  <code className="rounded-md bg-foreground/[0.06] px-2 py-1 font-mono text-xs">
                     {GH_REFRESH_COMMAND}
                   </code>
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="soft"
                     onClick={() => {
                       void navigator.clipboard.writeText(GH_REFRESH_COMMAND);
                       toast.success('Copied. Run it in a terminal, then check again.');
@@ -108,7 +108,7 @@ export function GhCliDialog({
                   <Button
                     type="button"
                     size="sm"
-                    variant="ghost"
+                    variant="soft"
                     onClick={() => void status.refetch()}
                   >
                     <RefreshCw className="h-3.5 w-3.5" /> Check again
@@ -130,7 +130,7 @@ export function GhCliDialog({
           </p>
         )}
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+          <Button type="button" variant="soft" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button

@@ -21,8 +21,6 @@ import {
 } from '@/components/icons';
 import {
   CARD_GRID,
-  CARD_PILL,
-  CARD_PILL_SOFT,
   CatalogCardShimmer,
   CatalogSplit,
   Chip,
@@ -30,14 +28,10 @@ import {
   FilterChip,
   FOOTER_HAIRLINE,
   GLASS_CARD,
-  HEADER_ICON_BUTTON,
-  PILL_PRIMARY,
-  PILL_SOFT,
   RepositorySourceIcon,
   SECTION_HEADING,
   SearchPill,
   SideNavRow,
-  TILE_ACTION,
 } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -155,13 +149,7 @@ const McpServerCard = memo(function McpServerCard({
       </div>
       <div className={cn('flex items-center gap-2 px-3 py-2.5', FOOTER_HAIRLINE)}>
         {isInstalled ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={CARD_PILL_SOFT}
-            disabled={isRemoving}
-            onClick={() => onRemove(server)}
-          >
+          <Button variant="soft" size="sm" disabled={isRemoving} onClick={() => onRemove(server)}>
             {isRemoving ? <Spinner className="animate-spin" /> : <Trash2 />}
             {isRemoving ? 'Removing…' : 'Remove'}
           </Button>
@@ -170,12 +158,7 @@ const McpServerCard = memo(function McpServerCard({
             label={canInstall ? undefined : 'Choose a project first'}
             wrapTrigger={installDisabled}
           >
-            <Button
-              size="sm"
-              className={CARD_PILL}
-              disabled={installDisabled}
-              onClick={() => onInstall(server)}
-            >
+            <Button size="sm" disabled={installDisabled} onClick={() => onInstall(server)}>
               {isInstalling ? <Spinner className="animate-spin" /> : <Plug />}
               {isInstalling ? 'Installing…' : 'Install'}
             </Button>
@@ -185,7 +168,7 @@ const McpServerCard = memo(function McpServerCard({
             label="No install command available yet. See the server's docs to set it up manually."
             wrapTrigger
           >
-            <Button size="sm" className={CARD_PILL} disabled>
+            <Button size="sm" disabled>
               <Plug /> Install
             </Button>
           </SimpleTooltip>
@@ -195,8 +178,7 @@ const McpServerCard = memo(function McpServerCard({
             <SimpleTooltip label="Website">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 aria-label={`Open ${server.name} website`}
                 onClick={() => void window.agentmat.shell.openExternal(server.websiteUrl!)}
               >
@@ -208,8 +190,7 @@ const McpServerCard = memo(function McpServerCard({
             <SimpleTooltip label="Source repository">
               <Button
                 variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
+                size="icon-sm"
                 aria-label={`Open ${server.name} source repository`}
                 onClick={() => void window.agentmat.shell.openExternal(server.repositoryUrl!)}
               >
@@ -460,14 +441,14 @@ export default function McpPage(): React.JSX.Element {
             <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-2">
               <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Repositories</h2>
               <SimpleTooltip label="Add repository">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Add repository"
                   onClick={() => setAddRepoOpen(true)}
-                  className={HEADER_ICON_BUTTON}
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+                  <Plus />
+                </Button>
               </SimpleTooltip>
             </div>
             <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -588,8 +569,7 @@ export default function McpPage(): React.JSX.Element {
                 <SimpleTooltip label="Refresh">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={TILE_ACTION}
+                    size="icon-sm"
                     aria-label="Refresh repository"
                     disabled={refreshRepoMutation.isPending}
                     onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
@@ -602,8 +582,8 @@ export default function McpPage(): React.JSX.Element {
                 <SimpleTooltip label="Remove repository">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={cn(TILE_ACTION, 'hover:text-destructive')}
+                    size="icon-sm"
+                    className="hover:text-destructive"
                     aria-label="Remove repository"
                     onClick={() => void handleRemoveRepo(selectedRepoId)}
                   >
@@ -667,9 +647,9 @@ export default function McpPage(): React.JSX.Element {
             <span className="text-destructive">Couldn't load this repository.</span>
             {!isBuiltIn && selectedRepoId && (
               <Button
-                variant="ghost"
+                variant="soft"
                 size="sm"
-                className={cn(CARD_PILL_SOFT, 'ml-auto')}
+                className="ml-auto"
                 onClick={() => refreshRepoMutation.mutate(selectedRepoId)}
               >
                 <RefreshCw /> Try again
@@ -705,11 +685,11 @@ export default function McpPage(): React.JSX.Element {
                 }
                 action={
                   filtersActive ? (
-                    <Button variant="ghost" size="sm" className={PILL_SOFT} onClick={clearFilters}>
+                    <Button variant="soft" onClick={clearFilters}>
                       Clear filters
                     </Button>
                   ) : (
-                    <Button size="sm" className={PILL_PRIMARY} onClick={() => setAddRepoOpen(true)}>
+                    <Button onClick={() => setAddRepoOpen(true)}>
                       <Plus /> Add repository
                     </Button>
                   )
@@ -782,8 +762,9 @@ export default function McpPage(): React.JSX.Element {
                   <SimpleTooltip label="Browse for a folder">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="soft"
                       size="icon"
+                      className="h-9 w-9"
                       aria-label="Browse for a folder"
                       onClick={() => void handlePickLocalFolder()}
                     >
@@ -841,7 +822,7 @@ export default function McpPage(): React.JSX.Element {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEnvServer(null)}>
+            <Button variant="soft" onClick={() => setEnvServer(null)}>
               Cancel
             </Button>
             <Button

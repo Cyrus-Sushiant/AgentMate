@@ -112,7 +112,7 @@ describe('GitPanel conflicts with AI', () => {
 });
 
 describe('GitPanel Fix with AI for conflicts', () => {
-  const banner = () => screen.getByText(/in progress/).parentElement as HTMLElement;
+  const banner = () => screen.getByRole('group', { name: /in progress/ });
 
   it('offers it once, in the operation banner next to Abort', async () => {
     renderPanel(vi.fn());

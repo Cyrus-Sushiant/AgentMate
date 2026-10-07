@@ -549,8 +549,8 @@ export function RunnersPanel({
         <SimpleTooltip label={collapsed ? 'Show runners' : 'Hide runners'}>
           <Button
             variant="ghost"
-            size="icon"
-            className="ml-auto h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+            size="icon-sm"
+            className="ml-auto shrink-0"
             aria-label={collapsed ? 'Show runners' : 'Hide runners'}
             aria-expanded={!collapsed}
             aria-controls={collapsed ? undefined : bodyId}
@@ -594,11 +594,13 @@ export function RunnersPanel({
 
           {overflow ? (
             <div className="flex justify-center">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 aria-expanded={showAll}
                 onClick={() => setShowAll((value) => !value)}
-                className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="gap-1 px-2.5 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground text-[11px]"
               >
                 {showAll ? 'Show fewer' : `Show all ${runners.length}`}
                 <ChevronDown
@@ -607,7 +609,7 @@ export function RunnersPanel({
                     showAll ? 'rotate-180' : 'rotate-0',
                   )}
                 />
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -623,9 +625,9 @@ export function RunnersPanel({
               {granted.includes(org) ? (
                 <SimpleTooltip label={CHECK_HINT} className="max-w-xs">
                   <Button
-                    variant="ghost"
+                    variant="soft"
                     size="sm"
-                    className="search-pill h-7 shrink-0 gap-1.5 rounded-full px-3 text-[11px] text-foreground/85 hover:text-foreground [&_svg]:size-3"
+                    className="shrink-0 gap-1.5 text-[11px] [&_svg]:size-3"
                     onClick={checkAgain}
                   >
                     <RefreshCw className={cn('h-3 w-3', query.isFetching && 'animate-spin')} />
@@ -636,7 +638,7 @@ export function RunnersPanel({
                 <SimpleTooltip label={GRANT_HINT} className="max-w-xs">
                   <Button
                     size="sm"
-                    className="h-7 shrink-0 gap-1.5 rounded-full px-3 text-[11px] [&_svg]:size-3"
+                    className="shrink-0 gap-1.5 text-[11px] [&_svg]:size-3"
                     onClick={() => grantAccess(org)}
                   >
                     <Key className="h-3 w-3" />
@@ -647,8 +649,8 @@ export function RunnersPanel({
               <SimpleTooltip label="Hide this hint">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 rounded-full hover:bg-foreground/[0.06] [&_svg]:size-3"
+                  size="icon-sm"
+                  className="shrink-0 [&_svg]:size-3"
                   aria-label={`Dismiss the ${org} hint`}
                   onClick={() => dismissOrg(org)}
                 >

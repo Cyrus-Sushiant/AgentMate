@@ -157,7 +157,7 @@ export function SignInDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !password || (needsCode && !code)}>

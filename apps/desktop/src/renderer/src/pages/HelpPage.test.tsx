@@ -105,6 +105,19 @@ describe('Help search', () => {
     expect(await screen.findByText(/no articles match/i)).toBeTruthy();
   });
 
+  it('clears the search with Escape, then leaves the box with a second Escape', async () => {
+    const { user } = renderHelp();
+    const box = screen.getByRole('combobox', { name: /search the help/i });
+    await user.type(box, 'vault');
+    expect(await screen.findByRole('listbox')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(box).toHaveValue('');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(box);
+    await user.keyboard('{Escape}');
+    expect(document.activeElement).not.toBe(box);
+  });
+
   it('focuses the search box when you press slash', async () => {
     const { user } = renderHelp('/help/vault');
     await user.keyboard('/');
@@ -167,6 +180,19 @@ describe('Help article', () => {
     }
   });
 
+  it('marks the open article in the topic list and keeps the way back to all topics', () => {
+    renderHelp('/help/vault');
+    const topics = screen.getByRole('navigation', { name: 'Help topics' });
+    const current = within(topics).getByRole('link', { name: 'Vault' });
+    expect(current).toHaveAttribute('aria-current', 'page');
+    expect(
+      within(topics)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page'),
+    ).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /all help topics/i })).toHaveAttribute('href', '/help');
+  });
+
   it('offers the way back for an unknown article', () => {
     renderHelp('/help/no-such-page');
     expect(screen.getByText(/couldn't find that article/i)).toBeTruthy();
@@ -212,6 +238,23 @@ describe('Ask the guide', () => {
     const citation = within(panel).getByRole('link', { name: 'Source 1' });
     await user.click(citation);
     expect(path()).toBe('/help/vault#where-to-find-it');
+  });
+
+  it('picks the provider and sends only once there is a question', async () => {
+    const { user } = renderHelp();
+    await user.click(screen.getByRole('button', { name: /ask the guide/i }));
+    const panel = await screen.findByRole('complementary', { name: /guide/i });
+    const providers = within(panel).getByRole('radiogroup', { name: 'AI provider' });
+    expect(within(providers).getByRole('radio', { name: 'OpenAI' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    // Only OpenAI has a key in these settings, so the others cannot be picked.
+    expect(within(providers).getByRole('radio', { name: 'Gemini' })).toBeDisabled();
+    expect(within(panel).getByRole('button', { name: 'Send' })).toBeDisabled();
+    await user.type(within(panel).getByRole('textbox', { name: /ask a question/i }), 'hi');
+    // Queried again: the tooltip drops its wrapper once the button can be pressed.
+    expect(within(panel).getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 
   it('shows what went wrong when the provider fails', async () => {

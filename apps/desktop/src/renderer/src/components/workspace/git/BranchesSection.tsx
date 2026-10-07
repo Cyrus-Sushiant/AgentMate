@@ -3,15 +3,9 @@ import type { GitBranchInfo, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  Check,
-  CloudDownload,
-  FolderPlus,
-  GitBranch,
-  Search,
-  Spinner,
-  Trash2,
-} from '@/components/icons';
+import { Check, CloudDownload, FolderPlus, GitBranch, Spinner, Trash2 } from '@/components/icons';
+import { Chip, SECTION_HEADING, SearchPill } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useWorktrees } from '@/hooks/useWorktrees';
@@ -29,6 +23,9 @@ function samePath(a: string, b: string): boolean {
       .toLowerCase();
   return norm(a) === norm(b);
 }
+
+/** A chip sized for a 28px branch row. */
+const BRANCH_CHIP = 'h-4 px-1.5 text-[10px]';
 
 /** How long a click on a branch waits to see whether a second one makes it a double-click. */
 const DOUBLE_CLICK_MS = 250;
@@ -215,9 +212,9 @@ export function BranchesSection({
   }
   if (status.isPending) {
     return (
-      <div className="space-y-2 p-3">
+      <div className="space-y-1 px-2 py-1.5">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-4 rounded" style={{ width: `${70 - i * 10}%` }} />
+          <Skeleton key={i} className="h-7 rounded-lg" style={{ width: `${90 - i * 10}%` }} />
         ))}
       </div>
     );
@@ -237,10 +234,18 @@ export function BranchesSection({
       <div
         key={`${branch.local ? 'l' : 'r'}:${branch.name}`}
         className={cn(
-          'group/branch mx-1 flex h-7 items-center gap-2 rounded-md pl-2 pr-1 text-[12px] transition-colors',
-          current ? 'bg-primary/10 text-foreground' : 'hover:bg-foreground/[0.05]',
+          'group/branch relative mx-1.5 flex h-7 items-center gap-2 rounded-lg pl-2.5 pr-1 text-[12px] transition-colors',
+          current
+            ? 'bg-primary/12 text-primary'
+            : 'text-foreground/85 hover:bg-foreground/[0.06] hover:text-foreground',
         )}
       >
+        {current ? (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+          />
+        ) : null}
         <button
           type="button"
           onClick={(event) => onRowClick(branch, event)}
@@ -262,25 +267,23 @@ export function BranchesSection({
           <span className={cn('truncate font-mono', current && 'font-semibold')}>
             {branch.name}
           </span>
-          {branch.name === defaultBranch ? (
-            <span className="shrink-0 rounded bg-foreground/[0.07] px-1 text-[9px] uppercase text-muted-foreground">
-              default
-            </span>
-          ) : null}
+          {branch.name === defaultBranch ? <Chip className={BRANCH_CHIP}>default</Chip> : null}
           {branch.local && !branch.remote && state.hasRemote && !holder ? (
             <span className="shrink-0 text-[10px] text-muted-foreground/70">local only</span>
           ) : null}
           {holder ? (
-            <span className="ml-auto flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1 text-[9px] font-medium text-primary">
-              <GitBranch className="h-2 w-2" />
+            <Chip tone="primary" className={cn(BRANCH_CHIP, 'ml-auto [&_svg]:size-2.5')}>
+              <GitBranch />
               {holder.kind === 'main' ? 'in main checkout' : 'in worktree'}
-            </span>
+            </Chip>
           ) : null}
         </button>
         {!current && !holder ? (
           <SimpleTooltip label="Open in a new worktree">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={`Open ${branch.name} in a new worktree`}
               onClick={() =>
                 worktreeCommands.create({
@@ -290,23 +293,25 @@ export function BranchesSection({
                 })
               }
               disabled={busy !== null}
-              className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-primary group-hover/branch:flex focus-visible:flex"
+              className="hidden h-5 w-5 hover:text-primary group-hover/branch:inline-flex focus-visible:inline-flex [&_svg]:size-2.5"
             >
-              <FolderPlus className="h-2.5 w-2.5" />
-            </button>
+              <FolderPlus />
+            </Button>
           </SimpleTooltip>
         ) : null}
         {!current && !holder && branch.name !== defaultBranch && branch.name !== 'master' ? (
           <SimpleTooltip label={branch.local ? 'Delete branch' : 'Delete remote branch'}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={`Delete ${branch.name}`}
               onClick={() => void remove(branch)}
               disabled={busy !== null}
-              className="hidden h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-destructive group-hover/branch:flex"
+              className="hidden h-5 w-5 hover:bg-destructive/10 hover:text-destructive group-hover/branch:inline-flex focus-visible:inline-flex [&_svg]:size-2.5"
             >
-              <Trash2 className="h-2.5 w-2.5" />
-            </button>
+              <Trash2 />
+            </Button>
           </SimpleTooltip>
         ) : null}
       </div>
@@ -317,7 +322,7 @@ export function BranchesSection({
     <div className="flex min-h-0 flex-1 flex-col">
       {creating ? (
         <form
-          className="flex items-center gap-1.5 px-2.5 pb-1 pt-2"
+          className="search-pill mx-2 mb-1 mt-1.5 flex h-7 items-center gap-1.5 rounded-full pl-2.5 pr-1 transition-colors"
           onSubmit={(event) => {
             event.preventDefault();
             void create();
@@ -336,29 +341,29 @@ export function BranchesSection({
             }}
             placeholder="new-branch-name, then Enter"
             aria-label="New branch name"
-            className="h-7 min-w-0 flex-1 rounded-md border border-primary/40 bg-background/60 px-2 font-mono text-[12px] outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-full min-w-0 flex-1 bg-transparent font-mono text-[12px] outline-none placeholder:font-sans placeholder:text-muted-foreground/70"
           />
         </form>
       ) : null}
       {all.length > 8 ? (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-          <Search className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
-          <input
+        <div className="px-2 pb-1.5 pt-1">
+          <SearchPill
+            type="search"
             value={filter}
-            onChange={(event) => setFilter(event.target.value)}
+            onValueChange={setFilter}
             placeholder="Filter branches"
-            aria-label="Filter branches"
-            className="h-6 min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/70"
+            label="Filter branches"
+            clearLabel="Clear filter"
+            className="h-7 pl-2.5"
+            inputClassName="text-[12px]"
           />
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+      <div className="min-h-0 flex-1 space-y-px overflow-y-auto pb-2">
         {local.map(row)}
         {remoteOnly.length > 0 ? (
           <>
-            <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-              Remote
-            </p>
+            <p className={cn(SECTION_HEADING, 'px-3.5 pb-1 pt-2')}>Remote</p>
             {remoteOnly.map(row)}
           </>
         ) : null}

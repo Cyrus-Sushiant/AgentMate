@@ -23,7 +23,6 @@ import {
   StopCircle,
   X,
 } from '@/components/icons';
-import { PILL_PRIMARY, PILL_SOFT } from '@/components/pageKit';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -243,7 +242,8 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
                   aria-pressed={active}
                   onClick={() => save.mutate({ source: option.value })}
                   className={cn(
-                    'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+                    // A button centres its content, so flex-col keeps both titles on the same line.
+                    'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50',
                     active
                       ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
                       : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
@@ -301,26 +301,17 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
 
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                variant="ghost"
-                size="sm"
-                className={PILL_SOFT}
+                variant="soft"
                 onClick={() => void window.agentmat.shell.openExternal(LANGUAGETOOL_DOWNLOAD_URL)}
               >
                 <Download /> Download
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={PILL_SOFT}
-                onClick={() => void window.agentmat.grammar.openToolsFolder()}
-              >
+              <Button variant="soft" onClick={() => void window.agentmat.grammar.openToolsFolder()}>
                 <FolderOpen /> Open tools folder
               </Button>
               {status?.serverState === 'running' ? (
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className={PILL_SOFT}
+                  variant="soft"
                   disabled={busy !== null}
                   onClick={() => void runServerAction('stop')}
                 >
@@ -336,8 +327,6 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
                   }
                 >
                   <Button
-                    size="sm"
-                    className={PILL_PRIMARY}
                     disabled={busy !== null || !installed || javaMissing}
                     onClick={() => void runServerAction('start')}
                   >
@@ -347,9 +336,7 @@ export function WritingCheckSettings({ settings }: { settings: AppSettings }): R
                 </SimpleTooltip>
               )}
               <Button
-                variant="ghost"
-                size="sm"
-                className={PILL_SOFT}
+                variant="soft"
                 onClick={() => void statusQuery.refetch()}
                 disabled={statusQuery.isFetching}
               >

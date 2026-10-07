@@ -50,7 +50,7 @@ export function CopyRunErrorButton({
       <Button
         variant="ghost"
         size={iconOnly ? 'icon' : 'sm'}
-        className={cn(iconOnly ? 'h-8 w-8 shrink-0' : 'h-8 shrink-0 gap-1 px-2 text-xs', className)}
+        className={cn(iconOnly ? 'shrink-0' : 'h-8 shrink-0 gap-1 px-2', className)}
         disabled={busy}
         aria-label="Copy error"
         onClick={() => void copyError()}

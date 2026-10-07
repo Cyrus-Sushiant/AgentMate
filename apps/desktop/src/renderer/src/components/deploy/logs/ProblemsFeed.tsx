@@ -2,12 +2,14 @@ import type { ContainerSummary } from '@shared/deploy/protocol/generated/AgentMa
 import type { DeployServer } from '@shared/deployTypes';
 import { useState } from 'react';
 import { CircleCheck, CircleX, FolderKanban, Robot, TriangleAlert } from '@/components/icons';
+import { Chip, EmptyState, GLASS_CARD } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PROBLEM_LABELS, type Problem } from '@/lib/deploy/problems/problems';
 import { cn } from '@/lib/utils';
 import { useDeployAssistantStore } from '@/stores/deployAssistantStore';
 import { SendLogsDialog } from '../containers/SendLogsDialog';
+import { GLASS_EDGE } from '../deployKit';
 import { useProblems } from './useProblems';
 
 /**
@@ -41,28 +43,27 @@ function ProblemCard({
     <li
       aria-label={problem.title}
       className={cn(
-        'flex flex-col gap-2 rounded-lg border p-3',
-        critical ? 'border-destructive/40 bg-destructive/5' : 'border-warning/40 bg-warning/5',
+        GLASS_CARD,
+        'flex flex-col gap-2 p-4',
+        critical ? GLASS_EDGE.destructive : GLASS_EDGE.warning,
       )}
     >
-      <div className="flex items-center gap-2 text-xs">
-        {critical ? (
-          <CircleX className="h-3.5 w-3.5 text-destructive" />
-        ) : (
-          <TriangleAlert className="h-3.5 w-3.5 text-warning" />
-        )}
-        <span className="font-medium text-foreground">{critical ? 'Critical' : 'Warning'}</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <Chip tone={critical ? 'destructive' : 'warning'}>
+          {critical ? <CircleX /> : <TriangleAlert />}
+          {critical ? 'Critical' : 'Warning'}
+        </Chip>
         <span className="text-muted-foreground">{PROBLEM_LABELS[problem.kind]}</span>
       </div>
-      <h3 className="text-sm font-medium text-foreground">{problem.title}</h3>
+      <h3 className="text-sm font-semibold text-foreground">{problem.title}</h3>
       <p className="text-xs text-muted-foreground">{problem.detail}</p>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={onDiagnose}>
-          <Robot className="h-3.5 w-3.5" /> Diagnose with AI
+      <div className="mt-auto flex flex-wrap gap-2 pt-1">
+        <Button size="sm" onClick={onDiagnose}>
+          <Robot /> Diagnose with AI
         </Button>
         {onFix && (
-          <Button size="sm" variant="ghost" className="gap-1.5" onClick={onFix}>
-            <FolderKanban className="h-3.5 w-3.5" /> Fix in project
+          <Button size="sm" variant="soft" onClick={onFix}>
+            <FolderKanban /> Fix in project
           </Button>
         )}
       </div>
@@ -78,9 +79,9 @@ export function ProblemsFeed({ server }: { server: DeployServer }): React.JSX.El
 
   if (loading && problems.length === 0) {
     return (
-      <ul aria-label="Problems" aria-busy="true" className="grid gap-3 md:grid-cols-2">
+      <ul aria-label="Problems" aria-busy="true" className="grid gap-2 xl:grid-cols-2">
         {Array.from({ length: 2 }, (_, i) => (
-          <li key={i} className="space-y-2 rounded-lg border border-border p-3">
+          <li key={i} className={cn(GLASS_CARD, 'space-y-2 p-4')}>
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-3 w-full" />
@@ -92,18 +93,15 @@ export function ProblemsFeed({ server }: { server: DeployServer }): React.JSX.El
 
   if (problems.length === 0) {
     return (
-      <p
-        role="status"
-        className="flex items-center gap-2 rounded-lg border border-border p-4 text-sm text-muted-foreground"
-      >
-        <CircleCheck className="h-4 w-4 text-success" /> Nothing needs attention right now.
-      </p>
+      <div role="status">
+        <EmptyState card icon={CircleCheck} title="Nothing needs attention right now." />
+      </div>
     );
   }
 
   return (
     <>
-      <ul aria-label="Problems" className="grid gap-3 md:grid-cols-2">
+      <ul aria-label="Problems" className="grid gap-2 xl:grid-cols-2">
         {problems.map((problem) => {
           const container = problem.containerId
             ? all.find((item) => item.id === problem.containerId)

@@ -19,14 +19,7 @@ import {
   Video,
   Wifi,
 } from '@/components/icons';
-import {
-  CARD_PILL,
-  CARD_PILL_SOFT,
-  Chip,
-  FOOTER_HAIRLINE,
-  GLASS_CARD,
-  TILE_ACTION,
-} from '@/components/pageKit';
+import { Chip, FOOTER_HAIRLINE, GLASS_CARD } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import {
@@ -145,7 +138,7 @@ function DeviceMenu({
     <DropdownMenu>
       <SimpleTooltip label="More actions">
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className={TILE_ACTION} aria-label="More actions">
+          <Button variant="ghost" size="icon-sm" aria-label="More actions">
             <EllipsisVertical className="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
@@ -157,14 +150,14 @@ function DeviceMenu({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
+          tone="danger"
           disabled={running}
           onSelect={() => actions.onWipeData(avdName)}
         >
           Wipe data
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
+          tone="danger"
           disabled={running}
           onSelect={() => actions.onDelete(avdName)}
         >
@@ -239,8 +232,8 @@ function DeviceActions({
         <SimpleTooltip key={button.key} label={button.label}>
           <Button
             variant="ghost"
-            size="icon"
-            className={cn(TILE_ACTION, recordingButton(button.key, recording))}
+            size="icon-sm"
+            className={recordingButton(button.key, recording)}
             aria-label={button.label}
             aria-pressed={button.key === 'record' ? recording : undefined}
             onClick={button.onClick}
@@ -326,9 +319,8 @@ function EmulatorCard({
       <CardFooter className={FOOTER}>
         {booting ? (
           <Button
-            variant="ghost"
+            variant="soft"
             size="sm"
-            className={CARD_PILL_SOFT}
             disabled={pending}
             onClick={() => onCancelBoot(emulator.avd.name)}
           >
@@ -336,9 +328,8 @@ function EmulatorCard({
           </Button>
         ) : running ? (
           <Button
-            variant="ghost"
+            variant="soft"
             size="sm"
-            className={CARD_PILL_SOFT}
             disabled={pending}
             onClick={() => emulator.serial && onStop(emulator.serial)}
           >
@@ -346,12 +337,7 @@ function EmulatorCard({
             Stop
           </Button>
         ) : (
-          <Button
-            size="sm"
-            className={CARD_PILL}
-            disabled={pending}
-            onClick={() => onStart(emulator.avd.name)}
-          >
+          <Button size="sm" disabled={pending} onClick={() => onStart(emulator.avd.name)}>
             <Play className="h-3.5 w-3.5" />
             Start
           </Button>

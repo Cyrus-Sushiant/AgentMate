@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
 import type { VaultShortcutCommandId } from '@/lib/shortcuts';
 import { cn } from '@/lib/utils';
-import { PANE_WIDTHS, usePaneWidth } from '@/stores/paneLayoutStore';
+import { PANEL_WIDTHS, usePanelWidth } from '@/stores/panelWidthStore';
 import { commandForEvent, useShortcutLabel, useShortcutStore } from '@/stores/shortcutStore';
 import { useVaultStore } from '@/stores/vaultStore';
 import { ChangeMasterPasswordDialog } from './ChangeMasterPasswordDialog';
@@ -108,7 +108,7 @@ export function VaultUnlockedView(): React.JSX.Element {
   const searchRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<VaultDialogState>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [listWidth, setListWidth] = usePaneWidth('vaultList');
+  const [listWidth, setListWidth] = usePanelWidth('vaultList');
 
   const query = useVaultStore((s) => s.query);
   const setQuery = useVaultStore((s) => s.setQuery);
@@ -348,9 +348,9 @@ export function VaultUnlockedView(): React.JSX.Element {
           orientation="vertical"
           label="Resize entry list"
           size={listWidth}
-          min={PANE_WIDTHS.vaultList.min}
-          max={PANE_WIDTHS.vaultList.max}
-          defaultSize={PANE_WIDTHS.vaultList.default}
+          min={PANEL_WIDTHS.vaultList.min}
+          max={PANEL_WIDTHS.vaultList.max}
+          defaultSize={PANEL_WIDTHS.vaultList.default}
           onSizeChange={setListWidth}
           quiet
           className="hidden w-2 @3xl/vault:flex"

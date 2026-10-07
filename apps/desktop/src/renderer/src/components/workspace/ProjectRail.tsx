@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronUp, GitBranch, Plus, Search, X } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
+import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -15,6 +16,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { OverflowScroll } from '@/components/ui/overflow-scroll';
+import { LIST_OPTION, LIST_SEARCH, OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useWorktrees } from '@/hooks/useWorktrees';
 import { useTerminalSessionStore } from '@/lib/terminal/terminalRuntime';
@@ -22,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { attentionStatus, useAgentStatusStore } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { AgentStatusDot } from './AgentStatusDot';
+import { AgentStatusChip, AgentStatusDot } from './AgentStatusDot';
 import { monogramStyle } from './railStyle';
 import { RailWorktreeGroup } from './worktrees/RailWorktrees';
 import { useWorktreeCommands } from './worktrees/useWorktreeCommands';
@@ -42,15 +44,17 @@ export function ProjectSearchList({
       className="flex flex-col"
       filter={(value, search) => (value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}
     >
-      <div className="flex items-center gap-2 border-b border-border px-3">
-        <Search className="h-3.5 w-3.5 shrink-0 opacity-50" />
-        <CommandPrimitive.Input
-          autoFocus
-          placeholder="Open a project…"
-          className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
+      <div className="p-1 pb-0">
+        <div className={LIST_SEARCH}>
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <CommandPrimitive.Input
+            autoFocus
+            placeholder="Open a project…"
+            className="h-full w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+          />
+        </div>
       </div>
-      <CommandPrimitive.List className="max-h-72 overflow-y-auto p-1">
+      <CommandPrimitive.List className="rail-scroll max-h-72 overflow-y-auto p-1">
         <CommandPrimitive.Empty className="py-6 text-center text-sm text-muted-foreground">
           {available.length === 0 ? 'Every project is already open.' : 'No matching project.'}
         </CommandPrimitive.Empty>
@@ -59,7 +63,7 @@ export function ProjectSearchList({
             key={project.id}
             value={`${project.name} ${project.folderPath} ${project.id}`}
             onSelect={() => onPick(project)}
-            className="flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-1.5 text-sm outline-none aria-selected:bg-primary/12"
+            className={LIST_OPTION}
           >
             <ProjectIcon
               iconDataUrl={project.iconDataUrl}
@@ -93,6 +97,14 @@ function initials(name: string): string {
   if (capitals && capitals.length >= 2) return `${capitals[0]}${capitals[1]}`;
   return word.slice(0, 2).replace(/^./, (c) => c.toUpperCase());
 }
+
+/**
+ * The small round marks pinned to a rail tile's corners. They float over the tile, so they keep
+ * an opaque popover fill on hover too, and their edge is a ring the global border colour can't
+ * repaint.
+ */
+const RAIL_BADGE =
+  'absolute h-4 w-4 min-w-4 bg-popover shadow-sm ring-1 ring-foreground/10 hover:bg-popover [&_svg]:size-2';
 
 /** Drag payload type for rail projects, kept apart from tab and file drags. */
 const RAIL_PROJECT_MIME = 'application/x-agentmate-rail-project';
@@ -203,13 +215,9 @@ function RailItem({
                   <span className="mt-0.5 text-[10px] text-muted-foreground">
                     {tabCount} terminal{tabCount === 1 ? '' : 's'} open
                     {busyCount > 0 ? `, ${busyCount} working` : ''}
-                    {attention === 'needs-input'
-                      ? ', waiting on you'
-                      : attention === 'done'
-                        ? ', something finished'
-                        : ''}
                   </span>
                 ) : null}
+                <AgentStatusChip status={attention} className="mt-1 self-start" />
                 {count > 0 ? (
                   <span className="text-[10px] text-muted-foreground">{countLabel}</span>
                 ) : null}
@@ -224,11 +232,13 @@ function RailItem({
                 onClick={onOpen}
                 className={cn(
                   'relative rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  // On glass the rail has no fill of its own, so an offset there would paint a
+                  // solid band of page colour around the tile; the ring sits flush instead.
                   active
-                    ? 'ring-2 ring-primary/55 ring-offset-2 ring-offset-background'
+                    ? 'shadow-[0_0_16px_-2px_hsl(var(--primary)/0.55)] ring-2 ring-primary/70 ring-offset-2 ring-offset-background glass:ring-offset-0'
                     : holdsActive
-                      ? 'ring-1 ring-primary/30 ring-offset-2 ring-offset-background'
-                      : 'opacity-70 hover:opacity-100',
+                      ? 'ring-1 ring-primary/35 ring-offset-2 ring-offset-background glass:ring-offset-0'
+                      : 'opacity-70 hover:-translate-y-px hover:opacity-100 motion-reduce:hover:translate-y-0',
                 )}
               >
                 {project.iconDataUrl ? (
@@ -248,7 +258,7 @@ function RailItem({
                   </span>
                 )}
                 {attention ? (
-                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background">
+                  <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-foreground/[0.08]">
                     <AgentStatusDot status={attention} />
                   </span>
                 ) : null}
@@ -278,38 +288,53 @@ function RailItem({
           </ContextMenuContent>
         </ContextMenu>
         <SimpleTooltip label="Close workspace" side="right">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label={`Close ${project.name} workspace`}
             onClick={onClose}
-            className="absolute -top-1 right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 shadow transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+            className={cn(
+              RAIL_BADGE,
+              '-top-1 right-1.5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
+            )}
           >
-            <X className="h-2 w-2" />
-          </button>
+            <X />
+          </Button>
         </SimpleTooltip>
         {count > 0 && expanded ? (
           <SimpleTooltip label="Hide worktrees" side="right">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={`Hide ${project.name} worktrees`}
               onClick={() => setRailExpanded(project.id, false)}
-              className="absolute -bottom-1 left-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 shadow transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+              className={cn(
+                RAIL_BADGE,
+                '-bottom-1 left-1.5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
+              )}
             >
-              <ChevronUp className="h-2 w-2" />
-            </button>
+              <ChevronUp />
+            </Button>
           </SimpleTooltip>
         ) : null}
         {count > 0 && !expanded ? (
           <SimpleTooltip label={`${countLabel}, click to show`} side="right">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
               aria-label={`Show ${count} ${project.name} worktree${count === 1 ? '' : 's'}`}
               onClick={() => setRailExpanded(project.id, true)}
-              className="absolute -bottom-1.5 left-0.5 flex h-4 min-w-4 items-center gap-0.5 rounded-full border border-border bg-popover px-1 text-[9px] font-semibold text-muted-foreground shadow transition-colors hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn(
+                RAIL_BADGE,
+                '-bottom-1.5 left-0.5 w-auto gap-0.5 px-1 text-[9px] font-semibold text-muted-foreground hover:text-primary hover:ring-primary/50',
+              )}
             >
-              <GitBranch className="h-2 w-2" />
+              <GitBranch />
               {count}
-            </button>
+            </Button>
           </SimpleTooltip>
         ) : null}
       </div>
@@ -446,13 +471,18 @@ export function ProjectRail({
       <PopoverPrimitive.Root open={pickerOpen} onOpenChange={setPickerOpen}>
         <SimpleTooltip label="Open another project" side="right">
           <PopoverPrimitive.Trigger asChild>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              shape="square"
+              size="icon"
               aria-label="Open another project"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/[0.06] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:border-primary/50 data-[state=open]:text-primary"
+              // Squared like the project tiles above it. The edge is an inset ring, since a
+              // tinted border would lose to the global border colour.
+              className="h-9 w-9 rounded-xl bg-foreground/[0.04] text-muted-foreground ring-1 ring-inset ring-foreground/[0.08] hover:bg-primary/10 hover:text-primary hover:ring-primary/40 data-[state=open]:bg-primary/12 data-[state=open]:text-primary data-[state=open]:ring-primary/45 [&_svg]:size-3.5"
             >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+              <Plus />
+            </Button>
           </PopoverPrimitive.Trigger>
         </SimpleTooltip>
         <PopoverPrimitive.Portal>
@@ -460,7 +490,11 @@ export function ProjectRail({
             side="right"
             align="start"
             sideOffset={10}
-            className="z-50 w-72 overflow-hidden rounded-lg border border-border bg-popover/85 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+            className={cn(
+              OVERLAY_SURFACE,
+              OVERLAY_MOTION,
+              'z-50 w-72 overflow-hidden origin-[var(--radix-popover-content-transform-origin)]',
+            )}
           >
             <ProjectSearchList
               projects={projects}

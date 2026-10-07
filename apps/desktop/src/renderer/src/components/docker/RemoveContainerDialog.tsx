@@ -77,7 +77,7 @@ export function RemoveContainerDialog({
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" disabled={removing} onClick={() => handleOpenChange(false)}>
+          <Button variant="soft" disabled={removing} onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
           <Button

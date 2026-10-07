@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Shield } from '@/components/icons';
+import { segmentClass } from '@/components/pageKit';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
@@ -60,7 +61,11 @@ export function ModeSwitch({
   }
 
   return (
-    <div role="radiogroup" aria-label="How commands run" className="grid grid-cols-2 gap-1">
+    <div
+      role="radiogroup"
+      aria-label="How commands run"
+      className="grid grid-cols-2 gap-0.5 rounded-full bg-foreground/8 p-0.5"
+    >
       {MODES.map((option) => {
         const checked = option.value === mode;
         return (
@@ -72,10 +77,9 @@ export function ModeSwitch({
               disabled={disabled || busy}
               onClick={() => void choose(option.value)}
               className={cn(
-                'flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',
-                checked
-                  ? 'border-primary bg-primary/10 font-medium text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground',
+                segmentClass(checked),
+                'h-7 w-full gap-1.5 px-2 disabled:cursor-not-allowed disabled:opacity-60',
+                checked && 'text-primary',
               )}
             >
               {option.value === 'autoRunDiagnostics' && <Shield className="h-3 w-3" />}

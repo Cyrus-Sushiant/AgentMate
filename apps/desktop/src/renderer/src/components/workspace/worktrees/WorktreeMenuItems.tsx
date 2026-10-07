@@ -16,6 +16,7 @@ interface ItemProps {
   onSelect?: (event: Event) => void;
   disabled?: boolean;
   className?: string;
+  tone?: 'default' | 'danger';
   children?: ReactNode;
 }
 
@@ -81,10 +82,7 @@ export function WorktreeMenuItems({
         Copy path
       </Item>
       <Separator />
-      <Item
-        onSelect={() => commands.remove(project, worktree)}
-        className="text-destructive focus:bg-destructive/15 focus:text-destructive"
-      >
+      <Item onSelect={() => commands.remove(project, worktree)} tone="danger">
         <Trash2 className="h-3.5 w-3.5" />
         Remove worktree…
       </Item>

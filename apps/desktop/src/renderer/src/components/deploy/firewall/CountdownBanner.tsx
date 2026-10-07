@@ -3,6 +3,8 @@ import { Clock, Spinner, Undo } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { clock, secondsLeft } from '@/lib/deploy/firewall/format';
 import { cn } from '@/lib/utils';
+import { GLASS_EDGE } from '../deployKit';
+import { SECURITY_CARD } from '../security/SecurityCard';
 import { StepList, type StepStates } from './StepList';
 
 /**
@@ -47,12 +49,11 @@ export function CountdownBanner({
   return (
     <section
       aria-labelledby="keep-changes-title"
-      className={cn(
-        'overflow-hidden rounded-lg border bg-card',
-        urgent ? 'border-destructive/60' : 'border-warning/60',
-      )}
+      // The edge carries the urgency. It is a ring, since the global border colour repaints a
+      // border.
+      className={cn(SECURITY_CARD, urgent ? GLASS_EDGE.destructive : GLASS_EDGE.warning)}
     >
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3.5">
         <div
           role="timer"
           aria-label={left === null ? 'Applying' : `${left} seconds left`}
@@ -83,7 +84,7 @@ export function CountdownBanner({
           <div className="flex gap-2">
             <Button
               size="sm"
-              variant="outline"
+              variant="soft"
               disabled={busy !== null || expired || left === null}
               onClick={onRevert}
             >
@@ -106,7 +107,7 @@ export function CountdownBanner({
         )}
       </div>
       {(steps.length > 0 || problem) && (
-        <div className="space-y-1 px-4 pb-3">
+        <div className="space-y-1 px-4 pb-3.5">
           <StepList steps={steps} />
           {problem && (
             <p role="alert" className="text-xs text-destructive">
@@ -115,7 +116,7 @@ export function CountdownBanner({
           )}
         </div>
       )}
-      <div className="h-1 w-full bg-muted" aria-hidden="true">
+      <div className="h-1 w-full bg-foreground/[0.06]" aria-hidden="true">
         <div
           data-testid="fuse"
           className={cn(

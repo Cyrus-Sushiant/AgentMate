@@ -59,13 +59,7 @@ import {
   X,
 } from '@/components/icons';
 import { NAV_ITEMS } from '@/components/layout/Sidebar';
-import {
-  CARD_PILL_SOFT,
-  PILL_DESTRUCTIVE,
-  PILL_PRIMARY,
-  PILL_SOFT,
-  TILE_ACTION,
-} from '@/components/pageKit';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { CompanionSettings } from '@/components/pet/CompanionSettings';
 import { AndroidSdkSettings } from '@/components/settings/AndroidSdkSettings';
 import { BackupEnvironmentsPasswordDialog } from '@/components/settings/BackupEnvironmentsPasswordDialog';
@@ -595,7 +589,9 @@ function MiniWindow({
     <div
       className={cn(
         'flex overflow-hidden rounded-md border border-border bg-background',
-        themeClassName(resolved),
+        // Light is the default and has no class on <html>, so inside a dark window the light
+        // preview needs its own to reset the colours, or it inherits the dark ones.
+        resolved === 'light' ? 'theme-light' : themeClassName(resolved),
         className,
       )}
     >
@@ -1372,7 +1368,7 @@ export default function SettingsPage(): React.JSX.Element {
   function searchGroupLabel(groupTab: SettingsTab): ReactNode {
     if (!query || matchCounts[groupTab] === 0) return null;
     return (
-      <p className="-mb-1.5 select-none px-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 first:pt-0">
+      <p className={cn(SECTION_HEADING, '-mb-1.5 px-1 pt-2 first:pt-0')}>
         {TAB_META.find((item) => item.id === groupTab)?.label}
       </p>
     );
@@ -1547,12 +1543,7 @@ export default function SettingsPage(): React.JSX.Element {
                 <p className="max-w-sm text-sm text-muted-foreground">
                   Something went wrong reading this machine's defaults.
                 </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={PILL_SOFT}
-                  onClick={() => void settingsQuery.refetch()}
-                >
+                <Button variant="soft" onClick={() => void settingsQuery.refetch()}>
                   Try again
                 </Button>
               </div>
@@ -1567,7 +1558,7 @@ export default function SettingsPage(): React.JSX.Element {
                     Try theme, AI Pet, API key, Telegram, backup, or a category name.
                   </p>
                 </div>
-                <Button variant="ghost" size="sm" className={PILL_SOFT} onClick={clearSearch}>
+                <Button variant="soft" onClick={clearSearch}>
                   Clear search
                 </Button>
               </div>
@@ -1594,7 +1585,7 @@ export default function SettingsPage(): React.JSX.Element {
                             type="button"
                             onClick={() => setTheme(option.value)}
                             className={cn(
-                              'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                              'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-all duration-150',
                               active
                                 ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
                                 : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
@@ -1637,7 +1628,7 @@ export default function SettingsPage(): React.JSX.Element {
                                 if (!active) menuPositionMutation.mutate(option.value);
                               }}
                               className={cn(
-                                'cursor-pointer rounded-lg border p-3 text-left transition-all duration-150',
+                                'flex cursor-pointer flex-col rounded-lg border p-3 text-left transition-all duration-150',
                                 active
                                   ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/40'
                                   : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
@@ -1820,9 +1811,8 @@ export default function SettingsPage(): React.JSX.Element {
                         spellCheck={false}
                       />
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className={cn(PILL_SOFT, 'h-9 shrink-0')}
+                        variant="soft"
+                        className="h-9 shrink-0"
                         onClick={() => void handleBrowseProjectsRoot()}
                       >
                         <FolderOpen /> Browse…
@@ -1841,12 +1831,7 @@ export default function SettingsPage(): React.JSX.Element {
                         : `${repoCount} repositor${repoCount === 1 ? 'y' : 'ies'} configured. Add and sync sources from the Skills page.`
                     }
                     action={
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={PILL_SOFT}
-                        onClick={() => navigate('/skills')}
-                      >
+                      <Button variant="soft" onClick={() => navigate('/skills')}>
                         <Blocks /> Manage
                       </Button>
                     }
@@ -2128,9 +2113,8 @@ export default function SettingsPage(): React.JSX.Element {
                               spellCheck={false}
                             />
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              className={cn(PILL_SOFT, 'h-9 shrink-0')}
+                              variant="soft"
+                              className="h-9 shrink-0"
                               disabled={testingOllama}
                               onClick={() => void handleTestOllama()}
                             >
@@ -2163,8 +2147,8 @@ export default function SettingsPage(): React.JSX.Element {
                               <SimpleTooltip label="Refresh model list" wrapTrigger>
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className={cn(TILE_ACTION, 'shrink-0')}
+                                  size="icon-sm"
+                                  className="shrink-0"
                                   aria-label="Refresh model list"
                                   disabled={ollamaModelsQuery.isFetching}
                                   onClick={() => void ollamaModelsQuery.refetch()}
@@ -2323,16 +2307,18 @@ export default function SettingsPage(): React.JSX.Element {
                       </ol>
 
                       <Field label="Bot token" htmlFor="telegram-bot-token">
-                        <SecretInput
-                          id="telegram-bot-token"
-                          value={botToken}
-                          onChange={(value) => {
-                            setBotToken(value);
-                            setTelegramDirty(true);
-                          }}
-                          placeholder="123456789:AAExampleTokenFromBotFather"
-                          className="max-w-md"
-                        />
+                        {/* The width goes on a wrapper, so the reveal button stays inside the field. */}
+                        <div className="max-w-md">
+                          <SecretInput
+                            id="telegram-bot-token"
+                            value={botToken}
+                            onChange={(value) => {
+                              setBotToken(value);
+                              setTelegramDirty(true);
+                            }}
+                            placeholder="123456789:AAExampleTokenFromBotFather"
+                          />
+                        </div>
                       </Field>
 
                       <Field
@@ -2353,10 +2339,9 @@ export default function SettingsPage(): React.JSX.Element {
                             spellCheck={false}
                           />
                           <Button
+                            variant="soft"
+                            className="h-9 shrink-0"
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            className={cn(PILL_SOFT, 'h-9 shrink-0')}
                             disabled={detectingChatId || !botToken.trim()}
                             onClick={() => void handleDetectChatId()}
                           >
@@ -2384,9 +2369,7 @@ export default function SettingsPage(): React.JSX.Element {
                       </Field>
 
                       <Button
-                        size="sm"
-                        variant="ghost"
-                        className={PILL_SOFT}
+                        variant="soft"
                         disabled={
                           sendingTest || (!botToken.trim() && !settingsQuery.data?.telegramBotToken)
                         }
@@ -2432,7 +2415,7 @@ export default function SettingsPage(): React.JSX.Element {
                               aria-checked={pingMethod === option.value}
                               onClick={() => setPingMethod(option.value)}
                               className={cn(
-                                'flex-1 cursor-pointer rounded-lg border px-3 py-2 text-left transition-colors',
+                                'flex flex-1 cursor-pointer flex-col rounded-lg border px-3 py-2 text-left transition-colors',
                                 pingMethod === option.value
                                   ? 'border-primary/60 bg-primary/10'
                                   : 'border-input hover:bg-accent',
@@ -2464,9 +2447,8 @@ export default function SettingsPage(): React.JSX.Element {
                           <div className="flex items-center justify-between">
                             <Label className="text-xs text-muted-foreground">URLs to request</Label>
                             <Button
-                              variant="ghost"
+                              variant="soft"
                               size="sm"
-                              className={CARD_PILL_SOFT}
                               onClick={() => {
                                 setPingUrlsText(DEFAULT_PING_URL);
                                 setPingUrlsDirty(true);
@@ -2603,9 +2585,8 @@ export default function SettingsPage(): React.JSX.Element {
                             </div>
                           )}
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            className={cn(PILL_SOFT, 'mt-3')}
+                            variant="soft"
+                            className="mt-3"
                             disabled={exportingBackup || backupPasswordProblem !== null}
                             onClick={() => void handleExportBackup()}
                           >
@@ -2619,9 +2600,8 @@ export default function SettingsPage(): React.JSX.Element {
                             Replaces current data. This cannot be undone.
                           </p>
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            className={cn(PILL_DESTRUCTIVE, 'mt-8')}
+                            variant="danger"
+                            className="mt-8"
                             disabled={importingBackup}
                             onClick={() => void handleImportBackup()}
                           >
@@ -2653,30 +2633,19 @@ export default function SettingsPage(): React.JSX.Element {
                     description={`AgentMate ${versionLabel}`}
                     action={
                       updateStatus.state === 'downloaded' ? (
-                        <Button
-                          size="sm"
-                          className={PILL_PRIMARY}
-                          onClick={() => void window.agentmat.app.quitAndInstall()}
-                        >
+                        <Button onClick={() => void window.agentmat.app.quitAndInstall()}>
                           Restart now
                         </Button>
                       ) : updateStatus.state === 'downloading' ? (
                         <div className="flex items-center gap-2">
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            className={PILL_SOFT}
+                            variant="soft"
                             onClick={() => void window.agentmat.app.pauseDownload()}
                           >
                             <Pause className="h-4 w-4" />
                             Pause
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={PILL_SOFT}
-                            onClick={() => openUpdateDialog()}
-                          >
+                          <Button variant="soft" onClick={() => openUpdateDialog()}>
                             Show
                           </Button>
                         </div>
@@ -2684,8 +2653,6 @@ export default function SettingsPage(): React.JSX.Element {
                         (updateStatus.state === 'error' && updateStatus.resumable) ||
                         updateStatus.state === 'available' ? (
                         <Button
-                          size="sm"
-                          className={PILL_PRIMARY}
                           onClick={() => {
                             openUpdateDialog();
                             void window.agentmat.app.downloadUpdate();
@@ -2705,9 +2672,7 @@ export default function SettingsPage(): React.JSX.Element {
                         </Button>
                       ) : (
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className={PILL_SOFT}
+                          variant="soft"
                           disabled={checkingForUpdates}
                           onClick={() => void handleCheckForUpdates()}
                         >
@@ -2749,22 +2714,11 @@ export default function SettingsPage(): React.JSX.Element {
               <span className="ml-2 hidden text-xs sm:inline">({saveShortcutLabel()} to save)</span>
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={PILL_SOFT}
-                disabled={saving}
-                onClick={handleDiscardAll}
-              >
+              <Button variant="soft" disabled={saving} onClick={handleDiscardAll}>
                 Discard
               </Button>
               <SimpleTooltip label={`Save all changes (${saveShortcutLabel()})`}>
-                <Button
-                  size="sm"
-                  className={PILL_PRIMARY}
-                  disabled={saving}
-                  onClick={() => void handleSaveAll()}
-                >
+                <Button disabled={saving} onClick={() => void handleSaveAll()}>
                   <Save className="h-4 w-4" />
                   {saving ? 'Saving…' : 'Save changes'}
                 </Button>

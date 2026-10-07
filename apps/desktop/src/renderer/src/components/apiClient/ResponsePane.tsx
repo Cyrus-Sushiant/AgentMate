@@ -83,7 +83,7 @@ function SendingState({
           Sending…{' '}
           <span className="tabular-nums">{formatDuration(Math.max(0, now - startedAt))}</span>
         </div>
-        <Button variant="outline" size="sm" onClick={onCancel} aria-label="Cancel request">
+        <Button variant="soft" size="sm" onClick={onCancel} aria-label="Cancel request">
           <StopCircle /> Cancel
         </Button>
       </div>
@@ -325,18 +325,19 @@ function ResponseBody({
           ))}
         </div>
         <SimpleTooltip label={copied ? 'Copied' : 'Copy body'}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             aria-label="Copy body"
             onClick={() => {
               void navigator.clipboard.writeText(view === 'pretty' ? pretty : response.body);
               setCopied(true);
               setTimeout(() => setCopied(false), 1200);
             }}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
+            <Copy />
+          </Button>
         </SimpleTooltip>
       </div>
       {response.bodyTruncated && (

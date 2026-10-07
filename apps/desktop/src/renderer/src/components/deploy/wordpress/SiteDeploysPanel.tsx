@@ -15,12 +15,12 @@ import {
   Undo,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { DeployCard } from '../deployKit';
 import { SetupFailure } from '../SetupFailure';
 import { newOperationId, useOperationProgress, useSiteHistory } from './hooks';
 import {
@@ -136,7 +136,7 @@ export function SiteDeploysPanel({ site }: { site: DeployWordPressSite }): React
     body = (
       <div className="space-y-2" aria-busy="true">
         {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-14 w-full rounded-md" />
+          <Skeleton key={index} className="h-14 w-full rounded-lg" />
         ))}
       </div>
     );
@@ -146,11 +146,11 @@ export function SiteDeploysPanel({ site }: { site: DeployWordPressSite }): React
         <SetupFailure message={wpProblem(historyQuery.error)} />
         <Button
           size="sm"
-          variant="outline"
+          variant="soft"
           disabled={historyQuery.isFetching}
           onClick={() => void historyQuery.refetch()}
         >
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
+          <RefreshCw /> Try again
         </Button>
       </div>
     );
@@ -162,7 +162,7 @@ export function SiteDeploysPanel({ site }: { site: DeployWordPressSite }): React
     );
   } else {
     body = (
-      <ul aria-label="Deploys" className="divide-y divide-border/60">
+      <ul aria-label="Deploys" className="settings-rows">
         {historyQuery.data.map((record) => {
           const { icon: Icon, tone } = STATE_TONE[record.state];
           const mine = running?.deployId === record.deployId;
@@ -200,16 +200,12 @@ export function SiteDeploysPanel({ site }: { site: DeployWordPressSite }): React
                 <SimpleTooltip label={off} wrapTrigger>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="soft"
                     disabled={off !== null}
                     aria-label={`Roll back ${record.label || 'this deploy'}`}
                     onClick={() => void rollBack(record)}
                   >
-                    {mine ? (
-                      <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-                    ) : (
-                      <Undo className="h-3.5 w-3.5" />
-                    )}
+                    {mine ? <Spinner className="motion-safe:animate-spin" /> : <Undo />}
                     Roll back
                   </Button>
                 </SimpleTooltip>
@@ -222,27 +218,22 @@ export function SiteDeploysPanel({ site }: { site: DeployWordPressSite }): React
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-4 w-4 text-primary" /> Deploys
-          </CardTitle>
-          <CardDescription className="max-w-2xl">
-            Every deploy takes a snapshot first, and a deploy that breaks the site is rolled back on
-            its own. The site keeps the last five snapshots for a manual rollback.
-          </CardDescription>
-        </div>
+    <DeployCard
+      icon={<History />}
+      title="Deploys"
+      description="Every deploy takes a snapshot first, and a deploy that breaks the site is rolled back on its own. The site keeps the last five snapshots for a manual rollback."
+      actions={
         <Button
           size="sm"
-          variant="outline"
+          variant="soft"
           disabled={historyQuery.isFetching}
           onClick={() => void historyQuery.refetch()}
         >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <RefreshCw /> Refresh
         </Button>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
-    </Card>
+      }
+    >
+      {body}
+    </DeployCard>
   );
 }

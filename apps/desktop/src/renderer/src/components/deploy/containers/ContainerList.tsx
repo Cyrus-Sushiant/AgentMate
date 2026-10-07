@@ -7,11 +7,20 @@ import { useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  Docker,
   EllipsisVertical,
   Globe,
   Search,
   Spinner,
 } from '@/components/icons';
+import {
+  CountChip,
+  EmptyState,
+  FOOTER_HAIRLINE,
+  GLASS_PANEL,
+  SECTION_HEADING,
+  SearchPill,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,7 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useVirtualRows } from '@/hooks/useVirtualRows';
 import { useChartColors } from '@/lib/chartColors';
@@ -91,21 +99,18 @@ export function ActionMenu({
   const busy = actions.busyId === container.id;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          aria-label={`Actions for ${container.name}`}
-          disabled={busy}
-        >
-          {busy ? (
-            <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-          ) : (
-            <EllipsisVertical className="h-3.5 w-3.5" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
+      <SimpleTooltip label="Actions">
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${container.name}`}
+            disabled={busy}
+          >
+            {busy ? <Spinner className="motion-safe:animate-spin" /> : <EllipsisVertical />}
+          </Button>
+        </DropdownMenuTrigger>
+      </SimpleTooltip>
       <DropdownMenuContent align={align}>
         {act &&
           actionsFor(container).map((action) => (
@@ -116,7 +121,7 @@ export function ActionMenu({
         {remove && (
           <>
             {act && <DropdownMenuSeparator />}
-            <DropdownMenuItem className="text-destructive" onSelect={() => remove(container)}>
+            <DropdownMenuItem tone="danger" onSelect={() => remove(container)}>
               Remove…
             </DropdownMenuItem>
           </>
@@ -138,19 +143,17 @@ function GroupHeader({
   const Chevron = row.folded ? ChevronRight : ChevronDown;
   const stopped = row.total - row.running;
   return (
-    <div className="flex h-full items-end pb-1.5">
+    <div className="flex h-full items-end pb-1">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!row.folded}
         aria-label={`${row.project ?? STANDALONE}, ${row.running} of ${row.total} running`}
-        className="flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <Chevron className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <h3 className="truncate text-sm font-semibold text-foreground">
-          {row.project ?? STANDALONE}
-        </h3>
-        <span className="shrink-0 text-xs text-muted-foreground">
+        <Chevron className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <h3 className={cn(SECTION_HEADING, 'truncate')}>{row.project ?? STANDALONE}</h3>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
           {row.running} of {row.total} running
           {stopped > 0 ? `, ${stopped} stopped` : ''}
         </span>
@@ -187,12 +190,12 @@ function ContainerItem({
     <div
       role="listitem"
       aria-label={container.name}
-      className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border/70 bg-card/60 px-3 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1.6fr)_9rem_9rem_minmax(0,1fr)_auto]"
+      className="grid h-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2.5 transition-colors hover:bg-foreground/[0.06] md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1.6fr)_9rem_9rem_minmax(0,1fr)_auto]"
     >
       <button
         type="button"
         onClick={() => actions.open(container)}
-        className="flex min-w-0 items-center gap-2.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`Open ${container.name}`}
       >
         <StateChip container={container} />
@@ -242,10 +245,13 @@ export function ContainerList({
   list,
   history,
   actions,
+  notice,
 }: {
   list: ContainerListData;
   history: StatsHistory;
   actions: ContainerActions;
+  /** A line under the search, such as live figures not coming in. */
+  notice?: React.ReactNode;
 }): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
@@ -259,33 +265,39 @@ export function ContainerList({
   const total = list.groups.reduce((sum, group) => sum + group.containers.length, 0);
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a container by name, image, project or port"
-            aria-label="Find a container"
-            className="pl-8"
-          />
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {total} container{total === 1 ? '' : 's'}
-        </span>
+    <div className={cn(GLASS_PANEL, 'min-w-0')}>
+      <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
+        <SearchPill
+          label="Find a container"
+          clearLabel="Clear filter"
+          placeholder="Find a container by name, image, project or port"
+          value={query}
+          onValueChange={setQuery}
+          className="min-w-56 max-w-md flex-1"
+        />
+        <CountChip label="Containers" value={total} />
+        {notice}
       </div>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-          {query
-            ? `No container matches "${query}".`
-            : 'No containers on this server yet. Start one from the App Store or deploy a project.'}
-        </p>
+        <EmptyState
+          size="sm"
+          icon={query ? Search : Docker}
+          title={query ? 'Nothing found' : 'No containers yet'}
+          description={
+            query
+              ? `No container matches "${query}".`
+              : 'No containers on this server yet. Start one from the App Store or deploy a project.'
+          }
+          className={FOOTER_HAIRLINE}
+        />
       ) : (
         <div
           ref={virtual.containerRef}
           onScroll={virtual.onScroll}
-          className="max-h-[calc(100vh-22rem)] min-h-64 overflow-y-auto pr-1"
+          className={cn(
+            'max-h-[calc(100vh-22rem)] min-h-64 overflow-y-auto px-1.5 pb-1.5',
+            FOOTER_HAIRLINE,
+          )}
         >
           <div
             role="list"
@@ -296,7 +308,7 @@ export function ContainerList({
               <div
                 key={row.key}
                 style={{ height: ROW_HEIGHT }}
-                className={cn(row.kind === 'container' && 'py-1')}
+                className={cn(row.kind === 'container' && 'py-0.5')}
                 role={row.kind === 'group' ? 'presentation' : undefined}
               >
                 {row.kind === 'group' ? (

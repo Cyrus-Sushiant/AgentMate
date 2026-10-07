@@ -1,14 +1,12 @@
 import type { Project } from '@agentmat/core';
 import type { PullRequestStatus } from '@shared/apiTypes';
 import { ExternalLink, GitPullRequest, RefreshCw } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { PrSurfaceLeaveContext } from './PrCard';
 import { PullRequestSection } from './PullRequestSection';
-
-const TOOLBAR_BUTTON =
-  'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:opacity-50';
 
 /**
  * The Pull request section with room to breathe: the same cards and the same live data as the
@@ -48,7 +46,7 @@ export function PullRequestDialog({
         }}
         className="flex h-[min(56rem,88vh)] max-h-[88vh] w-[calc(100vw-2rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 outline-none sm:rounded-2xl"
       >
-        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border/60 pl-5 pr-14">
+        <div className="flex h-14 shrink-0 items-center gap-2 pl-5 pr-14 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
             <GitPullRequest className="h-3.5 w-3.5" />
           </span>
@@ -61,12 +59,12 @@ export function PullRequestDialog({
           </DialogDescription>
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             <SimpleTooltip label="Refresh from GitHub">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Refresh from GitHub"
                 onClick={onRetry}
                 disabled={fetching}
-                className={TOOLBAR_BUTTON}
               >
                 <RefreshCw
                   className={cn(
@@ -74,18 +72,18 @@ export function PullRequestDialog({
                     fetching && 'animate-spin motion-reduce:animate-none',
                   )}
                 />
-              </button>
+              </Button>
             </SimpleTooltip>
             {pr ? (
               <SimpleTooltip label="Open on GitHub">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label="Open on GitHub"
                   onClick={() => void window.agentmat.shell.openExternal(pr.url)}
-                  className={TOOLBAR_BUTTON}
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </SimpleTooltip>
             ) : null}
           </div>

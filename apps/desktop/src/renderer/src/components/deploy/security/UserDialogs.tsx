@@ -3,6 +3,7 @@ import type { UserInfo } from '@shared/deploy/protocol/generated/AgentMate.Serve
 import { DEPLOY_ROLES, type DeployRole } from '@shared/deploySecurityTypes';
 import type { DeployServer } from '@shared/deployTypes';
 import { useEffect, useId, useState } from 'react';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { Lock, Spinner, UserPlus } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -179,18 +180,17 @@ export function CreateUserDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${id}-role`}>Role</Label>
-              <select
+              <NativeSelect
                 id={`${id}-role`}
                 value={role}
                 onChange={(event) => setRole(event.target.value as DeployRole)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
               >
                 {DEPLOY_ROLES.map((option) => (
                   <option key={option} value={option}>
                     {ROLE_LABEL[option]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">{ROLE_SUMMARY[role]}</p>
@@ -208,7 +208,7 @@ export function CreateUserDialog({
           </p>
           <Problems issue={touched ? issue : null} problem={problem} />
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || issue !== null}>
@@ -277,7 +277,7 @@ export function ResetPasswordDialog({
           />
           <Problems issue={touched ? issue : null} problem={problem} />
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || issue !== null}>

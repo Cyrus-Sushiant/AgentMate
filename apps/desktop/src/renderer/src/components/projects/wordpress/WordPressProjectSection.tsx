@@ -274,8 +274,7 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
           <SimpleTooltip label="Check again">
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="icon-sm"
               aria-label="Check the changes again"
               disabled={changesQuery.isFetching}
               onClick={() => void changesQuery.refetch()}
@@ -362,8 +361,8 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
                 >
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
+                    size="icon-sm"
+                    className="shrink-0"
                     aria-label={`Stop syncing ${item.slug}`}
                     disabled={link.items.length === 1}
                     onClick={() => void removeItem(item)}

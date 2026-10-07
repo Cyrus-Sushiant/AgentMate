@@ -1,7 +1,7 @@
 import { getUsageProvider, type ProviderUsage, type WidgetMode } from '@agentmat/core';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, X } from '@/components/icons';
-import { Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
+import { Chip, TileHeader } from '@/components/pageKit';
 import { ProviderLogo } from '@/components/providerLogos';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -56,19 +56,14 @@ export function DashboardUsageCard({
           actions={
             <>
               <SimpleTooltip label="Open Token Usage">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={TILE_ACTION}
-                  onClick={() => navigate('/usage')}
-                >
+                <Button variant="ghost" size="icon-sm" onClick={() => navigate('/usage')}>
                   <ExternalLink />
                 </Button>
               </SimpleTooltip>
               {dragHandle}
               {onRemove && (
                 <SimpleTooltip label="Remove from dashboard">
-                  <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                  <Button variant="ghost" size="icon-sm" onClick={onRemove}>
                     <X />
                   </Button>
                 </SimpleTooltip>

@@ -1,7 +1,9 @@
 import { RotateCw, TriangleAlert } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { isLocalUrl } from '@/lib/browser/address';
 import type { BrowserNavState } from '@/lib/browser/browserRuntime';
+import { cn } from '@/lib/utils';
 import type { DetectedServer } from '@/stores/devServerStore';
 import { ServerButton } from './BrowserStartPage';
 
@@ -36,8 +38,8 @@ export function BrowserError({
   return (
     <div className="pointer-events-auto absolute inset-0 flex items-center justify-center overflow-y-auto bg-background px-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center animate-in fade-in-0">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/12 text-warning">
-          <TriangleAlert className="h-4 w-4" />
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-warning/12 text-warning shadow-[0_0_40px_-12px_hsl(var(--warning)/0.7)]">
+          <TriangleAlert className="h-5 w-5" />
         </span>
         <div>
           <h2 className="text-sm font-semibold text-foreground">
@@ -62,9 +64,7 @@ export function BrowserError({
         </Button>
         {devServerDown && others.length > 0 ? (
           <div className="flex w-full flex-col gap-2 pt-2 text-left">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Running in this workspace
-            </p>
+            <p className={cn(SECTION_HEADING, 'px-1')}>Running in this workspace</p>
             {others.map((server) => (
               <ServerButton key={server.url} server={server} onOpen={onOpen} />
             ))}

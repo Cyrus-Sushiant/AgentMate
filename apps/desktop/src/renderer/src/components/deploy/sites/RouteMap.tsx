@@ -1,5 +1,6 @@
 import type { SiteInfo } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { Lock, LockOpen, Route, Server } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { certificateBadge } from '@/lib/deploy/sites/certificates';
 import type { SiteTab } from '@/lib/deploy/sites/problems';
@@ -53,7 +54,8 @@ function Stop({
         aria-label={label}
         onClick={onOpen}
         className={cn(
-          'flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-left text-xs transition-colors hover:border-primary/60 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          // A soft well with an inset ring: a tinted border would lose to the global border colour.
+          'flex min-w-0 cursor-pointer items-center gap-2 rounded-xl bg-foreground/[0.03] px-2.5 py-1.5 text-left text-xs ring-1 ring-inset ring-foreground/[0.07] transition-colors hover:bg-foreground/[0.06] hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           className,
         )}
       >
@@ -67,7 +69,7 @@ function Wire(): React.JSX.Element {
   return (
     <span
       aria-hidden
-      className="hidden h-px w-5 shrink-0 bg-gradient-to-r from-border to-primary/50 sm:block"
+      className="hidden h-px w-5 shrink-0 bg-gradient-to-r from-foreground/15 to-primary/50 sm:block"
     />
   );
 }
@@ -117,12 +119,9 @@ export function RouteMap({
         <span className="flex flex-wrap gap-1">
           <span className="text-foreground">nginx</span>
           {chips.map((chip) => (
-            <span
-              key={chip}
-              className="rounded-full bg-secondary px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground"
-            >
+            <Chip key={chip} className="h-4 px-1.5 text-[10px] uppercase tracking-wide">
               {chip}
-            </span>
+            </Chip>
           ))}
         </span>
       </Stop>

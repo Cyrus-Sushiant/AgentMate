@@ -1,6 +1,5 @@
 import { splitExtension, validateEntryName } from '@agentmat/core';
 import { useEffect, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
 import { cachedListing } from './actions';
 
 const CASE_INSENSITIVE = (): boolean =>
@@ -111,15 +110,14 @@ export function EntryNameInput({
           }
           void commit();
         }}
-        className={cn(
-          'h-[18px] w-full min-w-0 rounded-sm border bg-background px-1 text-[12px] text-foreground outline-none',
-          error ? 'border-destructive' : 'border-primary/70',
-        )}
+        // The shared field surface draws the edge, focus and the red invalid state from
+        // aria-invalid, since a tinted border utility would lose to the global border colour.
+        className="field-surface h-5 w-full min-w-0 rounded-md px-1.5 text-[12px] text-foreground outline-none"
       />
       {error ? (
         <div
           role="alert"
-          className="absolute left-0 right-0 top-full z-20 mt-px rounded-sm border border-destructive bg-popover px-1.5 py-1 text-[11px] leading-snug text-foreground shadow-lg"
+          className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg bg-popover px-2 py-1.5 text-[11px] leading-snug text-foreground shadow-lg ring-1 ring-inset ring-destructive/50"
         >
           {error}
         </div>

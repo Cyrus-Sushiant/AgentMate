@@ -1,8 +1,14 @@
 import type { AnyCatalogTemplate } from '@agentmat/core';
 import { useMemo, useState } from 'react';
-import { CircleCheck, Search, Store } from '@/components/icons';
+import { CircleCheck, Store } from '@/components/icons';
+import {
+  CARD_GRID,
+  EmptyState,
+  GLASS_CARD,
+  SECTION_HEADING,
+  SearchPill,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
   allOfficial,
@@ -10,6 +16,8 @@ import {
   CATEGORY_ORDER,
   memoryText,
 } from '@/lib/deploy/appStore/format';
+import { cn } from '@/lib/utils';
+import { GLASS_EDGE } from '../deployKit';
 
 /**
  * The catalog, by category: what each app is, who publishes its images and what it needs, with
@@ -30,7 +38,6 @@ function AppCard({
   const install = (
     <Button
       size="sm"
-      variant="outline"
       disabled={!canInstall}
       onClick={() => onInstall(template.id)}
       aria-label={`Install ${template.name}`}
@@ -41,12 +48,24 @@ function AppCard({
   return (
     <li
       aria-label={template.name}
-      className="glass flex flex-col gap-2 rounded-xl border border-border/60 p-3"
+      className={cn(
+        GLASS_CARD,
+        GLASS_EDGE.interactive,
+        'flex flex-col gap-2 p-4 transition-[box-shadow,transform] duration-150 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
+      )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="truncate text-sm font-semibold text-foreground">{template.name}</h4>
-          <p className="text-xs text-muted-foreground">{version?.label}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-sm font-semibold text-primary"
+          >
+            {template.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <h4 className="truncate text-sm font-semibold text-foreground">{template.name}</h4>
+            <p className="truncate text-xs text-muted-foreground">{version?.label}</p>
+          </div>
         </div>
         {canInstall ? (
           install
@@ -93,34 +112,37 @@ export function CatalogGrid({
   }, [templates, filter]);
 
   return (
-    <section aria-label="Catalog" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-base font-semibold">
-          <Store className="h-4 w-4 text-muted-foreground" /> Catalog
-        </h3>
-        <div className="relative w-64 max-w-full">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="Find an app"
-            placeholder="Find an app"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            className="h-8 pl-8"
-          />
+    <section aria-label="Catalog" className="@container/grid flex flex-col gap-2">
+      <div
+        className={cn(GLASS_CARD, 'flex flex-wrap items-center justify-between gap-3 px-4 py-3')}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+            <Store className="h-4 w-4" />
+          </div>
+          <h3 className="text-sm font-semibold">Catalog</h3>
         </div>
+        <SearchPill
+          label="Find an app"
+          placeholder="Find an app"
+          clearLabel="Clear filter"
+          value={filter}
+          onValueChange={setFilter}
+          className="w-64 max-w-full"
+        />
       </div>
       {groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No app matches {JSON.stringify(filter)}.</p>
+        <EmptyState
+          card
+          size="sm"
+          icon={Store}
+          title={`No app matches ${JSON.stringify(filter)}.`}
+        />
       ) : (
         groups.map((group) => (
           <div key={group.category} className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {CATEGORY_LABEL[group.category]}
-            </h4>
-            <ul
-              aria-label={CATEGORY_LABEL[group.category]}
-              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-            >
+            <h4 className={cn(SECTION_HEADING, 'px-1 pt-2')}>{CATEGORY_LABEL[group.category]}</h4>
+            <ul aria-label={CATEGORY_LABEL[group.category]} className={CARD_GRID}>
               {group.templates.map((template) => (
                 <AppCard
                   key={template.id}

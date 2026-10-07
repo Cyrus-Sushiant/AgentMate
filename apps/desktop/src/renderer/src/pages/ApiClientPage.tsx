@@ -437,7 +437,7 @@ function EmptyWorkspace({ onNew }: { onNew: () => void }): React.JSX.Element {
           Start a new request, or open one from a collection on the left.
         </p>
       </div>
-      <Button className="rounded-full px-5" onClick={onNew}>
+      <Button onClick={onNew}>
         <FilePlus /> New request
       </Button>
       <p className="text-xs text-muted-foreground">

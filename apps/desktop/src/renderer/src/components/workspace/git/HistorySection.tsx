@@ -17,6 +17,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { launchResumeTab, resumedConversationId } from '@/lib/workspace/launch';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { PanelNotice } from './PanelNotice';
 
 /**
  * Tabs already running a conversation, by the CLI's conversation id. Claude Code reports its
@@ -77,13 +78,11 @@ export function HistorySection({ project }: { project: Project }): React.JSX.Ele
 
   if (sessions.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
-        <History className="h-4 w-4 text-muted-foreground" />
-        <p className="text-xs font-medium">No conversations yet</p>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Claude Code and Codex sessions started in this folder show up here, ready to resume.
-        </p>
-      </div>
+      <PanelNotice
+        icon={History}
+        title="No conversations yet"
+        body="Claude Code and Codex sessions started in this folder show up here, ready to resume."
+      />
     );
   }
 

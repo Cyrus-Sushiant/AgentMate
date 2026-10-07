@@ -87,7 +87,8 @@ export function TerminalSlot({ projectId, tab, focused }: TerminalSlotProps): Re
         style={{ '--terminal-bg': wellBackground } as React.CSSProperties}
       />
       {dropping ? (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary/60 bg-primary/[0.07] text-xs font-medium text-primary">
+        // A dashed outline, since the global border colour would grey out a dashed border.
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl bg-primary/[0.07] text-xs font-medium text-primary outline-2 -outline-offset-2 outline-dashed outline-primary/60">
           Drop to paste the file path
         </div>
       ) : null}

@@ -3,6 +3,7 @@ import { isImagePath } from '@shared/imageFiles';
 import type { SymbolKind } from '@shared/symbolKinds';
 import { memo } from 'react';
 import { ChevronRight, Clock, File, ImageIcon } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { changeStatusMeta } from '@/lib/git';
 import { cn } from '@/lib/utils';
 import type { Row } from '@/lib/workspaceSearch/rows';
@@ -149,10 +150,10 @@ export const SearchRow = memo(function SearchRow({
       <div
         role="presentation"
         style={{ height: ROW_HEIGHT }}
-        className="flex items-end gap-1.5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+        className={cn(SECTION_HEADING, 'flex items-end gap-1.5 px-4 pb-1')}
       >
         {row.label}
-        <span className="font-normal tabular-nums normal-case tracking-normal">
+        <span className="font-normal normal-case tabular-nums tracking-normal">
           {row.count.toLocaleString()}
         </span>
       </div>
@@ -164,7 +165,7 @@ export const SearchRow = memo(function SearchRow({
       <div
         role="presentation"
         style={{ height: ROW_HEIGHT }}
-        className="px-3 text-xs text-muted-foreground"
+        className="px-4 text-xs text-muted-foreground"
       >
         {row.text}
       </div>
@@ -178,7 +179,7 @@ export const SearchRow = memo(function SearchRow({
         role="presentation"
         style={{ height: ROW_HEIGHT }}
         onClick={() => onOpen(index)}
-        className="mx-1.5 flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 text-[12px] hover:bg-foreground/[0.04]"
+        className="mx-2 flex cursor-pointer select-none items-center gap-1.5 rounded-lg px-2 text-[12px] transition-colors hover:bg-foreground/[0.05]"
       >
         <FileIcon path={row.path} />
         <span className="shrink-0 font-medium">{name}</span>
@@ -271,9 +272,10 @@ export const SearchRow = memo(function SearchRow({
       onMouseMove={active ? undefined : () => onHover(index)}
       onClick={() => onOpen(index)}
       className={cn(
-        'mx-1.5 flex cursor-pointer select-none items-center gap-2 rounded-md px-1.5 text-[12px]',
+        // Rows like the command palette's: a soft wash marks the selected one.
+        'mx-2 flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 text-[12px] transition-colors',
         row.kind === 'textLine' && 'pl-4',
-        active ? 'bg-primary/15' : 'hover:bg-foreground/[0.04]',
+        active ? 'bg-foreground/[0.07] text-foreground' : 'hover:bg-foreground/[0.04]',
       )}
     >
       {content}

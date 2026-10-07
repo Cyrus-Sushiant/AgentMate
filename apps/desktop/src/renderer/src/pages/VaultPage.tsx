@@ -50,7 +50,7 @@ export default function VaultPage(): React.JSX.Element {
             </h2>
             <p className="text-sm text-muted-foreground">{vaultErrorMessage(statusQuery.error)}</p>
           </div>
-          <Button className="rounded-full px-5" onClick={() => void statusQuery.refetch()}>
+          <Button onClick={() => void statusQuery.refetch()}>
             <RefreshCw /> Try again
           </Button>
         </div>

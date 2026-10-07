@@ -151,13 +151,13 @@ export function RdpAgentStatusBar({
 
       {done && (
         <Button
-          size="sm"
+          size="icon-xs"
           variant="ghost"
           onClick={() => clear(sessionId)}
           aria-label="Dismiss"
-          className="h-6 w-6 shrink-0 p-0"
+          className="shrink-0"
         >
-          <X className="h-3 w-3" />
+          <X />
         </Button>
       )}
     </div>

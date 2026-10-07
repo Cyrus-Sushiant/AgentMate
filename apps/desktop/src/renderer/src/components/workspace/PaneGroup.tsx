@@ -16,6 +16,7 @@ import {
   TerminalSquare,
   X,
 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -25,6 +26,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { browserRuntime } from '@/lib/browser/browserRuntime';
@@ -48,7 +50,7 @@ import {
   type WorkspaceBrowserTab,
   type WorkspaceTab,
 } from '@/stores/workspaceStore';
-import { AGENT_STATUS_LABEL, AgentStatusDot } from './AgentStatusDot';
+import { AgentStatusChip, AgentStatusDot } from './AgentStatusDot';
 import { AutoContinueMenu, autoContinuePendingLine } from './AutoContinueMenu';
 import { BrowserTabMenu } from './browser/BrowserTabMenu';
 import { FileTabMenu } from './FileTabMenu';
@@ -137,17 +139,16 @@ function PaneIconButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={label}
         onClick={onClick}
-        className={cn(
-          'flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          active && 'bg-foreground/10 text-foreground',
-        )}
+        className={cn(active && 'bg-foreground/10 text-foreground')}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -276,9 +277,7 @@ function PaneTab({
         {liveTitle && liveTitle !== label && liveTitle !== tab.title ? (
           <span className="text-muted-foreground">{liveTitle}</span>
         ) : null}
-        {attention && attention !== 'idle' && attention !== 'exited' ? (
-          <span>{AGENT_STATUS_LABEL[attention]}</span>
-        ) : null}
+        <AgentStatusChip status={attention} className="mt-0.5 self-start" />
         <span className="font-mono text-[10px] text-muted-foreground">{tab.cwd}</span>
       </span>
     ) : tab.kind === 'browser' ? (
@@ -354,7 +353,7 @@ function PaneTab({
             if (event.key === 'Enter') event.currentTarget.blur();
             if (event.key === 'Escape') setEditing(false);
           }}
-          className="h-5 min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 text-xs outline-none"
+          className="field-surface h-5 min-w-0 flex-1 rounded-md px-1.5 text-xs outline-none"
         />
       ) : (
         <span
@@ -492,22 +491,21 @@ function SessionEndedBar({
       : `Process exited${exitCode === 0 ? '' : ` with code ${exitCode}`}.`;
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-zinc-900/85 py-1 pl-4 pr-1 text-xs text-zinc-300 shadow-2xl backdrop-blur-xl animate-in fade-in-0 slide-in-from-bottom-2">
+      {/* The terminal can have any background the user picked, so the bar is the app's own
+          frosted overlay rather than a fixed dark pill. The !-radius beats the overlay's corners. */}
+      <div
+        className={cn(
+          OVERLAY_SURFACE,
+          'pointer-events-auto flex items-center gap-3 rounded-full! py-1 pl-4 pr-1 text-xs text-muted-foreground animate-in fade-in-0 slide-in-from-bottom-2',
+        )}
+      >
         <span>{message}</span>
-        <button
-          type="button"
-          onClick={onRestart}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full bg-primary px-3 font-semibold text-primary-foreground hover:brightness-110"
-        >
+        <Button size="sm" onClick={onRestart} className="gap-1.5">
           <RefreshCw className="h-3 w-3" /> Restart
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex h-7 items-center rounded-full px-3 text-zinc-400 hover:bg-white/10 hover:text-zinc-100"
-        >
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -673,13 +671,14 @@ export function PaneGroup({
         if (!focused) focusGroup(projectId, group.id);
       }}
       className={cn(
-        'chrome-island relative flex h-full min-h-0 w-full min-w-0 flex-col transition-[border-color,box-shadow] duration-150',
-        multiPane && focused
-          ? 'border-primary/35 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_0_24px_-12px_hsl(var(--primary)/0.45)]'
-          : 'border-border/70',
+        'chrome-island relative flex h-full min-h-0 w-full min-w-0 flex-col transition-shadow duration-150',
+        // The island's own edge colour is unlayered, so the focused edge is drawn in the shadow.
+        multiPane &&
+          focused &&
+          'shadow-[0_0_0_1px_hsl(var(--primary)/0.4),0_0_24px_-10px_hsl(var(--primary)/0.5)]',
       )}
     >
-      <header className="flex h-9 shrink-0 items-center gap-1 border-b border-border/60 bg-card/60 px-1.5">
+      <header className="flex h-9 shrink-0 items-center gap-1 px-1.5 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
         <div
           ref={stripRef}
           role="tablist"
@@ -724,13 +723,15 @@ export function PaneGroup({
             <span className="h-5 w-[2px] shrink-0 rounded-full bg-primary" />
           ) : null}
           <LauncherMenu project={project} groupId={group.id}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label="New tab"
-              className="ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground"
+              className="ml-0.5 shrink-0 data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground"
             >
-              <Plus className="h-3 w-3" />
-            </button>
+              <Plus />
+            </Button>
           </LauncherMenu>
         </div>
 
@@ -849,7 +850,8 @@ export function PaneGroup({
         {dropZone ? (
           <div
             className={cn(
-              'pointer-events-none absolute z-20 rounded-lg border-2 border-dashed border-primary/60 bg-primary/10 transition-all duration-100',
+              // A dashed outline, since the global border colour would grey out a dashed border.
+              'pointer-events-none absolute z-20 rounded-xl bg-primary/10 outline-2 -outline-offset-2 outline-dashed outline-primary/60 transition-all duration-100',
               ZONE_PREVIEW[dropZone],
             )}
           />

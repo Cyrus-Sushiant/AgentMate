@@ -569,7 +569,6 @@ export function VaultEntryDialog({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
                           aria-label={`Remove field ${n}`}
                           onClick={() =>
                             set(
@@ -586,7 +585,7 @@ export function VaultEntryDialog({
                 })}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="soft"
                   size="sm"
                   onClick={() =>
                     set('fields', [
@@ -646,7 +645,7 @@ export function VaultEntryDialog({
             Pin to favorites
           </label>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => void requestClose()}>
+            <Button type="button" variant="soft" onClick={() => void requestClose()}>
               Cancel
             </Button>
             <Button type="submit" form={formId} disabled={!canSave}>
@@ -704,7 +703,7 @@ function UrlFields({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0"
+                className="shrink-0"
                 aria-label={`Remove website ${index + 1}`}
                 onClick={() => onChange(urls.filter((_, i) => i !== index))}
               >

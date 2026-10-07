@@ -7,13 +7,15 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Check, MessageSquare, Robot, Send, Spinner, Wand2 } from '@/components/icons';
+import { FOOTER_HAIRLINE } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { FixWithAiDialog } from '../../FixWithAiDialog';
 import { LocalReviewDialog } from './LocalReviewDialog';
-import { isSubmitKey, PR_AI_BUTTON, PR_GHOST_BUTTON, PrCard, PrPill, type PrTone } from './PrCard';
+import { isSubmitKey, PrCard, PrPill, type PrTone } from './PrCard';
 import { ReviewThread } from './ReviewThread';
 import { usePullRequestActions } from './usePullRequest';
 
@@ -51,27 +53,35 @@ export function PrReview({
       }
       actions={
         <SimpleTooltip label="Have the project CLI review the diff, then post it as a comment">
-          <button type="button" onClick={() => setReviewing(true)} className={PR_GHOST_BUTTON}>
-            <Robot className="h-2.5 w-2.5" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setReviewing(true)}
+            className="text-muted-foreground"
+          >
+            <Robot />
             Review with AI
-          </button>
+          </Button>
         </SimpleTooltip>
       }
     >
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 px-3">
+        <div className="flex items-center gap-1.5 px-3.5">
           {decision ? <PrPill tone={decision.tone}>{decision.label}</PrPill> : null}
           {open.length === 0 ? (
             <span className="text-[11px] text-muted-foreground">No open review comments.</span>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="tint"
+              size="xs"
               onClick={() => setFixing(true)}
-              className={`${PR_AI_BUTTON} ml-auto`}
+              className="ml-auto"
             >
-              <Wand2 className="h-2.5 w-2.5" />
+              <Wand2 />
               Fix comments with AI
-            </button>
+            </Button>
           )}
         </div>
 
@@ -93,7 +103,7 @@ export function PrReview({
             <button
               type="button"
               onClick={() => setShowResolved((value) => !value)}
-              className="px-3 text-[10.5px] font-medium text-muted-foreground hover:text-foreground"
+              className="mx-2 rounded-full px-1.5 text-[10.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {showResolved ? 'Hide resolved' : `Show ${resolved.length} resolved`}
             </button>
@@ -170,7 +180,7 @@ function CommentBox({ onPost }: { onPost: (body: string) => Promise<boolean> }):
   }
 
   return (
-    <div className="mx-2 space-y-1.5 border-t border-border/50 pt-2">
+    <div className={cn(FOOTER_HAIRLINE, 'mx-2 space-y-1.5 pt-2.5')}>
       {commands.length > 0 ? (
         <div className="flex flex-wrap gap-1" aria-label="Review commands">
           {commands.map((command) => (
@@ -178,7 +188,9 @@ function CommentBox({ onPost }: { onPost: (body: string) => Promise<boolean> }):
               key={command}
               type="button"
               onClick={() => setBody(command)}
-              className="inline-flex h-5 items-center rounded-full border border-border/70 bg-foreground/[0.03] px-2 font-mono text-[10.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+              // A filter chip's look at the panel's size; the edge is a ring so the global
+              // border colour can't repaint it.
+              className="inline-flex h-5 cursor-pointer items-center rounded-full bg-foreground/[0.05] px-2 font-mono text-[10.5px] text-muted-foreground ring-1 ring-inset ring-foreground/[0.07] transition-colors hover:bg-primary/12 hover:text-primary hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {command}
             </button>
@@ -209,19 +221,15 @@ function CommentBox({ onPost }: { onPost: (body: string) => Promise<boolean> }):
             Posted
           </span>
         ) : null}
-        <button
+        <Button
           type="button"
+          size="xs"
           onClick={() => void post()}
           disabled={!body.trim() || posting}
-          className="inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
         >
-          {posting ? (
-            <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" />
-          ) : (
-            <Send className="h-2.5 w-2.5" />
-          )}
+          {posting ? <Spinner className="animate-spin motion-reduce:animate-none" /> : <Send />}
           Post comment
-        </button>
+        </Button>
       </div>
     </div>
   );

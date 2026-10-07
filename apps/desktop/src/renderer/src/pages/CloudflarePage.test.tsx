@@ -1,6 +1,7 @@
 import type { CloudflareStatus } from '@shared/cloudflareTypes';
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { PANEL_WIDTHS, usePanelWidthStore } from '@/stores/panelWidthStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 import {
   A_RECORD,
@@ -85,6 +86,40 @@ describe('CloudflarePage', () => {
     await user.click(screen.getByRole('tab', { name: 'Security' }));
     expect(await screen.findByRole('heading', { name: 'WAF custom rules' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'IP access rules' })).toBeInTheDocument();
+  });
+
+  it('marks the open zone in the rail', async () => {
+    const { user } = renderPage();
+    const rail = await screen.findByRole('navigation', { name: 'Zones' });
+    const first = await within(rail).findByRole('button', { name: /example\.com/ });
+    const second = within(rail).getByRole('button', { name: /example\.org/ });
+    expect(first).toHaveAttribute('aria-current', 'true');
+    expect(second).not.toHaveAttribute('aria-current');
+    await user.click(second);
+    expect(second).toHaveAttribute('aria-current', 'true');
+    expect(first).not.toHaveAttribute('aria-current');
+  });
+
+  it('resizes the domain list from the keyboard and remembers the width', async () => {
+    usePanelWidthStore.setState({ widths: {} });
+    const { user } = renderPage();
+    await screen.findByRole('navigation', { name: 'Zones' });
+    const handle = screen.getByRole('separator', { name: 'Resize domains' });
+    const rail = screen.getByRole('complementary', { name: 'Cloudflare domains' });
+    expect(rail.style.width).toBe(`${PANEL_WIDTHS.cloudflareRail.default}px`);
+
+    handle.focus();
+    await user.keyboard('{ArrowRight}');
+    const wider = usePanelWidthStore.getState().widths.cloudflareRail ?? 0;
+    expect(wider).toBeGreaterThan(PANEL_WIDTHS.cloudflareRail.default);
+    expect(rail.style.width).toBe(`${wider}px`);
+  });
+
+  it('shows the token guide on its own, without an empty domain list', async () => {
+    renderPage({ 'cloudflare.status': async () => NOTHING });
+    expect(await screen.findByText('Connect Cloudflare')).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'Cloudflare domains' })).toBeNull();
+    expect(screen.queryByRole('separator', { name: 'Resize domains' })).toBeNull();
   });
 
   it('picks another zone from the rail', async () => {

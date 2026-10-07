@@ -258,7 +258,6 @@ function HistorySheet({
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 aria-label="Refresh"
                 aria-busy={isFetching || undefined}
                 onClick={() => void refetch()}
@@ -273,12 +272,7 @@ function HistorySheet({
             </SimpleTooltip>
             <SimpleTooltip label="Close">
               <DialogPrimitive.Close asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  aria-label="Close"
-                >
+                <Button size="icon" variant="ghost" aria-label="Close">
                   <X className="h-4 w-4" />
                 </Button>
               </DialogPrimitive.Close>
@@ -553,7 +547,7 @@ function ErrorCard({
           <p className="text-sm font-medium">Couldn't read the conversations on {nickname}</p>
           <p className="break-words text-xs leading-relaxed text-muted-foreground">{message}</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
+        <Button size="sm" variant="soft" onClick={onRetry} disabled={retrying}>
           {retrying ? (
             <Spinner className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
           ) : (

@@ -722,18 +722,13 @@ export function VersionChangeReview({
             keeping a couple of files and reverting everything else in one go. */}
         {!locked && undecided.length > 1 && (
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => chooseRest('keep')}
-            >
+            <Button variant="ghost" size="sm" className="px-2.5" onClick={() => chooseRest('keep')}>
               <Check className="h-3 w-3" /> Keep the rest
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="px-2.5"
               onClick={() => chooseRest('revert')}
             >
               <Undo className="h-3 w-3" /> Revert the rest

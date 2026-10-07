@@ -27,9 +27,10 @@ import {
   RefreshCw,
   Spinner,
   Trash2,
-  TriangleAlert,
   Undo,
 } from '@/components/icons';
+import { EmptyState, Notice, SECTION_HEADING } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useWorktrees } from '@/hooks/useWorktrees';
@@ -62,13 +63,13 @@ import { FixConflictsButton } from './FixConflictsDialog';
 import { GitFileRow } from './GitFileRow';
 import { HistorySection } from './HistorySection';
 import { PanelNotice } from './PanelNotice';
-import { PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
+import { HAIRLINE_BELOW, PanelIconButton, type PanelTabDef, PanelTabs } from './PanelTabs';
 import { PipelinesSection } from './PipelinesSection';
 import { BranchPrPill, pullRequestAttention } from './pr/BranchPrPill';
 import { PullRequestDialog } from './pr/PullRequestDialog';
 import { PullRequestSection } from './pr/PullRequestSection';
 import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
-import { SourceSection, SourceSectionSplitter } from './SourceSection';
+import { SectionCount, SourceSection, SourceSectionSplitter } from './SourceSection';
 import {
   type GitActions,
   openChangedFile,
@@ -93,19 +94,17 @@ function HeaderButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label} wrapTrigger={disabled}>
-      <button
+      <Button
         type="button"
+        variant={active ? 'tint' : 'ghost'}
+        size="icon-xs"
         aria-label={label}
         {...(active === undefined ? {} : { 'aria-pressed': active })}
         onClick={onClick}
         disabled={disabled}
-        className={cn(
-          'flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
-          active ? 'bg-primary/12 text-primary' : 'text-muted-foreground',
-        )}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -183,11 +182,13 @@ function SyncControls({
     <div className="flex items-center gap-0.5">
       {kind ? (
         <SimpleTooltip label={hint[kind]}>
-          <button
+          <Button
             type="button"
+            variant="tint"
+            size="xs"
             onClick={() => void run(kind)}
             disabled={running !== null}
-            className="mr-0.5 inline-flex h-6 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-60"
+            className="mr-0.5 [&_svg]:size-2.5"
           >
             {running === kind ? (
               <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" />
@@ -205,7 +206,7 @@ function SyncControls({
                 {state.ahead}
               </span>
             ) : null}
-          </button>
+          </Button>
         </SimpleTooltip>
       ) : null}
       <HeaderButton
@@ -252,7 +253,7 @@ function BranchBar({
   const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
   const showLineStats = useWorkspaceStore((s) => s.gitPanel.showLineStats);
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 pl-1.5 pr-2">
+    <div className={cn('flex h-9 shrink-0 items-center gap-1 pl-1.5 pr-1.5', HAIRLINE_BELOW)}>
       <SimpleTooltip
         label={
           state.detached
@@ -267,7 +268,7 @@ function BranchBar({
         <button
           type="button"
           onClick={() => revealPanelSection('branches')}
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs transition-colors hover:bg-foreground/[0.06]"
+          className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-full px-2 text-left text-xs outline-none transition-colors hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           <GitBranch className="h-3 w-3 shrink-0 text-primary" />
           <span className="truncate font-mono font-medium">
@@ -307,25 +308,33 @@ function SectionHeader({
   actions: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="group/section sticky top-0 z-10 flex h-7 items-center gap-1 bg-card/95 pl-1.5 pr-2 backdrop-blur-sm">
+    // The island is the theme's background, so the sticky header uses it too and doesn't show
+    // as a stripe of card colour over the rows.
+    <div className="group/section sticky top-0 z-10 flex h-7 items-center gap-1 bg-background/90 pl-2 pr-2 backdrop-blur-sm">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-full px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <ChevronRight
           className={cn(
-            'h-2.5 w-2.5 shrink-0 transition-transform duration-150',
+            'h-2.5 w-2.5 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover/section:text-muted-foreground',
             !collapsed && 'rotate-90',
           )}
         />
-        <span className={cn('truncate', section.id === 'conflicts' && 'text-destructive')}>
+        <span
+          className={cn(
+            SECTION_HEADING,
+            'truncate transition-colors group-hover/section:text-foreground/80',
+            section.id === 'conflicts' && 'text-destructive group-hover/section:text-destructive',
+          )}
+        >
           {section.title}
         </span>
-        <span className="ml-1 rounded-full bg-foreground/[0.07] px-1.5 text-[10px] font-medium normal-case tabular-nums">
+        <SectionCount tone={section.id === 'conflicts' ? 'destructive' : 'neutral'}>
           {section.entries.length}
-        </span>
+        </SectionCount>
       </button>
       <span className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/section:opacity-100">
         {actions}
@@ -399,10 +408,10 @@ function ChangeSections({
   return (
     <div role="listbox" aria-label="Changed files" className="pb-3">
       {state.untrackedTruncated ? (
-        <p className="mx-2.5 mb-1 mt-2 rounded-md bg-warning/10 px-2 py-1.5 text-[11px] leading-snug text-warning">
+        <Notice tone="warning" size="sm" className="mx-2 mb-1 mt-2 text-[11px] leading-snug">
           Showing the first 2,000 untracked files. A missing .gitignore entry may be letting build
           output in.
-        </p>
+        </Notice>
       ) : null}
       {sections.map((section) => {
         const collapsed = collapsedSections[section.id] === true;
@@ -435,7 +444,7 @@ function ChangeSections({
           );
         }
         return (
-          <div key={section.id} className="mt-1">
+          <div key={section.id} className="mt-1 space-y-px">
             <SectionHeader
               section={section}
               collapsed={collapsed}
@@ -537,15 +546,17 @@ function ChangesBody({
       {showLineStats ? <ChangesSummary state={state} /> : null}
       <div className="min-h-0 flex-1 overflow-y-auto" data-git-panel>
         {total === 0 ? (
-          <div className="flex min-h-full flex-col items-center justify-center gap-2 px-6 py-4 text-center">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
-              <CircleCheck className="h-4 w-4" />
-            </div>
-            <p className="text-sm font-medium">Working tree clean</p>
-            <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
-              Files your agents change show up here the moment they are written.
-            </p>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={CircleCheck}
+            title="Working tree clean"
+            description={
+              <span className="block max-w-[15rem] text-xs">
+                Files your agents change show up here the moment they are written.
+              </span>
+            }
+            className="min-h-full"
+          />
         ) : (
           <ChangeSections project={project} state={state} actions={actions} />
         )}
@@ -585,11 +596,10 @@ function SourceControlBody({
 
   if (!state) {
     return (
-      <div className="space-y-2 p-3" aria-busy>
-        <Skeleton className="h-16 w-full rounded-lg" />
-        <Skeleton className="h-8 w-full rounded-lg" />
+      <div className="space-y-1 p-2.5" aria-busy>
+        <Skeleton className="mb-2 h-[4.5rem] w-full rounded-[1.25rem]" />
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-5 rounded" style={{ width: `${88 - i * 7}%` }} />
+          <Skeleton key={i} className="h-6 rounded-lg" style={{ width: `${92 - i * 7}%` }} />
         ))}
       </div>
     );
@@ -597,20 +607,27 @@ function SourceControlBody({
 
   if (!state.isRepo) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <GitBranch className="h-5 w-5 text-muted-foreground" />
-        <p className="text-sm font-medium">Not a git repository</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Initialize one from the project's Git tab to see changes here.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate(`/projects/${parseScopeId(project.id).projectId}?tab=git`)}
-          className="mt-1 text-xs font-medium text-primary hover:underline"
-        >
-          Open the Git tab
-        </button>
-      </div>
+      <EmptyState
+        size="sm"
+        icon={GitBranch}
+        title="Not a git repository"
+        description={
+          <span className="block text-xs">
+            Initialize one from the project's Git tab to see changes here.
+          </span>
+        }
+        action={
+          <Button
+            type="button"
+            variant="soft"
+            size="xs"
+            onClick={() => navigate(`/projects/${parseScopeId(project.id).projectId}?tab=git`)}
+          >
+            Open the Git tab
+          </Button>
+        }
+        className="flex-1 px-6"
+      />
     );
   }
 
@@ -657,26 +674,38 @@ function SourceControlBody({
     <>
       <BranchBar projectId={project.id} state={state} />
       {state.operation ? (
-        <div className="mx-2.5 mt-2.5 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-2.5 py-2 text-xs text-warning">
-          <TriangleAlert className="h-3 w-3 shrink-0" />
-          <span className="min-w-0 flex-1 truncate capitalize">{state.operation} in progress</span>
-          <FixConflictsButton project={project} state={state} />
-          <button
-            type="button"
-            onClick={async () => {
-              const ok = await confirmDialog({
-                title: `Abort the ${state.operation}?`,
-                description: 'The repository goes back to how it was before it started.',
-                confirmLabel: 'Abort',
-                variant: 'destructive',
-              });
-              if (ok) void actions.abort();
-            }}
-            className="rounded px-1.5 py-0.5 font-semibold hover:bg-warning/15"
-          >
-            Abort
-          </button>
-        </div>
+        <Notice
+          role="group"
+          aria-label={`${state.operation} in progress`}
+          tone="warning"
+          size="sm"
+          className="mx-2 mt-2 items-center"
+          action={
+            <>
+              <FixConflictsButton project={project} state={state} />
+              <Button
+                type="button"
+                variant="soft"
+                size="xs"
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: `Abort the ${state.operation}?`,
+                    description: 'The repository goes back to how it was before it started.',
+                    confirmLabel: 'Abort',
+                    variant: 'destructive',
+                  });
+                  if (ok) void actions.abort();
+                }}
+              >
+                Abort
+              </Button>
+            </>
+          }
+        >
+          <span className="block truncate font-medium capitalize">
+            {state.operation} in progress
+          </span>
+        </Notice>
       ) : null}
       <WorktreeFinishSlot project={project} />
       <div ref={sectionsRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -962,14 +991,16 @@ export function GitPanel({
           label={toggleLabel ? `Show the panel (${toggleLabel})` : 'Show the panel'}
           side="left"
         >
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             aria-label="Show the panel"
             onClick={() => setGitPanel({ collapsed: false })}
-            className="mb-1 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            className="mb-1"
           >
-            <AnglesLeft className="h-3 w-3" />
-          </button>
+            <AnglesLeft />
+          </Button>
         </SimpleTooltip>
         {tabs.map((tab) => (
           <SimpleTooltip key={tab.id} label={tab.title} side="left">
@@ -978,13 +1009,22 @@ export function GitPanel({
               aria-label={tab.title}
               onClick={() => setGitPanel({ collapsed: false, activeSection: tab.id })}
               className={cn(
-                'relative flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-foreground/10 hover:text-foreground',
-                tab.id === activeSection ? 'text-primary' : 'text-muted-foreground',
+                'relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
+                tab.id === activeSection
+                  ? 'bg-primary/12 text-primary'
+                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
               )}
             >
               <tab.icon className="h-3.5 w-3.5" />
               {tab.count ? (
-                <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[9px] font-bold leading-4 text-primary-foreground tabular-nums">
+                <span
+                  className={cn(
+                    'absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-center text-[9px] font-bold leading-4 tabular-nums',
+                    tab.countTone === 'destructive'
+                      ? 'bg-destructive text-destructive-foreground'
+                      : 'bg-primary text-primary-foreground',
+                  )}
+                >
                   {tab.count > 99 ? '99+' : tab.count}
                 </span>
               ) : null}

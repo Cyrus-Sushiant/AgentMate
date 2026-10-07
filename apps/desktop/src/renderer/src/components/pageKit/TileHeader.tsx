@@ -2,7 +2,7 @@ import { X } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { GLASS_CARD, TILE_ACTION } from './styles';
+import { GLASS_CARD } from './styles';
 
 /**
  * The header row every tile starts with: an icon, a title and, on the right, the tile's own
@@ -78,7 +78,7 @@ export function MetricTile({
                 {dragHandle}
                 {onRemove && (
                   <SimpleTooltip label="Remove from dashboard">
-                    <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                    <Button variant="ghost" size="icon-sm" onClick={onRemove}>
                       <X />
                     </Button>
                   </SimpleTooltip>

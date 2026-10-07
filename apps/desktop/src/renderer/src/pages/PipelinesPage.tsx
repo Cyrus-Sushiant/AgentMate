@@ -20,7 +20,7 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
-import { Chip, type ChipTone } from '@/components/pageKit';
+import { Chip, type ChipTone, SECTION_HEADING } from '@/components/pageKit';
 import { CopyRunErrorButton } from '@/components/pipelines/CopyRunErrorButton';
 import {
   RunAnnotations,
@@ -47,17 +47,13 @@ import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { PANE_WIDTHS, usePaneWidth } from '@/stores/paneLayoutStore';
+import { PANEL_WIDTHS, usePanelWidth } from '@/stores/panelWidthStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const GH_INSTALL_URL = 'https://cli.github.com/';
 
 /** The page's cards: the app's glass card, rounded like the API Client and Settings cards. */
 const PANEL = 'glass flex min-h-0 flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
 
 /** A card's title bar, with the request tab strip's soft hairline under it. */
 const CARD_HEADER =
@@ -227,7 +223,7 @@ function SetupHint({
         <p className="text-sm text-muted-foreground">{body}</p>
       </div>
       {failed ? (
-        <Button className="rounded-full px-5" disabled={retrying} onClick={onRetry}>
+        <Button disabled={retrying} onClick={onRetry}>
           <RefreshCw className={cn('h-3.5 w-3.5', retrying && 'animate-spin')} />
           {retrying ? 'Retrying...' : 'Try again'}
         </Button>
@@ -341,7 +337,6 @@ function RunRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
                 aria-label={`Open ${item.projectName}`}
                 onClick={onOpenProject}
               >
@@ -468,7 +463,7 @@ export default function PipelinesPage(): React.JSX.Element {
   /** Bumped by the Refresh button, which tells the runner panel to look again too. */
   const [runnersRefresh, setRunnersRefresh] = useState(0);
   const rowNodes = useRef(new Map<number, HTMLLIElement>());
-  const [sidebarWidth, setSidebarWidth] = usePaneWidth('pipelinesFilters');
+  const [sidebarWidth, setSidebarWidth] = usePanelWidth('pipelinesFilters');
   const reduceMotion = useReducedMotion();
   const pillTransition = reduceMotion
     ? { duration: 0 }
@@ -730,9 +725,8 @@ export default function PipelinesPage(): React.JSX.Element {
       <div className="ml-auto flex items-center gap-1">
         {unreadCount > 0 ? (
           <Button
-            variant="ghost"
+            variant="soft"
             size="sm"
-            className="search-pill h-7 rounded-full px-3 text-foreground/85 hover:text-foreground"
             disabled={markAllRead.isPending}
             onClick={() => markAllRead.mutate()}
           >
@@ -747,7 +741,6 @@ export default function PipelinesPage(): React.JSX.Element {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
               disabled={activityQuery.isFetching}
               aria-label={lastGood.failure ? 'Refresh runs, last refresh failed' : 'Refresh runs'}
               onClick={handleRefresh}
@@ -817,12 +810,7 @@ export default function PipelinesPage(): React.JSX.Element {
           {repoCount === 1 ? '' : 's'}.
         </p>
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="search-pill rounded-full px-3.5 text-foreground/85 hover:text-foreground"
-        onClick={clearFilters}
-      >
+      <Button variant="soft" onClick={clearFilters}>
         <X className="h-3.5 w-3.5" /> Clear filters
       </Button>
     </div>
@@ -892,13 +880,14 @@ export default function PipelinesPage(): React.JSX.Element {
                   <div className="flex h-11 shrink-0 items-center gap-1 pl-3.5 pr-2">
                     <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Filters</h2>
                     {filtersDirty ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={clearFilters}
-                        className="flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="shrink-0 text-muted-foreground"
                       >
                         Clear
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                   <div className="shrink-0 px-2 pb-2">
@@ -1006,9 +995,9 @@ export default function PipelinesPage(): React.JSX.Element {
               orientation="vertical"
               label="Resize filters"
               size={sidebarWidth}
-              min={PANE_WIDTHS.pipelinesFilters.min}
-              max={PANE_WIDTHS.pipelinesFilters.max}
-              defaultSize={PANE_WIDTHS.pipelinesFilters.default}
+              min={PANEL_WIDTHS.pipelinesFilters.min}
+              max={PANEL_WIDTHS.pipelinesFilters.max}
+              defaultSize={PANEL_WIDTHS.pipelinesFilters.default}
               onSizeChange={setSidebarWidth}
               quiet
               className="w-2"

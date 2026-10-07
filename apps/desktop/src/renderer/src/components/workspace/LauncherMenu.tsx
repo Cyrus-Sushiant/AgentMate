@@ -2,12 +2,14 @@ import type { Project } from '@agentmat/core';
 import { useNavigate } from 'react-router-dom';
 import { CliLogo } from '@/components/cliLogos';
 import { Globe, Keyboard, SettingsIcon, Sparkles, TerminalSquare } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,11 +28,7 @@ export interface LauncherMenuProps {
 }
 
 function Kbd({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <kbd className="ml-auto rounded border border-border/80 bg-foreground/[0.04] px-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
-      {children}
-    </kbd>
-  );
+  return <DropdownMenuShortcut className="pl-3">{children}</DropdownMenuShortcut>;
 }
 
 /** The "+" menu of a pane: start an agent or a shell in it. Digits pick the first nine agents. */
@@ -84,18 +82,18 @@ export function LauncherMenu({
         <DropdownMenuLabel className="flex items-center justify-between gap-2">
           <span>Agents</span>
           {hasLaunchDefaults ? (
-            <span className="text-[10px] font-normal text-muted-foreground/70">
+            <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
               Alt+click: skip launch defaults
             </span>
           ) : null}
         </DropdownMenuLabel>
         {agents.loading ? (
-          <div className="space-y-1 px-2 py-1">
+          <div className="space-y-1 px-2.5 py-1">
             <Skeleton className="h-6 w-full" />
             <Skeleton className="h-6 w-4/5" />
           </div>
         ) : agents.installed.length === 0 ? (
-          <p className="px-2 pb-2 text-xs leading-relaxed text-muted-foreground">
+          <p className="px-2.5 pb-2 text-xs leading-relaxed text-muted-foreground">
             No agent CLIs found on this machine yet.
           </p>
         ) : (
@@ -113,9 +111,9 @@ export function LauncherMenu({
               <CliLogo cliId={choice.cli.id} className="h-4 w-4" />
               <span className="truncate">{choice.cli.name}</span>
               {choice.isDefault ? (
-                <span className="rounded-full bg-primary/12 px-1.5 text-[10px] font-medium text-primary">
-                  default
-                </span>
+                <Chip tone="primary" className="h-4 px-1.5 text-[10px]">
+                  Default
+                </Chip>
               ) : null}
               {index < 9 ? <Kbd>{index + 1}</Kbd> : null}
             </DropdownMenuItem>

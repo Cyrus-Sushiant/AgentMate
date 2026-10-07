@@ -63,7 +63,7 @@ function IconAction({
         aria-label={label}
         disabled={disabled}
         onClick={onClick}
-        className={cn('h-8 w-8', destructive && 'hover:text-destructive')}
+        className={cn(destructive && 'hover:text-destructive')}
       >
         {children}
       </Button>
@@ -463,7 +463,7 @@ export function ScheduledRow({
       actions={
         <>
           {missed ? (
-            <Button size="sm" className="mr-1 h-7 px-2.5 text-xs" onClick={onRun}>
+            <Button size="sm" className="mr-1" onClick={onRun}>
               <Play className="h-3.5 w-3.5" /> Run now
             </Button>
           ) : (

@@ -210,7 +210,7 @@ export function StreamProxyDialog({
         </div>
         <FieldError message={failure ?? undefined} />
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+          <Button type="button" variant="soft" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button type="button" disabled={busy} onClick={() => void save()}>

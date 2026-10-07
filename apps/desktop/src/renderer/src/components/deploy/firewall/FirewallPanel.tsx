@@ -16,11 +16,13 @@ import { OriginLockCard } from '@/components/cloudflare/server/OriginLockCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { draftFromRule } from '@/lib/deploy/firewall/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { CoreAccessCard } from '../CoreAccessCard';
 import { useDeployConnection } from '../overview/hooks';
 import { useProofStepUp } from '../overview/useProofStepUp';
 import { hasRole } from '../security/format';
+import { SECURITY_CARD } from '../security/SecurityCard';
 import { ApplyDialog } from './ApplyDialog';
 import { CountdownBanner } from './CountdownBanner';
 import { ExposureCard } from './ExposureCard';
@@ -243,16 +245,28 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
 
   if (access.isPending) {
     return (
-      <div className="space-y-4" aria-busy="true">
-        <Skeleton className="h-24 w-full rounded-lg" />
-        <Skeleton className="h-48 w-full rounded-lg" />
+      // Each card shimmers in its own spot, the way the loaded page lays them out.
+      <div className="space-y-2" aria-busy="true">
+        <div className={cn(SECURITY_CARD, 'flex items-center gap-3 p-4')}>
+          <Skeleton className="h-12 w-12 rounded-2xl" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-44" />
+          </div>
+        </div>
+        <div className={cn(SECURITY_CARD, 'space-y-3 p-4')}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
       </div>
     );
   }
   if (!signedIn) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
+      <div className="space-y-2">
+        <p className="px-1 text-sm text-muted-foreground">
           Sign in to see the firewall on {server.nickname}.
         </p>
         <CoreAccessCard server={server} />
@@ -261,7 +275,7 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {pending && (
         <CountdownBanner
           change={pending}
@@ -319,7 +333,7 @@ export function FirewallPanel({ server }: { server: DeployServer }): React.JSX.E
           )
         }
       />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid items-start gap-2 xl:grid-cols-2">
         <PresetsCard
           presets={presets.data}
           rules={rules}

@@ -196,7 +196,7 @@ export function MetricChart({
           {shown !== null && (
             <div
               role="tooltip"
-              className="pointer-events-none absolute top-1 z-10 min-w-max rounded-md border border-border bg-popover px-2 py-1.5 text-xs shadow-md"
+              className="pointer-events-none absolute top-1 z-10 min-w-max rounded-lg border border-border bg-popover px-2 py-1.5 text-xs shadow-md"
               style={
                 leftPct > 60
                   ? { right: `calc(${100 - leftPct}% + 10px)` }

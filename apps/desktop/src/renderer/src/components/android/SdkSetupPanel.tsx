@@ -7,13 +7,7 @@ import {
   FolderOpen,
   RefreshCw,
 } from '@/components/icons';
-import {
-  EmptyState,
-  GLASS_CARD,
-  PILL_PRIMARY,
-  PILL_SOFT,
-  SECTION_HEADING,
-} from '@/components/pageKit';
+import { EmptyState, GLASS_CARD, SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -86,35 +80,23 @@ export function SdkSetupPanel({
           }
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button size="sm" className={PILL_PRIMARY} disabled={busy} onClick={onChooseFolder}>
+              <Button disabled={busy} onClick={onChooseFolder}>
                 <FolderOpen className="h-3.5 w-3.5" />
                 Choose SDK folder
               </Button>
               {overrideInvalid && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={PILL_SOFT}
-                  disabled={busy}
-                  onClick={onClearOverride}
-                >
+                <Button variant="soft" disabled={busy} onClick={onClearOverride}>
                   Clear override
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="ghost"
-                className={PILL_SOFT}
-                disabled={busy}
-                onClick={onRecheck}
-              >
+              <Button variant="soft" disabled={busy} onClick={onRecheck}>
                 <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
                 Check again
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-full px-3.5 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                className="text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
                 onClick={() => void window.agentmat.shell.openExternal(INSTALL_URL)}
               >
                 <ExternalLink className="h-3.5 w-3.5" />

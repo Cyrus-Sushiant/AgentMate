@@ -212,9 +212,13 @@ describe('ContainersPanel list', () => {
     await screen.findByRole('list', { name: 'Containers' });
     await waitFor(() => expect(bridge.$fn('deploy.connection')).toHaveBeenCalled());
     act(() => bridge.$emit('deploy.onConnection', connection('reconnecting')));
+    // The version line sits in the toolbar card now; the whole panel, toolbar and list, dims.
     await waitFor(() =>
-      expect(screen.getByLabelText('Docker version').parentElement).toHaveClass('opacity-60'),
+      expect(
+        screen.getByRole('list', { name: 'Containers' }).closest('.opacity-60'),
+      ).not.toBeNull(),
     );
+    expect(screen.getByLabelText('Docker version').closest('.opacity-60')).not.toBeNull();
     act(() => bridge.$emit('deploy.onConnection', connection('online')));
     await waitFor(() => expect(bridge.$fn('deployDocker.listContainers')).toHaveBeenCalledTimes(2));
   });

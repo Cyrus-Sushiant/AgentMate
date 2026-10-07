@@ -7,6 +7,7 @@ import {
   StopCircle,
   TriangleAlert,
 } from '@/components/icons';
+import { Chip, type ChipTone } from '@/components/pageKit';
 import { HEALTH_LABEL, STATE_LABEL, stateTone } from '@/lib/deploy/containers/list';
 import { cn } from '@/lib/utils';
 
@@ -15,12 +16,13 @@ import { cn } from '@/lib/utils';
  * running but unhealthy, paused, restarting, exited and the rest.
  */
 
-const TONE_CLASS = {
-  good: 'border-success/30 bg-success/10 text-success',
-  busy: 'border-warning/30 bg-warning/10 text-warning',
-  idle: 'border-border bg-secondary/50 text-muted-foreground',
-  bad: 'border-destructive/30 bg-destructive/10 text-destructive',
-} as const;
+/** The page kit's chip tones, which tint without a border the global border colour would repaint. */
+const CHIP_TONE: Record<ReturnType<typeof stateTone>, ChipTone> = {
+  good: 'success',
+  busy: 'warning',
+  idle: 'neutral',
+  bad: 'destructive',
+};
 
 export function StateChip({
   container,
@@ -48,16 +50,9 @@ export function StateChip({
       ? `${STATE_LABEL[container.state]}, ${health.toLowerCase()}`
       : STATE_LABEL[container.state];
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
-        TONE_CLASS[tone],
-        className,
-      )}
-      data-state={container.state}
-    >
-      <Icon className={cn('h-3 w-3', tone === 'busy' && 'motion-safe:animate-spin')} />
-      <span className="text-foreground">{label}</span>
-    </span>
+    <Chip tone={CHIP_TONE[tone]} className={className} data-state={container.state}>
+      <Icon className={cn(tone === 'busy' && 'motion-safe:animate-spin')} />
+      <span>{label}</span>
+    </Chip>
   );
 }

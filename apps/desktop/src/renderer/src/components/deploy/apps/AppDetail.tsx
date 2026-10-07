@@ -7,6 +7,7 @@ import type {
   StackServiceInfo,
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -20,14 +21,21 @@ import {
   Pause,
   Play,
   Power,
-  RefreshCw,
   Rocket,
   RotateCw,
   Route,
   Trash2,
 } from '@/components/icons';
+import {
+  Chip,
+  FOOTER_HAIRLINE,
+  GLASS_CARD,
+  LoadFailure,
+  SECTION_HEADING,
+  SECTION_WELL,
+  TileHeader,
+} from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import {
@@ -69,6 +77,10 @@ const ACTIONS: ReadonlyArray<{
   { action: 'down', label: 'Take down', icon: Power, done: 'Took down' },
 ];
 
+/** One stop on the route map: a soft well with an inset ring rather than a border. */
+const ROUTE_STOP =
+  'rounded-lg bg-foreground/[0.03] px-2 py-1 ring-1 ring-inset ring-foreground/[0.08]';
+
 const CONTAINER_STATE: Record<string, string> = {
   created: 'Created',
   running: 'Running',
@@ -82,10 +94,21 @@ const CONTAINER_STATE: Record<string, string> = {
 
 function DetailSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-4" aria-busy="true">
-      <Skeleton className="h-10 w-72" />
-      <Skeleton className="h-48 w-full rounded-xl" />
-      <Skeleton className="h-32 w-full rounded-xl" />
+    <div className="flex flex-col gap-2" aria-busy="true">
+      <div className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+        <Skeleton className="h-6 w-72 max-w-full" />
+        <div className="flex gap-1.5">
+          <Skeleton className="h-7 w-28 rounded-full" />
+          <Skeleton className="h-7 w-20 rounded-full" />
+          <Skeleton className="h-7 w-20 rounded-full" />
+        </div>
+      </div>
+      <div className={cn(GLASS_CARD, 'p-4')}>
+        <Skeleton className="h-40 w-full rounded-xl" />
+      </div>
+      <div className={cn(GLASS_CARD, 'p-4')}>
+        <Skeleton className="h-24 w-full rounded-xl" />
+      </div>
     </div>
   );
 }
@@ -108,132 +131,118 @@ function Gate({
 
 function ServicesCard({ services }: { services: StackServiceInfo[] }): React.JSX.Element {
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Docker className="h-4 w-4 text-primary" /> Services
-        </CardTitle>
-        <CardDescription>Each service and the containers it runs right now.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {services.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nothing runs yet. Deploy a revision first.
-          </p>
-        ) : (
-          <ul aria-label="Services" className="space-y-3">
-            {services.map((service) => (
-              <li
-                key={service.name}
-                aria-label={service.name}
-                className="rounded-lg border border-border/70 p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-medium text-foreground">
-                    {service.name}
+    <section className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+      <div className="space-y-1">
+        <TileHeader icon={<Docker />} title="Services" />
+        <p className="text-xs text-muted-foreground">
+          Each service and the containers it runs right now.
+        </p>
+      </div>
+      {services.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing runs yet. Deploy a revision first.</p>
+      ) : (
+        <ul aria-label="Services" className={cn(SECTION_WELL, 'settings-rows p-0')}>
+          {services.map((service) => (
+            <li key={service.name} aria-label={service.name} className="px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm font-medium text-foreground">
+                  {service.name}
+                </span>
+                {service.image && (
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">
+                    {service.image}
                   </span>
-                  {service.image && (
-                    <span className="truncate font-mono text-[11px] text-muted-foreground">
-                      {service.image}
+                )}
+              </div>
+              {service.ports.length > 0 && (
+                <p className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px] text-muted-foreground">
+                  {service.ports.map((port) => (
+                    <span key={`${port.hostIp}-${port.published}-${port.target}-${port.protocol}`}>
+                      {describeBinding(port)}
                     </span>
-                  )}
-                </div>
-                {service.ports.length > 0 && (
-                  <p className="mt-1 flex flex-wrap gap-x-3 font-mono text-[11px] text-muted-foreground">
-                    {service.ports.map((port) => (
-                      <span
-                        key={`${port.hostIp}-${port.published}-${port.target}-${port.protocol}`}
+                  ))}
+                </p>
+              )}
+              {service.containers.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">No containers.</p>
+              ) : (
+                <ul className="mt-2 space-y-1">
+                  {service.containers.map((container) => (
+                    <li
+                      key={container.id}
+                      className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <StatusPill
+                        tone={
+                          container.state === 'running'
+                            ? container.health === 'unhealthy'
+                              ? 'warning'
+                              : 'success'
+                            : container.state === 'dead'
+                              ? 'danger'
+                              : 'muted'
+                        }
                       >
-                        {describeBinding(port)}
-                      </span>
-                    ))}
-                  </p>
-                )}
-                {service.containers.length === 0 ? (
-                  <p className="mt-2 text-xs text-muted-foreground">No containers.</p>
-                ) : (
-                  <ul className="mt-2 space-y-1">
-                    {service.containers.map((container) => (
-                      <li
-                        key={container.id}
-                        className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
-                      >
-                        <StatusPill
-                          tone={
-                            container.state === 'running'
-                              ? container.health === 'unhealthy'
-                                ? 'warning'
-                                : 'success'
-                              : container.state === 'dead'
-                                ? 'danger'
-                                : 'muted'
-                          }
-                        >
-                          {CONTAINER_STATE[container.state] ?? container.state}
-                          {container.health !== 'none' ? `, ${container.health}` : ''}
-                        </StatusPill>
-                        <span className="font-mono text-foreground/90">{container.name}</span>
-                        <span className="truncate">{container.status}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                        {CONTAINER_STATE[container.state] ?? container.state}
+                        {container.health !== 'none' ? `, ${container.health}` : ''}
+                      </StatusPill>
+                      <span className="font-mono text-foreground/90">{container.name}</span>
+                      <span className="truncate">{container.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
 function RouteMap({ services }: { services: StackServiceInfo[] }): React.JSX.Element {
   const routes = services.flatMap((service) => service.ports.map((port) => ({ service, port })));
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Route className="h-4 w-4 text-primary" /> Route map
-        </CardTitle>
-        <CardDescription>
+    <section className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+      <div className="space-y-1">
+        <TileHeader icon={<Route />} title="Route map" />
+        <p className="text-xs text-muted-foreground">
           Where each published port leads. Domains are added under Websites, which proxies to these
           ports.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {routes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No service publishes a port.</p>
-        ) : (
-          <ul aria-label="Routes" className="space-y-2">
-            {routes.map(({ service, port }) => (
-              <li
-                key={`${service.name}-${port.hostIp}-${port.published}-${port.target}-${port.protocol}`}
-                className="flex flex-wrap items-center gap-2 text-xs"
-              >
-                <span className="rounded-md border border-dashed border-border px-2 py-1 text-muted-foreground">
-                  Domain, via Websites
-                </span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <span className="rounded-md border border-border px-2 py-1 font-mono text-foreground">
-                  {bindingAddress(port) === 'This server only' ? '127.0.0.1' : (port.hostIp ?? '*')}
-                  :{port.published ?? 'any'}
-                </span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <span className="rounded-md border border-border px-2 py-1 font-mono text-foreground">
-                  {service.name}:{port.target}/{port.protocol}
-                </span>
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <span className="text-muted-foreground">
-                  {service.containers.length === 1
-                    ? '1 container'
-                    : `${service.containers.length} containers`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+        </p>
+      </div>
+      {routes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No service publishes a port.</p>
+      ) : (
+        <ul aria-label="Routes" className="space-y-2">
+          {routes.map(({ service, port }) => (
+            <li
+              key={`${service.name}-${port.hostIp}-${port.published}-${port.target}-${port.protocol}`}
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <span className="rounded-lg px-2 py-1 text-muted-foreground ring-1 ring-inset ring-foreground/[0.1]">
+                Domain, via Websites
+              </span>
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <span className={cn(ROUTE_STOP, 'font-mono text-foreground')}>
+                {bindingAddress(port) === 'This server only' ? '127.0.0.1' : (port.hostIp ?? '*')}:
+                {port.published ?? 'any'}
+              </span>
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <span className={cn(ROUTE_STOP, 'font-mono text-foreground')}>
+                {service.name}:{port.target}/{port.protocol}
+              </span>
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                {service.containers.length === 1
+                  ? '1 container'
+                  : `${service.containers.length} containers`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -255,33 +264,31 @@ function FilesCard({
     staleTime: Number.POSITIVE_INFINITY,
   });
   return (
-    <Card className="glass">
-      <CardHeader>
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-          className="flex w-full items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <FileCode className="h-4 w-4 text-primary" />
-          <span className="flex-1">
-            <CardTitle>Files of revision {revision}</CardTitle>
-            <CardDescription>
-              The compose file as uploaded, the env keys and the loopback override. Env values stay
-              on the server.
-            </CardDescription>
+    <section className={GLASS_CARD}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full cursor-pointer items-center gap-2 rounded-[inherit] p-4 text-left transition-colors hover:bg-foreground/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <FileCode className="h-4 w-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="block text-sm font-semibold">Files of revision {revision}</span>
+          <span className="block text-xs text-muted-foreground">
+            The compose file as uploaded, the env keys and the loopback override. Env values stay on
+            the server.
           </span>
-          {open ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </CardHeader>
+        </span>
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </button>
       {open && (
-        <CardContent className="space-y-3">
+        <div className="space-y-3 px-4 pb-4">
           {files.isPending ? (
-            <Skeleton className="h-40 w-full" aria-busy="true" />
+            <Skeleton className="h-40 w-full rounded-xl" aria-busy="true" />
           ) : files.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
               The files did not load: {coreErrorMessage(files.error)}
@@ -290,22 +297,19 @@ function FilesCard({
             <>
               <pre
                 aria-label="Compose file"
-                className="max-h-80 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs"
+                className={cn(SECTION_WELL, 'max-h-80 overflow-auto font-mono text-xs')}
               >
                 {files.data.compose}
               </pre>
               <div>
-                <p className="text-xs font-medium text-foreground">Env keys</p>
+                <p className={SECTION_HEADING}>Env keys</p>
                 {files.data.envKeys.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No .env for this revision.</p>
                 ) : (
-                  <ul aria-label="Env keys" className="mt-1 flex flex-wrap gap-1">
+                  <ul aria-label="Env keys" className="mt-1.5 flex flex-wrap gap-1">
                     {files.data.envKeys.map((key) => (
-                      <li
-                        key={key}
-                        className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-                      >
-                        {key}
+                      <li key={key}>
+                        <Chip className="font-mono">{key}</Chip>
                       </li>
                     ))}
                   </ul>
@@ -314,16 +318,16 @@ function FilesCard({
               {files.data.override && (
                 <pre
                   aria-label="Loopback override"
-                  className="max-h-60 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs"
+                  className={cn(SECTION_WELL, 'max-h-60 overflow-auto font-mono text-xs')}
                 >
                   {files.data.override}
                 </pre>
               )}
             </>
           ) : null}
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -342,72 +346,91 @@ function RevisionsList({
   onShow: (revision: number) => void;
   onRollback: (revision: StackRevisionInfo) => void;
 }): React.JSX.Element {
+  const reduceMotion = useReducedMotion();
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <History className="h-4 w-4 text-primary" /> Revisions
-        </CardTitle>
-        <CardDescription>
+    <section className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+      <div className="space-y-1">
+        <TileHeader icon={<History />} title="Revisions" />
+        <p className="text-xs text-muted-foreground">
           Every upload is kept. Rolling back deploys an older revision again as a new one.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {revisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No revisions yet.</p>
-        ) : (
-          <ul aria-label="Revisions" className="space-y-1">
-            {revisions.map((revision) => {
-              const canRollBack =
-                revision.number !== latest &&
-                (revision.state === 'superseded' || revision.state === 'live');
-              return (
-                <li
-                  key={revision.number}
-                  aria-label={`Revision ${revision.number}`}
-                  className={cn(
-                    'flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5',
-                    shown === revision.number && 'bg-secondary/60',
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onShow(revision.number)}
-                    aria-current={shown === revision.number ? 'true' : undefined}
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        </p>
+      </div>
+      {revisions.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No revisions yet.</p>
+      ) : (
+        <ul aria-label="Revisions" className="space-y-0.5">
+          {revisions.map((revision) => {
+            const canRollBack =
+              revision.number !== latest &&
+              (revision.state === 'superseded' || revision.state === 'live');
+            return (
+              <li
+                key={revision.number}
+                aria-label={`Revision ${revision.number}`}
+                className={cn(
+                  // `isolate` keeps the sliding pill behind the row's text.
+                  'relative isolate flex flex-wrap items-center gap-2 rounded-lg py-1 pl-2.5 pr-1 transition-colors',
+                  shown !== revision.number && 'hover:bg-foreground/[0.06]',
+                )}
+              >
+                {shown === revision.number && (
+                  <motion.span
+                    aria-hidden
+                    layoutId="app-revisions-active"
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : { type: 'spring', stiffness: 420, damping: 32 }
+                    }
+                    className="absolute inset-0 -z-10 rounded-lg bg-primary/12"
                   >
-                    <span className="font-mono text-sm text-foreground">#{revision.number}</span>
-                    <StatusPill tone={REVISION_TONE[revision.state]}>
-                      {REVISION_TEXT[revision.state]}
-                    </StatusPill>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {dateTime(revision.createdAtUnixMs)}
-                      {revision.createdBy ? `, by ${revision.createdBy}` : ''}
-                      {revision.rollbackOf !== undefined
-                        ? `, rollback of ${revision.rollbackOf}`
-                        : ''}
-                    </span>
-                  </button>
-                  {canRollBack && (
-                    <Gate allowed={canOperate} reason={OPERATOR_ONLY}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={!canOperate}
-                        onClick={() => onRollback(revision)}
-                        aria-label={`Roll back to revision ${revision.number}`}
-                      >
-                        <History className="h-3.5 w-3.5" /> Roll back
-                      </Button>
-                    </Gate>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                    <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]" />
+                  </motion.span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onShow(revision.number)}
+                  aria-current={shown === revision.number ? 'true' : undefined}
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span
+                    className={cn(
+                      'font-mono text-sm',
+                      shown === revision.number ? 'font-medium text-primary' : 'text-foreground',
+                    )}
+                  >
+                    #{revision.number}
+                  </span>
+                  <StatusPill tone={REVISION_TONE[revision.state]}>
+                    {REVISION_TEXT[revision.state]}
+                  </StatusPill>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {dateTime(revision.createdAtUnixMs)}
+                    {revision.createdBy ? `, by ${revision.createdBy}` : ''}
+                    {revision.rollbackOf !== undefined
+                      ? `, rollback of ${revision.rollbackOf}`
+                      : ''}
+                  </span>
+                </button>
+                {canRollBack && (
+                  <Gate allowed={canOperate} reason={OPERATOR_ONLY}>
+                    <Button
+                      size="sm"
+                      variant="soft"
+                      disabled={!canOperate}
+                      onClick={() => onRollback(revision)}
+                      aria-label={`Roll back to revision ${revision.number}`}
+                    >
+                      <History className="h-3.5 w-3.5" /> Roll back
+                    </Button>
+                  </Gate>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -546,22 +569,16 @@ export function AppDetail({
 
   if (!data || !stack) {
     return (
-      <div className="space-y-3">
-        <Button size="sm" variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-3.5 w-3.5" /> All apps
-        </Button>
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm"
-        >
-          <span className="min-w-0 flex-1 text-foreground">
-            The app did not load
-            {details.error ? `: ${coreErrorMessage(details.error)}` : '.'}
-          </span>
-          <Button size="sm" variant="outline" onClick={() => void details.refetch()}>
-            <RefreshCw className="h-3.5 w-3.5" /> Try again
+      <div className="flex flex-col gap-2">
+        <div className={cn(GLASS_CARD, 'px-2.5 py-2')}>
+          <Button size="sm" variant="soft" onClick={onBack}>
+            <ArrowLeft className="h-3.5 w-3.5" /> All apps
           </Button>
         </div>
+        <LoadFailure
+          message={`The app did not load${details.error ? `: ${coreErrorMessage(details.error)}` : '.'}`}
+          retry={() => void details.refetch()}
+        />
       </div>
     );
   }
@@ -579,80 +596,89 @@ export function AppDetail({
       : null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-3.5 w-3.5" /> All apps
-        </Button>
-        <h3 className="font-mono text-lg font-semibold text-foreground">{stack.name}</h3>
-        <StatusPill tone={STATUS_TONE[stack.status]}>{STATUS_TEXT[stack.status]}</StatusPill>
-        <span className="text-xs text-muted-foreground">
-          {stack.liveRevision !== undefined
-            ? `Revision ${stack.liveRevision} live`
-            : 'Nothing live'}
-          {stack.containers > 0
-            ? `, ${stack.runningContainers} of ${stack.containers} containers running`
-            : ''}
-        </span>
-      </div>
-      {stack.source && (
-        <p className="text-xs text-muted-foreground">
-          From {stack.source.projectName ?? 'a project'}
-          {stack.source.composePath ? `, ${stack.source.composePath}` : ''}
-          {stack.source.environmentName
-            ? `, with the ${stack.source.environmentName} environment`
-            : ', without an environment'}
-          .
-        </p>
-      )}
-      <div role="toolbar" aria-label="App actions" className="flex flex-wrap gap-2">
-        <Gate
-          allowed={canRedeploy && !disabled}
-          reason={why || 'This app has no project to deploy from on this computer.'}
+    <div className="flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'space-y-3 px-4 py-3')}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" variant="soft" onClick={onBack}>
+            <ArrowLeft className="h-3.5 w-3.5" /> All apps
+          </Button>
+          <h3 className="font-mono text-base font-semibold text-foreground">{stack.name}</h3>
+          <StatusPill tone={STATUS_TONE[stack.status]}>{STATUS_TEXT[stack.status]}</StatusPill>
+          <span className="text-xs text-muted-foreground">
+            {stack.liveRevision !== undefined
+              ? `Revision ${stack.liveRevision} live`
+              : 'Nothing live'}
+            {stack.containers > 0
+              ? `, ${stack.runningContainers} of ${stack.containers} containers running`
+              : ''}
+          </span>
+        </div>
+        {stack.source && (
+          <p className="text-xs text-muted-foreground">
+            From {stack.source.projectName ?? 'a project'}
+            {stack.source.composePath ? `, ${stack.source.composePath}` : ''}
+            {stack.source.environmentName
+              ? `, with the ${stack.source.environmentName} environment`
+              : ', without an environment'}
+            .
+          </p>
+        )}
+        <div
+          role="toolbar"
+          aria-label="App actions"
+          className={cn('-mx-4 flex flex-wrap gap-1.5 px-4 pt-3', FOOTER_HAIRLINE)}
         >
-          <Button size="sm" disabled={disabled || !canRedeploy} onClick={() => onDeployAgain(data)}>
-            <Rocket className="h-3.5 w-3.5" /> Deploy again
-          </Button>
-        </Gate>
-        {ACTIONS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Gate key={item.action} allowed={!disabled} reason={why}>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={disabled}
-                onClick={() => void action(item)}
-              >
-                <Icon className="h-3.5 w-3.5" /> {item.label}
-              </Button>
-            </Gate>
-          );
-        })}
-        <Gate allowed={!disabled} reason={why}>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-destructive"
-            disabled={disabled}
-            onClick={() => void remove(false)}
+          <Gate
+            allowed={canRedeploy && !disabled}
+            reason={why || 'This app has no project to deploy from on this computer.'}
           >
-            <Trash2 className="h-3.5 w-3.5" /> Delete
-          </Button>
-        </Gate>
-        <Gate
-          allowed={access.canAdmin && !stackBusy && working === null}
-          reason={access.canAdmin ? why : ADMIN_ONLY}
-        >
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={!access.canAdmin || stackBusy || working !== null}
-            onClick={() => void remove(true)}
+            <Button
+              size="sm"
+              disabled={disabled || !canRedeploy}
+              onClick={() => onDeployAgain(data)}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Deploy again
+            </Button>
+          </Gate>
+          {ACTIONS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Gate key={item.action} allowed={!disabled} reason={why}>
+                <Button
+                  size="sm"
+                  variant="soft"
+                  disabled={disabled}
+                  onClick={() => void action(item)}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {item.label}
+                </Button>
+              </Gate>
+            );
+          })}
+          <Gate allowed={!disabled} reason={why}>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={disabled}
+              onClick={() => void remove(false)}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </Button>
+          </Gate>
+          <Gate
+            allowed={access.canAdmin && !stackBusy && working === null}
+            reason={access.canAdmin ? why : ADMIN_ONLY}
           >
-            <Trash2 className="h-3.5 w-3.5" /> Delete with its data
-          </Button>
-        </Gate>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={!access.canAdmin || stackBusy || working !== null}
+              onClick={() => void remove(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete with its data
+            </Button>
+          </Gate>
+        </div>
       </div>
       {shown && (
         <DeployTimeline
@@ -666,7 +692,7 @@ export function AppDetail({
           }
         />
       )}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-2 xl:grid-cols-2">
         <ServicesCard services={data.services} />
         <RevisionsList
           revisions={revisions}

@@ -31,6 +31,15 @@ import {
   TriangleAlert,
   Wand2,
 } from '@/components/icons';
+import {
+  Chip,
+  Notice,
+  SECTION_WELL,
+  SEGMENT_TRACK,
+  SearchPill,
+  segmentClass,
+} from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -43,15 +52,21 @@ import {
 } from '@/stores/testsStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { type FixSource, FixWithAiDialog } from '../FixWithAiDialog';
-import { PanelIconButton } from '../git/PanelTabs';
+import { PanelNotice } from '../git/PanelNotice';
+import { HAIRLINE_BELOW, PanelIconButton } from '../git/PanelTabs';
 
 type Filter = 'all' | 'failed' | 'passed' | 'skipped';
 
-const EMPTY_RUN: ProjectTestRun = { summary: null, results: {}, output: '' };
+/** A run state chip sized for the panel's summary row. */
+const RUN_CHIP = 'h-[18px] px-1.5 text-[10.5px]';
 
-/** One look for every button in the run summary, so none of them wraps or shouts. */
-const ACTION_BUTTON =
-  'inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground';
+/**
+ * Failure output sits in the kit's soft well, tinted red. The well's edge is a ring, so the
+ * tint can replace its colour without the global border colour getting in the way.
+ */
+const FAILURE_WELL = 'bg-destructive/[0.05] ring-destructive/20';
+
+const EMPTY_RUN: ProjectTestRun = { summary: null, results: {}, output: '' };
 
 /** Past this many tests, files start folded so the list stays scannable. */
 const FOLD_FILES_OVER = 300;
@@ -95,7 +110,10 @@ function OutputPane({ projectId }: { projectId: string }) {
   return (
     <pre
       aria-label="Test output"
-      className="max-h-[40%] shrink-0 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 bg-background/60 px-3 py-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground"
+      className={cn(
+        SECTION_WELL,
+        'mx-2 mb-2 max-h-[40%] shrink-0 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[10.5px] leading-relaxed text-muted-foreground',
+      )}
     >
       {output}
     </pre>
@@ -206,7 +224,7 @@ function StatusIcon({ status }: { status: TestStatus | undefined }): React.JSX.E
       <span
         role="img"
         aria-label="Running"
-        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-amber-500"
+        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-warning"
       >
         <Spinner className="h-3 w-3 animate-spin" />
       </span>
@@ -228,7 +246,7 @@ function StatusIcon({ status }: { status: TestStatus | undefined }): React.JSX.E
       <span
         role="img"
         aria-label="Passed"
-        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-emerald-600 dark:text-emerald-400"
+        className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-success"
       >
         <CircleCheck className="h-3 w-3" />
       </span>
@@ -251,7 +269,7 @@ function StatusIcon({ status }: { status: TestStatus | undefined }): React.JSX.E
       aria-label="Not run"
       className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
     >
-      <span className="h-2 w-2 rounded-full border border-muted-foreground/40" />
+      <span className="h-2 w-2 rounded-full ring-1 ring-inset ring-muted-foreground/40" />
     </span>
   );
 }
@@ -267,17 +285,19 @@ function RowButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label} side="left">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={label}
         onClick={(event) => {
           event.stopPropagation();
           onClick();
         }}
-        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 transition hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover/test:opacity-100"
+        className="h-5 w-5 opacity-0 focus-visible:opacity-100 group-hover/test:opacity-100 [&_svg]:size-2.5"
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -430,8 +450,10 @@ const TestRow = memo(function TestRow({
         }}
         style={{ paddingLeft: indent }}
         className={cn(
-          'group/test mx-1 flex h-6 cursor-default select-none items-center gap-1.5 rounded-md pr-1 transition-colors hover:bg-foreground/[0.05]',
-          status === 'failed' && node.kind === 'test' && 'bg-destructive/[0.04]',
+          'group/test mx-1.5 flex h-6 cursor-default select-none items-center gap-1.5 rounded-lg pr-1 transition-colors',
+          status === 'failed' && node.kind === 'test'
+            ? 'bg-destructive/[0.05] hover:bg-destructive/[0.08]'
+            : 'hover:bg-foreground/[0.06]',
         )}
       >
         <span className="flex h-3 w-3 shrink-0 items-center justify-center text-muted-foreground">
@@ -460,7 +482,9 @@ const TestRow = memo(function TestRow({
           data-test-name
           className={cn(
             'min-w-0 flex-1 truncate',
-            node.kind === 'project' ? 'text-[11px] font-semibold' : 'text-[12px]',
+            node.kind === 'project'
+              ? 'text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'
+              : 'text-[12px]',
             node.kind === 'suite' && 'text-foreground/80',
           )}
         >
@@ -579,16 +603,13 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
 
   if (discovery.isPending) {
     return (
-      <div aria-label="Finding tests" aria-busy="true" className="space-y-2 p-3">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div
+      <div aria-label="Finding tests" aria-busy="true" className="space-y-1 px-2 py-1.5">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton
             key={i}
-            className="flex items-center gap-2"
-            style={{ paddingLeft: `${(i % 3) * 12}px` }}
-          >
-            <Skeleton className="h-3.5 w-3.5 rounded-full" />
-            <Skeleton className="h-3 flex-1 rounded" />
-          </div>
+            className="h-6 rounded-lg"
+            style={{ marginLeft: `${(i % 3) * 12}px`, width: `${92 - (i % 3) * 10}%` }}
+          />
         ))}
       </div>
     );
@@ -598,22 +619,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     title: string,
     body: React.ReactNode,
     action?: { label: string; run: () => void },
-  ) => (
-    <div className="flex flex-col items-center gap-1.5 px-5 py-5 text-center">
-      <Flask className="h-4 w-4 text-muted-foreground" />
-      <p className="text-xs font-medium">{title}</p>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">{body}</p>
-      {action ? (
-        <button
-          type="button"
-          onClick={action.run}
-          className="mt-1 text-[11px] font-medium text-primary hover:underline"
-        >
-          {action.label}
-        </button>
-      ) : null}
-    </div>
-  );
+  ) => <PanelNotice icon={Flask} title={title} body={body} action={action} />;
 
   if (discovery.isError) {
     return notice('Could not read the tests', discovery.error.message, {
@@ -731,95 +737,106 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {summary ? (
-        <div className="shrink-0 border-b border-border/60 px-3 py-1.5">
-          {/* Counts first, buttons under them: the panel is narrow and one row makes both wrap. */}
+        <div className={cn('shrink-0 px-2.5 py-2', HAIRLINE_BELOW)}>
+          {/* Counts first, buttons under them: the panel is narrow and one row makes both wrap.
+              Each state is a tinted chip, the way run states read on the Pipelines page. */}
           <div
             role="group"
             aria-label="Test run counts"
-            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]"
+            className="flex flex-wrap items-center gap-1 text-[11px]"
           >
             {running ? (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <Spinner className="h-3 w-3 animate-spin text-amber-500 motion-reduce:animate-none" />
+              <Chip tone="warning" dot pulse className={RUN_CHIP}>
                 {inFlight > 0
                   ? `Running ${inFlight} ${inFlight === 1 ? 'test' : 'tests'}…`
                   : 'Running tests…'}
-              </span>
+              </Chip>
             ) : null}
             {/* The counts stay up during the run so results can be watched arriving. */}
             {counts.failed > 0 ? (
-              <span className="font-semibold text-destructive">{counts.failed} failed</span>
+              <Chip tone="destructive" className={cn(RUN_CHIP, 'font-semibold')}>
+                {counts.failed} failed
+              </Chip>
             ) : null}
             {counts.passed > 0 ? (
-              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+              <Chip tone="success" className={RUN_CHIP}>
                 {counts.passed} passed
-              </span>
+              </Chip>
             ) : null}
-            {counts.skipped > 0 ? (
-              <span className="text-muted-foreground">{counts.skipped} skipped</span>
-            ) : null}
-            {!running && summary.cancelled ? (
-              <span className="text-muted-foreground">Stopped</span>
-            ) : null}
-            <ElapsedClock summary={summary} />
+            {counts.skipped > 0 ? <Chip className={RUN_CHIP}>{counts.skipped} skipped</Chip> : null}
+            {!running && summary.cancelled ? <Chip className={RUN_CHIP}>Stopped</Chip> : null}
+            <span className="ml-auto pl-1 text-[11px]">
+              <ElapsedClock summary={summary} />
+            </span>
           </div>
           {!running && (failures.length > 0 || hasOutput) ? (
             <div
               role="group"
               aria-label="Test run actions"
-              className="mt-1 flex flex-wrap items-center gap-1"
+              className="mt-1.5 flex flex-wrap items-center gap-1"
             >
               {failures.length > 0 ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   aria-label="Run failed tests"
                   onClick={() => void startRun(project.id, failedTargets(failures))}
-                  className={ACTION_BUTTON}
+                  className="shrink-0 text-muted-foreground"
                 >
-                  <Play className="h-2.5 w-2.5 shrink-0" />
+                  <Play />
                   Run failed
-                </button>
+                </Button>
               ) : null}
               {failedTests.length > 1 ? (
-                <button
+                <Button
                   type="button"
+                  variant="tint"
+                  size="xs"
                   aria-label="Fix all failures with AI"
                   onClick={() => fixResults(failedTests, [])}
-                  className={cn(ACTION_BUTTON, 'bg-primary/10 text-primary hover:bg-primary/16')}
+                  className="shrink-0"
                 >
-                  <Wand2 className="h-2.5 w-2.5 shrink-0" />
+                  <Wand2 />
                   Fix all with AI
-                </button>
+                </Button>
               ) : null}
               {hasOutput ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   aria-label={showOutput ? 'Hide output' : 'Show output'}
                   aria-pressed={showOutput}
                   onClick={() => setShowOutput((value) => !value)}
                   className={cn(
-                    ACTION_BUTTON,
-                    showOutput && 'bg-foreground/[0.08] text-foreground',
+                    'shrink-0 text-muted-foreground',
+                    showOutput &&
+                      'bg-primary/12 text-primary hover:bg-primary/20 hover:text-primary',
                   )}
                 >
                   Output
-                </button>
+                </Button>
               ) : null}
             </div>
           ) : null}
         </div>
       ) : null}
 
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 px-2 py-1.5">
-        <input
+      <div
+        className={cn('flex shrink-0 flex-wrap items-center gap-1.5 px-2 py-1.5', HAIRLINE_BELOW)}
+      >
+        <SearchPill
           type="search"
-          aria-label="Filter tests"
+          label="Filter tests"
+          clearLabel="Clear filter"
           placeholder="Filter tests"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="field-surface h-6 min-w-0 flex-1 rounded-full px-2.5 text-[11px] outline-none"
+          onValueChange={setQuery}
+          className="h-7 min-w-[7rem] flex-1 pl-2.5"
+          inputClassName="text-[12px]"
         />
-        <div role="radiogroup" aria-label="Show" className="flex shrink-0 items-center gap-0.5">
+        <div role="radiogroup" aria-label="Show" className={cn(SEGMENT_TRACK, 'shrink-0 gap-0.5')}>
           {(['all', 'failed', 'passed', 'skipped'] as const).map((value) => {
             const label = value === 'all' ? 'All' : value[0].toUpperCase() + value.slice(1);
             const count = value === 'all' ? null : counts[value];
@@ -830,12 +847,7 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
                 role="radio"
                 aria-checked={filter === value}
                 onClick={() => setFilter(value)}
-                className={cn(
-                  'inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-medium transition-colors',
-                  filter === value
-                    ? 'bg-primary/12 text-primary'
-                    : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
-                )}
+                className={cn(segmentClass(filter === value), 'gap-1 px-2 text-[10px]')}
               >
                 {label}
                 {count ? <span className="tabular-nums opacity-70">{count}</span> : null}
@@ -855,12 +867,11 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
           />
         ))}
         {discovery.data.truncated ? (
-          <p className="mx-2 mb-1 flex items-center gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-[10px] text-warning">
-            <TriangleAlert className="h-2.5 w-2.5" />
+          <Notice tone="warning" size="sm" className="mx-2 mb-1 text-[11px] leading-snug">
             This project has more test files than the panel reads, so some are not listed.
-          </p>
+          </Notice>
         ) : null}
-        <div role="tree" aria-label="Tests">
+        <div role="tree" aria-label="Tests" className="space-y-px">
           {rows.slice(0, drawn).map(({ node, depth }) => (
             <TestRow
               key={node.id}
@@ -916,7 +927,7 @@ function FailureDetail({
       role="group"
       aria-label={`${name} failure`}
       style={{ marginLeft: indent }}
-      className="mb-1.5 mr-2 mt-0.5 rounded-md border border-destructive/25 bg-destructive/[0.04] p-2"
+      className={cn(SECTION_WELL, FAILURE_WELL, 'mb-1.5 mr-2 mt-1 p-2.5')}
     >
       {result.message ? (
         <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-destructive">
@@ -928,7 +939,7 @@ function FailureDetail({
           <button
             type="button"
             onClick={() => setShowStack((value) => !value)}
-            className="mt-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+            className="mt-1 cursor-pointer rounded-full text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             {showStack ? 'Hide stack' : 'Show stack'}
           </button>
@@ -940,31 +951,31 @@ function FailureDetail({
         </>
       ) : null}
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        <button
-          type="button"
-          onClick={onFix}
-          className="inline-flex h-6 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
-        >
-          <Wand2 className="h-2.5 w-2.5" />
+        <Button type="button" variant="tint" size="xs" onClick={onFix}>
+          <Wand2 />
           Fix with AI
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="xs"
           onClick={onCopy}
-          className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+          className="text-muted-foreground"
         >
-          <Copy className="h-2.5 w-2.5" />
+          <Copy />
           Copy issue
-        </button>
+        </Button>
         {onOpen ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={onOpen}
-            className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+            className="text-muted-foreground"
           >
-            <FileCode className="h-2.5 w-2.5" />
+            <FileCode />
             Open file
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -985,10 +996,10 @@ function RunErrorCard({
     <div
       role="group"
       aria-label={`${label} could not run`}
-      className="mx-2 mb-1.5 rounded-md border border-destructive/25 bg-destructive/[0.04] p-2"
+      className={cn(SECTION_WELL, FAILURE_WELL, 'mx-2 mb-1.5 p-2.5')}
     >
       <p className="flex items-center gap-1.5 text-[11px] font-semibold text-destructive">
-        <TriangleAlert className="h-2.5 w-2.5" />
+        <TriangleAlert className="h-3 w-3" />
         {label} could not run
       </p>
       <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/80">{error.message}</p>
@@ -999,28 +1010,26 @@ function RunErrorCard({
       ) : null}
       <div className="mt-1.5 flex items-center gap-1">
         {error.kind !== 'notFound' ? (
-          <button
-            type="button"
-            onClick={onFix}
-            className="inline-flex h-6 items-center gap-1 rounded-md bg-primary/12 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
-          >
-            <Wand2 className="h-2.5 w-2.5" />
+          <Button type="button" variant="tint" size="xs" onClick={onFix}>
+            <Wand2 />
             Fix with AI
-          </button>
+          </Button>
         ) : null}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="xs"
           onClick={() => {
             void navigator.clipboard.writeText(
               `$ ${error.command}\n\n${error.message}\n\n${log}`.trim(),
             );
             toast.success('Output copied');
           }}
-          className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+          className="text-muted-foreground"
         >
-          <Copy className="h-2.5 w-2.5" />
+          <Copy />
           Copy output
-        </button>
+        </Button>
       </div>
     </div>
   );

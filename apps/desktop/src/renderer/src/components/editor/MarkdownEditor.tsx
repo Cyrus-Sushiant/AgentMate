@@ -28,6 +28,8 @@ import {
   WindowMaximize,
   WindowRestore,
 } from '@/components/icons';
+import { SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useGrammarCheck } from '@/hooks/useGrammarCheck';
 import { containsPersian } from '@/lib/rtl';
@@ -324,28 +326,30 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           className,
         )}
       >
-        <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/40 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1 bg-foreground/[0.03] px-2 py-1.5 shadow-[inset_0_-1px_0_hsl(var(--border)/0.7)]">
           {showEditor &&
             TOOLBAR_GROUPS.map((group, index) => (
               <div key={group[0].key} className="flex items-center gap-0.5">
-                {index > 0 && <span className="mx-1 h-4 w-px bg-border" aria-hidden />}
+                {index > 0 && <span className="mx-1 h-4 w-px bg-foreground/10" aria-hidden />}
                 {group.map((action) => (
                   <SimpleTooltip key={action.key} label={action.label} wrapTrigger={readOnly}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label={action.label}
                       disabled={readOnly}
                       // Keeps focus (and the selection) in the textarea when clicked.
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => apply(action.run)}
-                      className="flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                      className="min-w-7 text-xs"
                     >
                       {HEADING_LABELS[action.key] ? (
                         <span className="font-semibold">{HEADING_LABELS[action.key]}</span>
                       ) : (
-                        <action.icon className="h-3.5 w-3.5" />
+                        <action.icon />
                       )}
-                    </button>
+                    </Button>
                   </SimpleTooltip>
                 ))}
               </div>
@@ -359,16 +363,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 onActiveIssueChange={setActiveIssue}
               />
             ) : null}
-            <div className="flex items-center gap-0.5 rounded-md bg-background p-0.5">
+            <div className={SEGMENT_TRACK}>
               {VIEW_MODES.map((mode) => (
                 <SimpleTooltip key={mode.key} label={`${mode.label} mode`}>
                   <button
                     type="button"
                     onClick={() => setView(mode.key)}
-                    className={cn(
-                      'flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-accent',
-                      view === mode.key && 'bg-accent text-foreground',
-                    )}
+                    aria-pressed={view === mode.key}
+                    className={cn(segmentClass(view === mode.key), 'gap-1')}
                   >
                     <mode.icon className="h-3 w-3" />
                     {mode.label}
@@ -378,20 +380,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             </div>
           </div>
           <SimpleTooltip label={isMaximized ? 'Restore editor (Esc)' : 'Maximize editor'}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label={isMaximized ? 'Restore editor' : 'Maximize editor'}
               aria-pressed={isMaximized}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => setIsMaximized((v) => !v)}
-              className="flex h-6 items-center rounded px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              {isMaximized ? (
-                <WindowRestore className="h-3.5 w-3.5" />
-              ) : (
-                <WindowMaximize className="h-3.5 w-3.5" />
-              )}
-            </button>
+              {isMaximized ? <WindowRestore /> : <WindowMaximize />}
+            </Button>
           </SimpleTooltip>
         </div>
 
@@ -456,12 +455,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             onPointerDown={startResize}
             // Double-click snaps back to the height the host asked for.
             onDoubleClick={() => setHeight(defaultHeight)}
-            className="group flex h-2 shrink-0 cursor-ns-resize items-center justify-center border-t border-border bg-muted/40"
+            className="group flex h-2 shrink-0 cursor-ns-resize items-center justify-center bg-foreground/[0.03] shadow-[inset_0_1px_0_hsl(var(--border)/0.7)]"
           >
             <span
               className={cn(
-                'h-0.5 w-8 rounded-full bg-border group-hover:bg-muted-foreground',
-                isResizing && 'bg-muted-foreground',
+                'h-0.5 w-8 rounded-full bg-foreground/15 transition-colors group-hover:bg-primary/70',
+                isResizing && 'bg-primary',
               )}
               aria-hidden
             />

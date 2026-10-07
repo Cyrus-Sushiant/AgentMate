@@ -187,7 +187,7 @@ export function RunAnnotations({
           <Button
             variant="ghost"
             size="sm"
-            className="ml-auto h-7 gap-1 rounded-full px-2.5 text-[11px]"
+            className="ml-auto gap-1 px-2.5 text-[11px]"
             onClick={() =>
               void copyText(
                 allAnnotationsText(run, annotations),
@@ -240,8 +240,8 @@ export function RunAnnotations({
                 <SimpleTooltip label="Copy this annotation">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
+                    size="icon-sm"
+                    className="shrink-0"
                     aria-label="Copy annotation"
                     onClick={() => void copyText(annotationText(item), 'Annotation copied.')}
                   >

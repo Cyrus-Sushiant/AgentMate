@@ -120,7 +120,7 @@ export function WidgetPinDialog({
         </OverflowScroll>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button disabled={saving} onClick={() => void confirm()}>

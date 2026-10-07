@@ -2,7 +2,7 @@ import { coreErrorMessage } from '@shared/coreErrors';
 import type { DeployServer } from '@shared/deployTypes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Archive, Spinner } from '@/components/icons';
+import { Archive, Spinner, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
+import { Notice } from '../../deployKit';
 import type { StepUp } from '../useStepUp';
 
 /**
@@ -107,10 +108,10 @@ export function CreateBackupDialog({
               {issue}
             </p>
           )}
-          <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+          <Notice tone="warning" icon={TriangleAlert} className="text-xs">
             Without this passphrase the backup cannot be opened, by you or anyone. AgentMate does
             not keep it. Write it down somewhere safe.
-          </p>
+          </Notice>
           {problem && (
             <p role="alert" className="text-sm text-destructive">
               {problem}
@@ -119,7 +120,7 @@ export function CreateBackupDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="soft"
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >

@@ -111,7 +111,7 @@ export function CommitMessageSettingsForm(): React.JSX.Element {
                 aria-checked={selected}
                 onClick={() => save({ style: style.value })}
                 className={cn(
-                  'rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  'flex flex-col rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'border-primary/50 bg-primary/[0.07]'
                     : 'border-border/70 hover:border-foreground/25',

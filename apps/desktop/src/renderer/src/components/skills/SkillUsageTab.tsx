@@ -13,7 +13,6 @@ import {
   Chip,
   EmptyState,
   GLASS_CARD,
-  PILL_SOFT,
   PillTabs,
   SECTION_HEADING,
   SearchPill,
@@ -138,11 +137,8 @@ function AddToProjectButton({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className={cn(
-          'h-7 w-7 rounded-full text-muted-foreground/60 hover:bg-foreground/[0.06] hover:text-foreground',
-          className,
-        )}
+        size="icon-sm"
+        className={cn('text-muted-foreground/60', className)}
         aria-label={`Add ${skill} to another project`}
         onClick={onClick}
       >
@@ -257,13 +253,7 @@ export function SkillUsageTab({
               {timeAgo(report.scannedAt)}
             </span>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={PILL_SOFT}
-            disabled={isRescanning}
-            onClick={onRescan}
-          >
+          <Button variant="soft" disabled={isRescanning} onClick={onRescan}>
             <RefreshCw className={cn('h-3.5 w-3.5', isRescanning && 'animate-spin')} />
             Rescan
           </Button>
@@ -459,8 +449,7 @@ export function SkillUsageTab({
               {filtered.length > visible.length && (
                 <div className="flex justify-center pt-1">
                   <Button
-                    variant="ghost"
-                    className={PILL_SOFT}
+                    variant="soft"
                     onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
                   >
                     Show more ({filtered.length - visible.length} remaining)

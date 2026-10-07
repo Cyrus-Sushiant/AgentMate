@@ -230,7 +230,12 @@ export function SshServerFormDialog({
                     spellCheck={false}
                     className="flex-1"
                   />
-                  <Button type="button" variant="outline" onClick={() => void pickPrivateKey()}>
+                  <Button
+                    type="button"
+                    variant="soft"
+                    className="h-9"
+                    onClick={() => void pickPrivateKey()}
+                  >
                     <FolderOpen className="h-3.5 w-3.5" /> Browse
                   </Button>
                 </div>

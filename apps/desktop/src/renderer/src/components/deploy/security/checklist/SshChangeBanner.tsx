@@ -118,9 +118,11 @@ export function SshChangeBanner({
   return (
     <section
       aria-labelledby="keep-ssh-title"
+      // It sits inside the checklist card, so it is an inset well rather than a glass card. The
+      // ring carries the urgency; a coloured border would lose to the global border colour.
       className={cn(
-        'overflow-hidden rounded-lg border bg-card',
-        urgent ? 'border-destructive/60' : 'border-warning/60',
+        'overflow-hidden rounded-xl bg-foreground/[0.02] ring-1 ring-inset',
+        urgent ? 'ring-destructive/50' : 'ring-warning/50',
       )}
     >
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
@@ -148,12 +150,7 @@ export function SshChangeBanner({
         </div>
         {canDecide ? (
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy !== null || expired}
-              onClick={onRevert}
-            >
+            <Button size="sm" variant="soft" disabled={busy !== null || expired} onClick={onRevert}>
               {busy === 'revert' ? (
                 <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
               ) : (
@@ -182,7 +179,7 @@ export function SshChangeBanner({
           )}
         </div>
       )}
-      <div className="h-1 w-full bg-muted" aria-hidden="true">
+      <div className="h-1 w-full bg-foreground/[0.06]" aria-hidden="true">
         <div
           className={cn(
             'h-full origin-left motion-safe:transition-transform motion-safe:duration-1000 motion-safe:ease-linear',

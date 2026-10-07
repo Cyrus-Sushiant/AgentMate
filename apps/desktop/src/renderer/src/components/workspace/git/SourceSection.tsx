@@ -1,6 +1,36 @@
 import { useState } from 'react';
 import { ChevronRight } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { cn } from '@/lib/utils';
+
+/**
+ * The small count beside a section heading, drawn like the count beside "Changed files" on the
+ * Project detail Git tab. Red when it counts something failing.
+ */
+export function SectionCount({
+  label,
+  tone = 'neutral',
+  children,
+}: {
+  /** What the number means, for assistive tech. */
+  label?: string;
+  tone?: 'neutral' | 'destructive';
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <span
+      aria-label={label}
+      className={cn(
+        'shrink-0 rounded-full px-1.5 text-[10px] font-semibold leading-4 tabular-nums',
+        tone === 'destructive'
+          ? 'bg-destructive/15 text-destructive'
+          : 'bg-foreground/[0.07] text-muted-foreground',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
 
 /** The least a dragged section keeps, header included. Matches the `min-h-[7rem]` below. */
 const SECTION_MIN_HEIGHT = 112;
@@ -59,7 +89,9 @@ export function SourceSection({
       data-source-section={id}
       style={sized ? { flex: `0 1 ${height}px` } : undefined}
       className={cn(
-        'relative flex flex-col border-t border-border/60 first:border-t-0',
+        // The hairline above each section is an inset shadow, so the global border colour
+        // can't repaint it. The first section sits right under the branch bar's own line.
+        'relative flex flex-col shadow-[inset_0_1px_0_hsl(var(--border)/0.6)] first:shadow-none',
         !open
           ? 'shrink-0'
           : primary
@@ -68,33 +100,36 @@ export function SourceSection({
       )}
     >
       {splitter}
-      <div className="flex h-8 shrink-0 items-center gap-1 pl-1.5 pr-2">
+      <div className="flex h-8 shrink-0 items-center gap-1 pl-1.5 pr-1.5">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={open}
           aria-controls={bodyId}
-          className="flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded px-1 text-[11px] font-semibold uppercase tracking-wider text-foreground/75 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="group/fold flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-full px-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           <ChevronRight
             className={cn(
-              'h-2.5 w-2.5 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none',
+              'h-2.5 w-2.5 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover/fold:text-muted-foreground motion-reduce:transition-none',
               open && 'rotate-90',
             )}
           />
-          <span className="truncate">{title}</span>
+          <span
+            className={cn(
+              SECTION_HEADING,
+              'truncate transition-colors group-hover/fold:text-foreground/80',
+              open && 'text-muted-foreground',
+            )}
+          >
+            {title}
+          </span>
           {count ? (
-            <span
-              aria-label={countLabel}
-              className={cn(
-                'rounded-full px-1.5 text-[10px] font-semibold normal-case leading-4 tabular-nums',
-                countTone === 'destructive'
-                  ? 'bg-destructive text-destructive-foreground'
-                  : 'bg-foreground/[0.08] text-foreground/80',
-              )}
+            <SectionCount
+              label={countLabel}
+              tone={countTone === 'destructive' ? 'destructive' : 'neutral'}
             >
               {count > 99 ? '99+' : count}
-            </span>
+            </SectionCount>
           ) : null}
         </button>
         {open && actions ? (

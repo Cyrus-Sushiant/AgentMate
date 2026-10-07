@@ -6,6 +6,7 @@ import {
 } from '@shared/deploy/firewallValidation';
 import type { FirewallRuleSpec } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useEffect, useState } from 'react';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,9 +26,6 @@ import { ACTION_HINT, ACTION_LABEL, PROTOCOL_LABEL } from '@/lib/deploy/firewall
  * or a network in CIDR form, checked as it is typed. Nothing reaches the server from here: the
  * rule joins the staged changes, which are previewed before anything is applied.
  */
-
-const SELECT =
-  'h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function RuleDialog({
   open,
@@ -80,9 +78,8 @@ export function RuleDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="rule-action">Action</Label>
-              <select
+              <NativeSelect
                 id="rule-action"
-                className={SELECT}
                 value={draft.action}
                 onChange={(event) => set({ action: event.target.value as RuleDraft['action'] })}
               >
@@ -91,13 +88,12 @@ export function RuleDialog({
                     {ACTION_LABEL[action]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rule-protocol">Protocol</Label>
-              <select
+              <NativeSelect
                 id="rule-protocol"
-                className={SELECT}
                 value={draft.protocol}
                 onChange={(event) => set({ protocol: event.target.value as RuleDraft['protocol'] })}
               >
@@ -106,7 +102,7 @@ export function RuleDialog({
                     {PROTOCOL_LABEL[protocol]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </div>
           <p className="-mt-2 text-xs text-muted-foreground">{ACTION_HINT[draft.action]}</p>
@@ -148,7 +144,7 @@ export function RuleDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit">{editing ? 'Stage the edit' : 'Stage the rule'}</Button>

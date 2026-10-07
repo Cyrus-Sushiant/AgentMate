@@ -178,7 +178,7 @@ function ProjectPicker({
         {loading ? (
           <div className="space-y-2" aria-busy="true">
             {Array.from({ length: 3 }, (_, i) => (
-              <span key={i} className="shimmer block h-9 rounded-md" />
+              <span key={i} className="shimmer block h-10 rounded-lg" />
             ))}
           </div>
         ) : projects.length === 0 ? (
@@ -199,15 +199,34 @@ function ProjectPicker({
                 aria-checked={choice === project.id}
                 onClick={() => setChoice(project.id)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  // The main menu's row: a tinted pill and the glowing bar on the chosen one.
+                  'relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   choice === project.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:bg-secondary/50',
+                    ? 'bg-primary/12 text-primary'
+                    : 'hover:bg-foreground/[0.06]',
                 )}
               >
-                <FolderKanban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {choice === project.id && (
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+                  />
+                )}
+                <FolderKanban
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0',
+                    choice === project.id ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                />
                 <span className="min-w-0">
-                  <span className="block truncate text-foreground">{project.name}</span>
+                  <span
+                    className={cn(
+                      'block truncate',
+                      choice === project.id ? 'font-medium text-primary' : 'text-foreground',
+                    )}
+                  >
+                    {project.name}
+                  </span>
                   <span className="block truncate font-mono text-[11px] text-muted-foreground">
                     {project.folderPath}
                   </span>
@@ -217,7 +236,7 @@ function ProjectPicker({
           </div>
         )}
         <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="soft" onClick={onCancel}>
             Cancel
           </Button>
           <Button

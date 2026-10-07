@@ -112,7 +112,7 @@ function TopBar({ showSidebarToggle }: { showSidebarToggle: boolean }): React.JS
         <UpdateStatusChip />
         {onWorkspace ? <WorkspaceHeaderActions /> : null}
         {/* The general terminal (for running the app, installs and so on) stays available on
-            every page, the Workspace included, where it opens over the panes. */}
+            every page, the Workspace included, where it opens under the panes. */}
         <SimpleTooltip
           label={
             aiWaiting
@@ -123,7 +123,7 @@ function TopBar({ showSidebarToggle }: { showSidebarToggle: boolean }): React.JS
           }
         >
           <Button
-            variant={isTerminalOpen ? 'secondary' : 'ghost'}
+            variant={isTerminalOpen ? 'soft' : 'ghost'}
             size="icon"
             aria-pressed={isTerminalOpen}
             aria-label="Toggle terminal"
@@ -149,7 +149,7 @@ function TopBar({ showSidebarToggle }: { showSidebarToggle: boolean }): React.JS
         </SimpleTooltip>
         <SimpleTooltip label="Recent messages">
           <Button
-            variant={toastHistoryOpen ? 'secondary' : 'ghost'}
+            variant={toastHistoryOpen ? 'soft' : 'ghost'}
             size="icon"
             aria-pressed={toastHistoryOpen}
             aria-label="Recent messages"
@@ -200,6 +200,10 @@ export function AppShell(): React.JSX.Element {
   // The workspace mounts on first visit and then stays, so its terminals survive navigation.
   const [workspaceVisited, setWorkspaceVisited] = useState(onWorkspace);
   if (onWorkspace && !workspaceVisited) setWorkspaceVisited(true);
+  // A maximized drawer covers the page area but sits inside its gutters, where the Workspace's
+  // rail and pane edges would show. The page is only made invisible, so it keeps its size and
+  // its terminals keep running.
+  const terminalCoversPage = useTerminalStore((s) => s.isOpen && s.isMaximized);
 
   useGlobalShortcuts();
   useVaultEvents();
@@ -272,41 +276,49 @@ export function AppShell(): React.JSX.Element {
         {!menuOnTop && <Sidebar />}
         <div className="relative flex min-w-0 flex-1 flex-col">
           <TopBar showSidebarToggle={!menuOnTop} />
-          {/* Pages sit in a rounded island inset from the window edge. The Workspace draws
-              its own islands (the panes and the project panel), so there this is a plain box. */}
-          <div
-            className={cn(
-              'relative flex min-h-0 flex-1 flex-col',
-              !onWorkspace && 'chrome-island mx-2 mb-1.5',
-            )}
-          >
+          {/* The page area: the page and, when it's open, the terminal drawer stacked under it
+              as a second island. It has no fill, so on glass the gaps show the window material. */}
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {/* Pages sit in a rounded island inset from the window edge. The Workspace draws
+                its own islands (the panes and the project panel), so there this is a plain box. */}
             <div
-              ref={scrollRef}
+              data-page-island={onWorkspace ? undefined : ''}
               className={cn(
-                'flex min-h-0 flex-1 flex-col overflow-y-auto',
-                onWorkspace && 'hidden',
+                'relative flex min-h-0 flex-1 flex-col',
+                !onWorkspace && 'chrome-island mx-2 mb-1.5',
+                terminalCoversPage && 'invisible',
               )}
             >
-              {/* Keyed on the path so React remounts the wrapper per route and
-                  the CSS enter animation replays. No exit animation and no
-                  AnimatePresence gate: the incoming page renders immediately
-                  instead of waiting on the outgoing one's animation to report
-                  back, which is what used to strand the content area empty. */}
-              <div key={location.pathname} className="page-enter flex min-h-full flex-1 flex-col">
-                {/* A page that throws must not take the shell down with it,
-                    the sidebar stays usable and the error is readable. */}
-                <ErrorBoundary resetKey={location.pathname}>
-                  <Outlet />
-                </ErrorBoundary>
+              <div
+                ref={scrollRef}
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col overflow-y-auto',
+                  onWorkspace && 'hidden',
+                )}
+              >
+                {/* Keyed on the path so React remounts the wrapper per route and
+                    the CSS enter animation replays. No exit animation and no
+                    AnimatePresence gate: the incoming page renders immediately
+                    instead of waiting on the outgoing one's animation to report
+                    back, which is what used to strand the content area empty. */}
+                <div key={location.pathname} className="page-enter flex min-h-full flex-1 flex-col">
+                  {/* A page that throws must not take the shell down with it,
+                      the sidebar stays usable and the error is readable. */}
+                  <ErrorBoundary resetKey={location.pathname}>
+                    <Outlet />
+                  </ErrorBoundary>
+                </div>
               </div>
+              {workspaceVisited && (
+                <ErrorBoundary resetKey="workspace">
+                  <WorkspaceHost visible={onWorkspace} />
+                </ErrorBoundary>
+              )}
+              <LoadingOverlay show={showLoading} />
             </div>
-            {workspaceVisited && (
-              <ErrorBoundary resetKey="workspace">
-                <WorkspaceHost visible={onWorkspace} />
-              </ErrorBoundary>
-            )}
-            <LoadingOverlay show={showLoading} />
-            <TerminalDrawer />
+            {/* A sibling of the page, so the page island makes room for it instead of clipping
+                it. It stays mounted while closed, so its shells keep running. */}
+            <TerminalDrawer placement={onWorkspace ? 'workspace' : 'page'} />
           </div>
         </div>
       </div>

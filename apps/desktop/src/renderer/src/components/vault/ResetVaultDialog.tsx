@@ -76,7 +76,7 @@ export function ResetVaultDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

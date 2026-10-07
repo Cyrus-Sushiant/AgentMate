@@ -2,7 +2,7 @@ import { checkBucket, type Project, type PullRequestInfo, summarizeChecks } from
 import { CircleCheck } from '@/components/icons';
 import { RunStatusIcon, runTone } from '@/components/pipelines/runStatus';
 import { cn } from '@/lib/utils';
-import { FailedRunActions } from '../PipelinesSection';
+import { FailedRunActions, RunChip } from '../PipelinesSection';
 import { PrCard } from './PrCard';
 
 const ORDER = { failed: 0, running: 1, other: 2, passed: 3 } as const;
@@ -43,11 +43,11 @@ export function PrChecks({
       defaultOpen={summary.failed > 0 || summary.running > 0 || pr.checks.length <= 4}
     >
       {pr.checks.length === 0 ? (
-        <p className="px-3 py-1 text-[11px] text-muted-foreground">
+        <p className="px-3.5 py-1 text-[11px] text-muted-foreground">
           No checks on this pull request.
         </p>
       ) : (
-        <ul>
+        <ul className="space-y-px">
           {rows.map((check) => {
             // Checks carry GitHub's own lowercase values, the same ones a run has.
             const itemTone = runTone(check as Parameters<typeof runTone>[0]);
@@ -55,7 +55,10 @@ export function PrChecks({
             return (
               <li
                 key={`${check.workflow ?? ''}/${check.name}`}
-                className={cn('mx-1 rounded-md', failed && 'bg-destructive/[0.04]')}
+                className={cn(
+                  'mx-1.5 rounded-lg',
+                  failed && 'bg-destructive/[0.05] ring-1 ring-inset ring-destructive/15',
+                )}
               >
                 <button
                   type="button"
@@ -63,9 +66,12 @@ export function PrChecks({
                   onClick={() =>
                     check.detailsUrl && void window.agentmat.shell.openExternal(check.detailsUrl)
                   }
-                  className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-foreground/[0.05] disabled:hover:bg-transparent"
+                  className={cn(
+                    'flex w-full cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:hover:bg-transparent',
+                    !failed && 'hover:bg-foreground/[0.06]',
+                  )}
                 >
-                  <RunStatusIcon tone={itemTone} className="h-5 w-5 shrink-0" />
+                  <RunStatusIcon tone={itemTone} className="h-5 w-5 shrink-0 rounded-md" />
                   <span className="min-w-0 flex-1">
                     <span
                       data-testid="pr-check-name"
@@ -79,18 +85,7 @@ export function PrChecks({
                       </span>
                     ) : null}
                   </span>
-                  <span
-                    className={cn(
-                      'shrink-0 text-[10px] font-medium',
-                      failed
-                        ? 'text-destructive'
-                        : itemTone.outcome === 'passed'
-                          ? 'text-success'
-                          : 'text-muted-foreground',
-                    )}
-                  >
-                    {itemTone.label}
-                  </span>
+                  <RunChip tone={itemTone} />
                 </button>
                 {failed && check.runId ? (
                   <FailedRunActions

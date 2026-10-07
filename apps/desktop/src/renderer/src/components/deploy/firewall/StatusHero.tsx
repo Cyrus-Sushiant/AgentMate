@@ -3,12 +3,14 @@ import type {
   FirewallPolicy,
   FirewallStatus,
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { Lock, LockOpen, TriangleAlert } from '@/components/icons';
+import { FOOTER_HAIRLINE, SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BACKEND_LABEL, POLICY_LABEL } from '@/lib/deploy/firewall/format';
 import { cn } from '@/lib/utils';
+import { SECURITY_CARD } from '../security/SecurityCard';
 
 /**
  * The firewall at a glance: on or off (a word and a lock, never colour alone), which backend,
@@ -20,10 +22,8 @@ import { cn } from '@/lib/utils';
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-foreground [overflow-wrap:anywhere]">{children}</dd>
+      <dt className={SECTION_HEADING}>{label}</dt>
+      <dd className="mt-1 text-sm text-foreground [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -53,21 +53,25 @@ export function StatusHero({
 }): React.JSX.Element {
   if (loading && !status) {
     return (
-      <Card className="glass" aria-busy="true">
-        <CardContent className="flex flex-wrap items-center gap-6 p-5">
-          <Skeleton className="h-14 w-40" />
-          <Skeleton className="h-10 flex-1" />
-        </CardContent>
-      </Card>
+      <div className={SECURITY_CARD} aria-busy="true">
+        <div className="flex flex-wrap items-center gap-6 p-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 rounded-2xl" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-44" />
+            </div>
+          </div>
+          <Skeleton className="h-10 min-w-48 flex-1" />
+        </div>
+      </div>
     );
   }
   if (!status) {
     return (
-      <Card className="glass">
-        <CardContent className="p-5 text-sm text-destructive" role="alert">
-          {error ?? 'The firewall could not be read.'}
-        </CardContent>
-      </Card>
+      <div className={cn(SECURITY_CARD, 'p-4 text-sm text-destructive')} role="alert">
+        {error ?? 'The firewall could not be read.'}
+      </div>
     );
   }
 
@@ -75,21 +79,21 @@ export function StatusHero({
   const on = status.active && !none;
   const Mark = on ? Lock : LockOpen;
   return (
-    <Card className={cn('glass transition-opacity', stale && 'opacity-60')}>
-      <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4 p-5">
+    <div className={cn(SECURITY_CARD, 'transition-opacity', stale && 'opacity-60')}>
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 p-4">
         <div className="flex items-center gap-3" aria-label="Firewall state">
           <span
             className={cn(
-              'flex h-11 w-11 items-center justify-center rounded-full border',
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
               on
-                ? 'border-success/40 bg-success/10 text-success'
-                : 'border-warning/40 bg-warning/10 text-warning',
+                ? 'bg-success/12 text-success shadow-[0_0_32px_-12px_hsl(var(--success)/0.8)]'
+                : 'bg-warning/12 text-warning shadow-[0_0_32px_-12px_hsl(var(--warning)/0.8)]',
             )}
           >
             <Mark className="h-5 w-5" />
           </span>
-          <div>
-            <p className="text-lg font-semibold leading-tight text-foreground">
+          <div className="space-y-0.5">
+            <p className="text-base font-semibold leading-tight tracking-tight text-foreground">
               {none ? 'No firewall found' : on ? 'Firewall on' : 'Firewall off'}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -109,9 +113,9 @@ export function StatusHero({
           </Fact>
           <Fact label="Incoming">
             {canAdmin && !none && !busy ? (
-              <select
+              <NativeSelect
                 aria-label="Incoming by default"
-                className="rounded border border-input bg-background px-1 py-0.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-7 w-auto max-w-full pl-2.5 pr-1.5"
                 value={stagedIncoming ?? status.defaultIncoming}
                 onChange={(event) => onDefaultIncoming(event.target.value as FirewallPolicy)}
               >
@@ -120,7 +124,7 @@ export function StatusHero({
                     {POLICY_LABEL[policy]} by default
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             ) : (
               `${POLICY_LABEL[status.defaultIncoming]} by default`
             )}
@@ -136,19 +140,21 @@ export function StatusHero({
           </Fact>
         </dl>
 
-        {canAdmin && !none && (
-          <Button
-            size="sm"
-            variant={on ? 'outline' : 'default'}
-            disabled={busy}
-            onClick={() => onToggle(!on)}
-          >
-            {on ? 'Turn off' : 'Turn on'}
-          </Button>
-        )}
-      </CardContent>
+        {canAdmin &&
+          !none &&
+          // Turning it off opens every port, so that reads as a destructive action.
+          (on ? (
+            <Button size="sm" variant="danger" disabled={busy} onClick={() => onToggle(false)}>
+              Turn off
+            </Button>
+          ) : (
+            <Button size="sm" disabled={busy} onClick={() => onToggle(true)}>
+              Turn on
+            </Button>
+          ))}
+      </div>
       {(status.warnings.length > 0 || status.error) && (
-        <ul className="space-y-1 border-t border-border px-5 py-3 text-xs text-warning">
+        <ul className={cn(FOOTER_HAIRLINE, 'space-y-1 px-4 py-3 text-xs text-warning')}>
           {[...(status.error ? [status.error] : []), ...status.warnings].map((warning) => (
             <li key={warning} className="flex items-start gap-1.5">
               <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" /> {warning}
@@ -156,6 +162,6 @@ export function StatusHero({
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }

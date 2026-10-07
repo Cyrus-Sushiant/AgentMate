@@ -1,6 +1,7 @@
 import type { Project, PullRequestInfo } from '@agentmat/core';
 import { useEffect, useRef, useState } from 'react';
 import { MessageSquare, Spinner } from '@/components/icons';
+import { Notice } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -87,10 +88,10 @@ export function LocalReviewDialog({
         </DialogHeader>
 
         {phase.kind === 'failed' ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-[12px]">
+          <Notice tone="destructive" className="text-[12px]">
             <p className="font-medium text-destructive">Could not review the pull request</p>
             <p className="mt-0.5 text-muted-foreground">{phase.error}</p>
-          </div>
+          </Notice>
         ) : (
           <textarea
             value={text}
@@ -113,7 +114,7 @@ export function LocalReviewDialog({
             Cancel
           </Button>
           {phase.kind === 'failed' ? (
-            <Button variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+            <Button variant="soft" onClick={() => setAttempt((n) => n + 1)}>
               Try again
             </Button>
           ) : null}

@@ -49,12 +49,12 @@ export function BlueprintPresetChips({
           <SimpleTooltip key={preset.id} label={preset.text} wrapTrigger={applied}>
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               size="sm"
               disabled={applied}
               onClick={() => onApply(preset)}
               className={cn(
-                'h-7 gap-1.5 px-2 text-xs font-normal',
+                'gap-1.5 px-2.5 font-normal',
                 applied && 'opacity-60 disabled:pointer-events-none',
               )}
             >

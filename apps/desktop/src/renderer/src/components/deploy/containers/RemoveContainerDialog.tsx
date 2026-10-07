@@ -95,7 +95,7 @@ export function RemoveContainerDialog({
             </label>
           )}
           {volumes && container && (
-            <div className="space-y-1.5 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <div className="space-y-1.5 rounded-xl bg-destructive/[0.05] p-3 ring-1 ring-inset ring-destructive/30">
               <p className="flex items-center gap-1.5 text-xs text-destructive">
                 <TriangleAlert className="h-3.5 w-3.5" /> Data in those volumes cannot be brought
                 back.
@@ -114,7 +114,7 @@ export function RemoveContainerDialog({
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
+            <Button type="button" variant="soft" disabled={busy} onClick={onCancel}>
               Cancel
             </Button>
             <Button type="submit" variant="destructive" disabled={busy || !confirmed}>

@@ -1,10 +1,11 @@
 import type { ContainerSummary } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, RefreshCw, Search, Wand2 } from '@/components/icons';
+import { ArrowDown, ArrowUp, RefreshCw, Wand2 } from '@/components/icons';
+import { SearchPill } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useVirtualRows } from '@/hooks/useVirtualRows';
 import { clockTime, findMatches, highlight, plain } from '@/lib/deploy/containers/logs';
 import { cn } from '@/lib/utils';
@@ -71,19 +72,16 @@ export function ContainerLogsTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-48 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') goTo(event.shiftKey ? current - 1 : current + 1);
-            }}
-            placeholder="Search the log"
-            aria-label="Search the log"
-            className="h-8 pl-8"
-          />
-        </div>
+        <SearchPill
+          label="Search the log"
+          placeholder="Search the log"
+          value={query}
+          onValueChange={setQuery}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') goTo(event.shiftKey ? current - 1 : current + 1);
+          }}
+          className="min-w-48 flex-1"
+        />
         {query && (
           <span className="text-xs tabular-nums text-muted-foreground" role="status">
             {matches.length === 0 ? 'No matches' : `${current + 1} of ${matches.length}`}
@@ -91,24 +89,26 @@ export function ContainerLogsTab({
         )}
         {query && matches.length > 1 && (
           <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label="Previous match"
-              onClick={() => goTo(current - 1)}
-            >
-              <ArrowUp className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label="Next match"
-              onClick={() => goTo(current + 1)}
-            >
-              <ArrowDown className="h-3.5 w-3.5" />
-            </Button>
+            <SimpleTooltip label="Previous match (Shift+Enter)">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Previous match"
+                onClick={() => goTo(current - 1)}
+              >
+                <ArrowUp />
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip label="Next match (Enter)">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Next match"
+                onClick={() => goTo(current + 1)}
+              >
+                <ArrowDown />
+              </Button>
+            </SimpleTooltip>
           </>
         )}
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -123,23 +123,12 @@ export function ContainerLogsTab({
           Follow
         </label>
         {log.ended && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="gap-1.5"
-            onClick={() => setRun((n) => n + 1)}
-          >
+          <Button size="sm" variant="soft" onClick={() => setRun((n) => n + 1)}>
             <RefreshCw className="h-3.5 w-3.5" /> Read again
           </Button>
         )}
         {onSendToCli && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={onSendToCli}
-            disabled={log.lines.length === 0}
-          >
+          <Button size="sm" variant="soft" onClick={onSendToCli} disabled={log.lines.length === 0}>
             <Wand2 className="h-3.5 w-3.5" /> Send to the project CLI
           </Button>
         )}
@@ -158,7 +147,7 @@ export function ContainerLogsTab({
           }
           virtual.onScroll();
         }}
-        className="min-h-48 flex-1 overflow-auto rounded-lg border border-border bg-background/70 py-1 font-mono text-[12px]"
+        className="min-h-48 flex-1 overflow-auto rounded-xl bg-background/70 py-1 font-mono text-[12px] ring-1 ring-inset ring-foreground/[0.08]"
         role="log"
         aria-label={`Log of ${container.name}`}
         aria-busy={!log.ready}

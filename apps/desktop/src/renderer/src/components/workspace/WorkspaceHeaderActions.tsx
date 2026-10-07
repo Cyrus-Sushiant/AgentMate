@@ -130,7 +130,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
       </ContextMenu>
       <SimpleTooltip label={`Tag a version of ${project.name}`}>
         <Button
-          variant={tagOpen ? 'secondary' : 'ghost'}
+          variant={tagOpen ? 'soft' : 'ghost'}
           size="icon"
           aria-label="Tag a version"
           onClick={() => openVersionDialog(parentId)}
@@ -150,7 +150,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
       </SimpleTooltip>
       <SimpleTooltip label="Running CLIs: CPU and memory for every terminal">
         <Button
-          variant={runningClisOpen ? 'secondary' : 'ghost'}
+          variant={runningClisOpen ? 'soft' : 'ghost'}
           size="icon"
           aria-label="Running CLIs"
           onClick={() => setRunningClisOpen(true)}

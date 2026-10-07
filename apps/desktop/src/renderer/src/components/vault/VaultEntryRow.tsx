@@ -1,6 +1,7 @@
 import type { VaultEntrySummary } from '@agentmat/core';
 import { motion } from 'framer-motion';
 import { Copy, Key, Star } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { EntryAvatar } from './EntryAvatar';
@@ -10,9 +11,6 @@ import type { useVaultActions } from './useVaultActions';
 export function vaultOptionId(id: string): string {
   return `vault-option-${id}`;
 }
-
-const ROW_BUTTON =
-  'flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function Highlighted({ text, ranges }: { text: string; ranges: [number, number][] }) {
   if (ranges.length === 0) return <>{text}</>;
@@ -98,32 +96,32 @@ export function VaultEntryRow({
       >
         {canCopyUsername && (
           <SimpleTooltip label="Copy username">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label="Copy username"
-              className={ROW_BUTTON}
               onClick={(event) => {
                 event.stopPropagation();
                 void actions.copy(entry.id, 'username', 'Username');
               }}
             >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
+              <Copy />
+            </Button>
           </SimpleTooltip>
         )}
         {secret && (
           <SimpleTooltip label={`Copy ${secret.label.toLowerCase()}`}>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label={`Copy ${secret.label.toLowerCase()}`}
-              className={ROW_BUTTON}
               onClick={(event) => {
                 event.stopPropagation();
                 void actions.copy(entry.id, secret.ref, secret.label);
               }}
             >
-              <Key className="h-3.5 w-3.5" />
-            </button>
+              <Key />
+            </Button>
           </SimpleTooltip>
         )}
       </div>

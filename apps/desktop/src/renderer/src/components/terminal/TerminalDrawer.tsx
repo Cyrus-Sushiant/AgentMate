@@ -12,6 +12,7 @@ import {
   WindowRestore,
   X,
 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -53,14 +54,9 @@ function IconButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick}>
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -103,19 +99,26 @@ function SessionTab({
             onClose();
           }
         }}
+        // A pill with a glowing underline, like a Workspace pane's tabs and the API Client's.
         className={cn(
-          'group relative flex h-7 max-w-[14rem] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+          'group relative flex h-7 max-w-[14rem] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
           active
-            ? 'bg-[#0a1210] text-zinc-100'
-            : 'text-muted-foreground hover:bg-foreground/8 hover:text-foreground',
+            ? 'bg-foreground/[0.08] text-foreground'
+            : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
         )}
       >
+        {active ? (
+          <span
+            aria-hidden
+            className="absolute inset-x-2 -bottom-[6px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+          />
+        ) : null}
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={cn(
               'h-1.5 w-1.5 shrink-0 rounded-full',
               aiWaiting
-                ? 'animate-pulse bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]'
+                ? 'animate-pulse bg-warning shadow-[0_0_6px_hsl(var(--warning))]'
                 : active
                   ? 'terminal-live-dot bg-primary shadow-[0_0_6px_hsl(var(--primary))]'
                   : 'bg-foreground/25',
@@ -134,7 +137,7 @@ function SessionTab({
           className={cn(
             'flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:bg-foreground/15 hover:text-foreground',
             active
-              ? 'opacity-100'
+              ? 'opacity-70'
               : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
           )}
         >
@@ -214,7 +217,7 @@ export function SessionTabStrip({
   const canScroll = overflow.start || overflow.end;
 
   return (
-    <div className="flex min-w-0 flex-1 items-end gap-0.5">
+    <div className="flex min-w-0 flex-1 items-center gap-0.5">
       {canScroll && (
         <button
           type="button"
@@ -222,7 +225,7 @@ export function SessionTabStrip({
           aria-label="Scroll tabs left"
           disabled={!overflow.start}
           onClick={() => scrollBy(-TAB_SCROLL)}
-          className="mb-px flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+          className="flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
         >
           <ArrowLeft className="h-3 w-3" />
         </button>
@@ -232,7 +235,7 @@ export function SessionTabStrip({
         role="tablist"
         aria-label="Terminal sessions"
         onScroll={syncOverflow}
-        className="flex min-w-0 flex-1 flex-nowrap items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 self-stretch overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {sessions.map((session) => (
           <SessionTab
@@ -251,7 +254,7 @@ export function SessionTabStrip({
           aria-label="Scroll tabs right"
           disabled={!overflow.end}
           onClick={() => scrollBy(TAB_SCROLL)}
-          className="mb-px flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+          className="flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
         >
           <ArrowRight className="h-3 w-3" />
         </button>
@@ -260,11 +263,20 @@ export function SessionTabStrip({
   );
 }
 
+/**
+ * Where the drawer sits, which sets its gutters. On a page it lines up with the page island
+ * (8px at the sides); on the Workspace it lines up with the panes and the project panel,
+ * which are inset 6px all round.
+ */
+export type TerminalDrawerPlacement = 'page' | 'workspace';
+
 export function TerminalDrawer({
   hidden = false,
+  placement = 'page',
 }: {
-  /** Keeps the drawer mounted but off screen, e.g. on the Workspace page, so its shells keep streaming. */
+  /** Keeps the drawer mounted but off screen even while open, so its shells keep streaming. */
   hidden?: boolean;
+  placement?: TerminalDrawerPlacement;
 }): React.JSX.Element {
   const isOpen = useTerminalStore((s) => s.isOpen);
   const drawerHeight = useTerminalStore((s) => s.drawerHeight);
@@ -278,11 +290,13 @@ export function TerminalDrawer({
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
   const toggleShortcut = useShortcutLabel('terminal.toggle');
   const newTabShortcut = useShortcutLabel('terminal.new');
-  const [isMaximized, setIsMaximized] = useState(false);
+  const isMaximized = useTerminalStore((s) => s.isMaximized);
+  const setIsMaximized = useTerminalStore((s) => s.setMaximized);
   const [isResizing, setIsResizing] = useState(false);
   const [askAiOpen, setAskAiOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions.at(-1) ?? null;
 
@@ -296,7 +310,8 @@ export function TerminalDrawer({
     event.preventDefault();
     const startY = event.clientY;
     const startHeight = drawerRef.current?.offsetHeight ?? drawerHeight;
-    const parentHeight = drawerRef.current?.parentElement?.clientHeight ?? window.innerHeight;
+    // The room to share is the page area the drawer stacks under, not the drawer's own frame.
+    const parentHeight = shellRef.current?.parentElement?.clientHeight ?? window.innerHeight;
     const maxHeight = Math.max(TERMINAL_MIN_HEIGHT, parentHeight - 240);
     setIsResizing(true);
     document.body.style.cursor = 'ns-resize';
@@ -331,20 +346,31 @@ export function TerminalDrawer({
     }
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMaximized, isOpen]);
+  }, [isMaximized, isOpen, setIsMaximized]);
 
   // Closing the drawer only hides it: the panes stay mounted so their output keeps
   // flowing into xterm. Ending a shell is what closing an individual tab is for.
+  //
+  // The drawer is its own island stacked under the page (or under the Workspace grid), not an
+  // overlay inside it. The outer frame holds the gutters and the resize grip, which sits in the
+  // gap above the island: the island clips to its rounded corners, so the grip can't live in it.
+  const onWorkspace = placement === 'workspace';
   return (
-    <div
-      ref={drawerRef}
+    <section
+      ref={shellRef}
+      aria-label="Terminal"
       className={cn(
-        'flex flex-col border-t border-border bg-card/90 backdrop-blur-xl',
-        isMaximized ? 'absolute inset-0 z-50 h-auto' : 'absolute inset-x-0 bottom-0 z-20',
+        'relative z-20 flex shrink-0 flex-col',
+        isMaximized
+          ? cn('absolute z-50', onWorkspace ? 'inset-1.5' : 'inset-x-2 top-0 bottom-1.5')
+          : cn(
+              // Pulled up over the bottom gutter of whatever sits above, so the grip makes the
+              // whole gap: 8px under a page island, 6px like the Workspace's own gaps.
+              '-mt-1.5 mb-1.5 max-h-[calc(100%-6rem)]',
+              onWorkspace ? 'mx-1.5' : 'mx-2',
+            ),
         (!isOpen || hidden) && 'hidden',
-        isResizing && 'select-none',
       )}
-      style={isMaximized || !isOpen || hidden ? undefined : { height: drawerHeight }}
     >
       {!isMaximized && (
         <div
@@ -352,146 +378,167 @@ export function TerminalDrawer({
           aria-orientation="horizontal"
           aria-label="Resize terminal"
           onPointerDown={startResize}
-          className="group absolute inset-x-0 -top-1 z-10 flex h-2 cursor-ns-resize items-start justify-center"
+          className={cn(
+            'group flex shrink-0 cursor-row-resize items-center justify-center',
+            onWorkspace ? 'h-1.5' : 'h-2',
+          )}
         >
-          <div className="mt-px h-1 w-10 rounded-full bg-foreground/20 transition-colors group-hover:bg-primary group-hover:shadow-[0_0_8px_hsl(var(--primary)/0.55)]" />
-        </div>
-      )}
-
-      <div className="flex h-9 shrink-0 items-end gap-1 px-1.5 pt-1">
-        {sessions.length === 0 ? (
-          <div className="flex h-7 items-center gap-2 px-2 text-xs text-muted-foreground">
-            <TerminalSquare className="h-3.5 w-3.5" />
-            No sessions
-          </div>
-        ) : (
-          <SessionTabStrip
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSelect={setActiveSession}
-            onClose={closeSession}
-          />
-        )}
-        {sessions.length === 0 && <div className="flex-1" />}
-        <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
-          {activeSession && (
-            <IconButton label="Ask AI to run a task here" onClick={() => setAskAiOpen(true)}>
-              <Robot className="h-3.5 w-3.5" />
-            </IconButton>
-          )}
-          {activeSession && (
-            <IconButton label="AI task history" onClick={() => setHistoryOpen(true)}>
-              <History className="h-3.5 w-3.5" />
-            </IconButton>
-          )}
-          <IconButton
-            label={
-              newTabShortcut
-                ? `New ${defaultNewSession().title} (${newTabShortcut})`
-                : `New ${defaultNewSession().title}`
-            }
-            onClick={() => void openDefaultSession()}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </IconButton>
-          <IconButton
-            label={isMaximized ? 'Restore terminal' : 'Maximize terminal'}
-            onClick={() => setIsMaximized((v) => !v)}
-          >
-            {isMaximized ? (
-              <WindowRestore className="h-3.5 w-3.5" />
-            ) : (
-              <WindowMaximize className="h-3.5 w-3.5" />
+          {/* Quiet until hovered, like the split handles between Workspace panes. */}
+          <span
+            className={cn(
+              'h-[3px] w-10 rounded-full transition-colors duration-150',
+              isResizing
+                ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.7)]'
+                : 'bg-transparent group-hover:bg-primary/70',
             )}
-          </IconButton>
-          <IconButton label="Close terminal panel" onClick={handleCloseDrawer}>
-            <X className="h-3.5 w-3.5" />
-          </IconButton>
+          />
         </div>
-      </div>
-
-      {activeSession && (
-        <SshAgentStatusBar
-          sessionId={activeSession.id}
-          onOpenHistory={() => setHistoryOpen(true)}
-        />
       )}
 
-      <div className="terminal-well relative min-h-0 flex-1 overflow-hidden">
-        {sessions.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <TerminalSquare className="h-5 w-5" />
+      <div
+        ref={drawerRef}
+        className={cn(
+          'chrome-island flex min-h-0 flex-col',
+          isMaximized ? 'flex-1' : 'shrink',
+          isResizing && 'select-none',
+        )}
+        style={isMaximized || !isOpen || hidden ? undefined : { height: drawerHeight }}
+      >
+        {/* The tab row, drawn like a Workspace pane's: pills over a hairline. */}
+        <div className="flex h-10 shrink-0 items-stretch gap-1 px-1.5 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
+          {sessions.length === 0 ? (
+            <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+              <TerminalSquare className="h-3.5 w-3.5" />
+              No sessions
             </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-zinc-100">Open a terminal</p>
-              <p className="max-w-sm text-xs leading-relaxed text-zinc-400">
-                Run installs, project commands, and CLIs here. Sessions keep running if you hide
-                this panel or AgentMate restarts to update.
-              </p>
-            </div>
-            <button
-              type="button"
+          ) : (
+            <SessionTabStrip
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelect={setActiveSession}
+              onClose={closeSession}
+            />
+          )}
+          {sessions.length === 0 && <div className="flex-1" />}
+          <div className="flex shrink-0 items-center gap-0.5">
+            {activeSession && (
+              <IconButton label="Ask AI to run a task here" onClick={() => setAskAiOpen(true)}>
+                <Robot className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+            {activeSession && (
+              <IconButton label="AI task history" onClick={() => setHistoryOpen(true)}>
+                <History className="h-3.5 w-3.5" />
+              </IconButton>
+            )}
+            <IconButton
+              label={
+                newTabShortcut
+                  ? `New ${defaultNewSession().title} (${newTabShortcut})`
+                  : `New ${defaultNewSession().title}`
+              }
               onClick={() => void openDefaultSession()}
-              className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-[0_0_18px_-6px_hsl(var(--primary)/0.7)] hover:brightness-110"
             >
               <Plus className="h-3.5 w-3.5" />
-              New {defaultNewSession().title}
-            </button>
+            </IconButton>
+            <IconButton
+              label={isMaximized ? 'Restore terminal' : 'Maximize terminal'}
+              onClick={() => setIsMaximized(!isMaximized)}
+            >
+              {isMaximized ? (
+                <WindowRestore className="h-3.5 w-3.5" />
+              ) : (
+                <WindowMaximize className="h-3.5 w-3.5" />
+              )}
+            </IconButton>
+            <IconButton label="Close terminal panel" onClick={handleCloseDrawer}>
+              <X className="h-3.5 w-3.5" />
+            </IconButton>
           </div>
-        ) : (
-          sessions.map((session) => (
-            <TerminalPane
-              key={session.id}
-              meta={session}
-              active={isOpen && !hidden && session.id === activeSessionId}
-              onExit={() => forgetSession(session.id)}
-            />
-          ))
+        </div>
+
+        {activeSession && (
+          <SshAgentStatusBar
+            sessionId={activeSession.id}
+            onOpenHistory={() => setHistoryOpen(true)}
+          />
+        )}
+
+        <div className="terminal-well relative min-h-0 flex-1 overflow-hidden">
+          {sessions.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+              {/* The well is always the dark terminal fill here, so the text keeps its light tones. */}
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
+                <TerminalSquare className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-zinc-100">Open a terminal</p>
+                <p className="max-w-sm text-xs leading-relaxed text-zinc-400">
+                  Run installs, project commands, and CLIs here. Sessions keep running if you hide
+                  this panel or AgentMate restarts to update.
+                </p>
+              </div>
+              <Button onClick={() => void openDefaultSession()}>
+                <Plus className="h-3.5 w-3.5" />
+                New {defaultNewSession().title}
+              </Button>
+            </div>
+          ) : (
+            sessions.map((session) => (
+              <TerminalPane
+                key={session.id}
+                meta={session}
+                active={isOpen && !hidden && session.id === activeSessionId}
+                onExit={() => forgetSession(session.id)}
+              />
+            ))
+          )}
+        </div>
+
+        <div className="flex h-6 shrink-0 items-center gap-2 px-3 font-mono text-[10px] text-muted-foreground shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]">
+          <span className="truncate">
+            {activeSession?.kind === 'ssh' ? 'SSH' : shellDisplayName(activeSession?.shell)}
+          </span>
+          {activeSession?.cwd ? (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <SimpleTooltip label={activeSession.cwd} side="top">
+                <span className="flex min-w-0 items-center gap-1.5 truncate">
+                  <Folder className="h-2.5 w-2.5 shrink-0" />
+                  {shortPath(activeSession.cwd)}
+                </span>
+              </SimpleTooltip>
+            </>
+          ) : null}
+          <span className="flex-1" />
+          <span>
+            {sessions.length} session{sessions.length === 1 ? '' : 's'}
+          </span>
+          {toggleShortcut ? (
+            <>
+              <span className="text-muted-foreground/40">·</span>
+              <span>{toggleShortcut}</span>
+            </>
+          ) : null}
+        </div>
+
+        {activeSession && (
+          <SshAskAiDialog
+            sessionId={activeSession.id}
+            target={activeSession.kind === 'ssh' ? 'ssh' : 'local'}
+            open={askAiOpen}
+            onOpenChange={setAskAiOpen}
+          />
+        )}
+        {activeSession && (
+          <SshAgentHistoryDialog
+            sessionId={activeSession.id}
+            sessionTitle={activeSession.title}
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+          />
         )}
       </div>
-
-      <div className="flex h-6 shrink-0 items-center gap-2 border-t border-white/5 bg-[#0a1210] px-3 font-mono text-[10px] text-zinc-500">
-        <span className="truncate">
-          {activeSession?.kind === 'ssh' ? 'SSH' : shellDisplayName(activeSession?.shell)}
-        </span>
-        {activeSession?.cwd ? (
-          <>
-            <span className="text-zinc-700">·</span>
-            <span className="flex min-w-0 items-center gap-1.5 truncate" title={activeSession.cwd}>
-              <Folder className="h-2.5 w-2.5 shrink-0" />
-              {shortPath(activeSession.cwd)}
-            </span>
-          </>
-        ) : null}
-        <span className="flex-1" />
-        <span>
-          {sessions.length} session{sessions.length === 1 ? '' : 's'}
-        </span>
-        {toggleShortcut ? (
-          <>
-            <span className="text-zinc-700">·</span>
-            <span>{toggleShortcut}</span>
-          </>
-        ) : null}
-      </div>
-
-      {activeSession && (
-        <SshAskAiDialog
-          sessionId={activeSession.id}
-          target={activeSession.kind === 'ssh' ? 'ssh' : 'local'}
-          open={askAiOpen}
-          onOpenChange={setAskAiOpen}
-        />
-      )}
-      {activeSession && (
-        <SshAgentHistoryDialog
-          sessionId={activeSession.id}
-          sessionTitle={activeSession.title}
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-        />
-      )}
-    </div>
+    </section>
   );
 }

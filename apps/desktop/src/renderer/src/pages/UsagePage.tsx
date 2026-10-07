@@ -39,11 +39,7 @@ import {
   Chip,
   GLASS_CARD,
   MetricTile,
-  PILL_PRIMARY,
-  PILL_SOFT,
-  PILL_SOFT_ICON,
   SearchPill,
-  TILE_ACTION,
   TileHeader,
   TOOLBAR,
 } from '@/components/pageKit';
@@ -255,8 +251,8 @@ export default function UsagePage(): React.JSX.Element {
       <SimpleTooltip label={pinned ? 'Remove from dashboard' : 'Add to dashboard'}>
         <Button
           variant="ghost"
-          size="icon"
-          className={cn(TILE_ACTION, pinned && 'text-primary hover:text-primary')}
+          size="icon-sm"
+          className={cn(pinned && 'text-primary hover:text-primary')}
           onClick={() => void toggleSummaryDashboard(id, label)}
         >
           <LayoutDashboard />
@@ -341,10 +337,10 @@ export default function UsagePage(): React.JSX.Element {
   return (
     <div className="flex flex-col gap-2 p-2">
       <div className={TOOLBAR}>
-        <Button className={PILL_PRIMARY} onClick={() => setAddOpen(true)}>
+        <Button onClick={() => setAddOpen(true)}>
           <Plus /> Add provider
         </Button>
-        <Button variant="ghost" className={PILL_SOFT} onClick={() => void refreshAll()}>
+        <Button variant="soft" onClick={() => void refreshAll()}>
           <RefreshCw className={usageQuery.isFetching ? 'animate-spin' : undefined} /> Refresh
         </Button>
         {editing && (
@@ -354,9 +350,9 @@ export default function UsagePage(): React.JSX.Element {
         )}
         <SimpleTooltip label={editing ? 'Done editing' : 'Edit card order'}>
           <Button
-            variant={editing ? 'default' : 'ghost'}
+            variant={editing ? 'default' : 'soft'}
             size="icon"
-            className={cn('ml-auto', editing ? 'h-8 w-8 rounded-full' : PILL_SOFT_ICON)}
+            className="ml-auto"
             aria-label={editing ? 'Done editing' : 'Edit card order'}
             onClick={() => setEditing(!editing)}
           >
@@ -365,8 +361,9 @@ export default function UsagePage(): React.JSX.Element {
         </SimpleTooltip>
       </div>
 
-      {/* Summary tiles: each waits on its own query rather than the page. */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      {/* Summary tiles: each waits on its own query rather than the page. Four across only
+          from xl, since narrower windows cut their titles short. */}
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <MetricTile
           icon={<ChartColumn />}
           label="Tokens today"
@@ -430,9 +427,8 @@ export default function UsagePage(): React.JSX.Element {
             >
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 className={cn(
-                  TILE_ACTION,
                   dashboardCards.includes(ALL_AGENTS_WIDGET_ID) &&
                     'text-primary hover:text-primary',
                 )}
@@ -442,12 +438,7 @@ export default function UsagePage(): React.JSX.Element {
               </Button>
             </SimpleTooltip>
             <SimpleTooltip label="Add to desktop">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={TILE_ACTION}
-                onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => popOut(ALL_AGENTS_WIDGET_ID)}>
                 <Pin />
               </Button>
             </SimpleTooltip>
@@ -540,12 +531,9 @@ export default function UsagePage(): React.JSX.Element {
                         >
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
+                            className={cn(resetAlerts.enabled && 'text-primary hover:text-primary')}
                             disabled={!settings}
-                            className={cn(
-                              TILE_ACTION,
-                              resetAlerts.enabled && 'text-primary hover:text-primary',
-                            )}
                             onClick={() => setAlertsOpen(true)}
                           >
                             <Bell />
@@ -562,12 +550,11 @@ export default function UsagePage(): React.JSX.Element {
                         >
                           <Button
                             variant="ghost"
-                            size="icon"
-                            disabled={!settings}
+                            size="icon-sm"
                             className={cn(
-                              TILE_ACTION,
                               thresholdAlerts.enabled && 'text-primary hover:text-primary',
                             )}
+                            disabled={!settings}
                             onClick={() => setThresholdAlertsOpen(true)}
                           >
                             <TriangleAlert />
@@ -586,8 +573,7 @@ export default function UsagePage(): React.JSX.Element {
                         >
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             onClick={() => void toggleCardMode(id)}
                           >
                             {cardMode === 'subscription' ? <ChartColumn /> : <Clock />}
@@ -601,23 +587,15 @@ export default function UsagePage(): React.JSX.Element {
                       >
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className={cn(
-                            TILE_ACTION,
-                            onDashboard && 'text-primary hover:text-primary',
-                          )}
+                          size="icon-sm"
+                          className={cn(onDashboard && 'text-primary hover:text-primary')}
                           onClick={() => void toggleDashboard(id)}
                         >
                           <LayoutDashboard />
                         </Button>
                       </SimpleTooltip>
                       <SimpleTooltip label="Add to desktop">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={TILE_ACTION}
-                          onClick={() => popOut(id)}
-                        >
+                        <Button variant="ghost" size="icon-sm" onClick={() => popOut(id)}>
                           <Pin />
                         </Button>
                       </SimpleTooltip>
@@ -625,8 +603,7 @@ export default function UsagePage(): React.JSX.Element {
                         <SimpleTooltip label="Remove">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             onClick={() => void setConfig(id, { ...configs[id], enabled: false })}
                           >
                             <X />
@@ -831,8 +808,8 @@ function ResetAlertDialog({
         </div>
 
         <Button
-          variant="ghost"
-          className={cn(PILL_SOFT, 'justify-self-start')}
+          variant="soft"
+          className="justify-self-start"
           disabled={testing}
           onClick={() => void sendTest()}
         >
@@ -966,8 +943,8 @@ function ThresholdAlertDialog({
         </div>
 
         <Button
-          variant="ghost"
-          className={cn(PILL_SOFT, 'justify-self-start')}
+          variant="soft"
+          className="justify-self-start"
           disabled={testing}
           onClick={() => void sendTest()}
         >
@@ -1053,7 +1030,6 @@ function AddProviderDialog({
                         className="h-8 w-40"
                       />
                       <Button
-                        size="sm"
                         disabled={!keys[def.id]}
                         onClick={() =>
                           void onSave(def.id, { enabled: true, apiKey: keys[def.id] ?? null })

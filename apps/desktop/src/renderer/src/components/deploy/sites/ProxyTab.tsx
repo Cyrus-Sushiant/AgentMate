@@ -21,7 +21,7 @@ const KINDS = [
 export function ProxyTab({ draft, set, error, readOnly }: SiteTabProps): React.JSX.Element {
   const group = useId();
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Section title="Upstream" description="Where nginx passes each request it receives.">
         <div role="radiogroup" aria-labelledby={group} className="grid gap-2 sm:grid-cols-2">
           <span id={group} className="sr-only">
@@ -38,16 +38,21 @@ export function ProxyTab({ draft, set, error, readOnly }: SiteTabProps): React.J
                 disabled={readOnly}
                 onClick={() => set({ upstreamKind: kind.value })}
                 className={cn(
-                  'rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed',
-                  chosen ? 'border-primary bg-primary/10' : 'border-border hover:bg-secondary/50',
+                  // Inset rings, since a tinted border would lose to the global border colour.
+                  'cursor-pointer rounded-xl p-3 text-left ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed',
+                  chosen
+                    ? 'bg-primary/12 ring-primary/40'
+                    : 'bg-background/40 ring-foreground/[0.08] hover:bg-foreground/[0.06]',
                 )}
               >
                 <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <span
                     aria-hidden
                     className={cn(
-                      'h-3 w-3 rounded-full border',
-                      chosen ? 'border-primary bg-primary' : 'border-muted-foreground',
+                      'h-3 w-3 rounded-full ring-1 ring-inset',
+                      chosen
+                        ? 'bg-primary ring-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]'
+                        : 'ring-muted-foreground/60',
                     )}
                   />
                   {kind.label}

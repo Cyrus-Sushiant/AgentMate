@@ -14,7 +14,6 @@ import { useId, useState } from 'react';
 import { EffortPicker } from '@/components/cli/RunSettingsFields';
 import { CliLogo } from '@/components/cliLogos';
 import { Check, ChevronDown, ChevronRight, TriangleAlert, Undo } from '@/components/icons';
-import { CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -207,13 +206,7 @@ function LaunchDefaultsRow({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
             <CommandPreview executable={cli.executableNames[0] ?? cli.id} parts={parts} />
-            <Button
-              variant="ghost"
-              size="sm"
-              className={CARD_PILL_SOFT}
-              disabled={!isSet}
-              onClick={() => clearDefault(cli.id)}
-            >
+            <Button variant="soft" size="sm" disabled={!isSet} onClick={() => clearDefault(cli.id)}>
               <Undo /> Reset
             </Button>
           </div>

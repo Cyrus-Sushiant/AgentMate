@@ -19,4 +19,12 @@ describe('StateChip', () => {
     expect(screen.getByText(label)).toBeInTheDocument();
     expect(root.querySelector('svg')?.getAttribute('data-icon')).toBe(icon);
   });
+
+  it('is a tinted chip that keeps the state on the element', () => {
+    const { container: root } = render(
+      <StateChip container={{ state: 'running', health: 'unhealthy' }} />,
+    );
+    const chip = root.querySelector('[data-state="running"]');
+    expect(chip).toHaveClass('rounded-full', 'text-destructive');
+  });
 });

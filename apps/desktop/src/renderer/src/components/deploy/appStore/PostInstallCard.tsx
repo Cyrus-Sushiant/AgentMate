@@ -6,11 +6,12 @@ import {
 } from '@agentmat/core';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Eye, EyeOff, History, Lock, RefreshCw, Spinner } from '@/components/icons';
+import { Copy, Eye, EyeOff, History, Lock, Plug, RefreshCw, Spinner } from '@/components/icons';
+import { FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { type UpdateOffer, updateOffers } from '@/lib/deploy/appStore/format';
+import { DeployCard } from '../deployKit';
 
 /**
  * After an install: how to reach the app, with every password and connection string masked
@@ -41,25 +42,24 @@ function FactRow({
   const button = (
     <Button
       type="button"
-      size="icon"
+      size="icon-sm"
       variant="ghost"
-      className="h-7 w-7 shrink-0"
       aria-label={`Copy ${fact.label}`}
       disabled={!canCopy}
       onClick={() => void copy(fact.value, fact.label)}
     >
-      <Copy className="h-3.5 w-3.5" />
+      <Copy />
     </Button>
   );
   return (
-    <li aria-label={fact.label} className="flex items-center gap-3 py-1.5">
+    <li aria-label={fact.label} className="flex items-center gap-3 py-2">
       <span className="w-36 shrink-0 text-xs text-muted-foreground">{fact.label}</span>
       <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-xs text-foreground">
         {fact.sensitive && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
         <span className="min-w-0 break-all">{hidden ? fact.masked : fact.value}</span>
       </span>
       {canCopy ? (
-        button
+        <SimpleTooltip label={`Copy ${fact.label.toLowerCase()}`}>{button}</SimpleTooltip>
       ) : (
         <SimpleTooltip label="Reveal the passwords first" wrapTrigger>
           {button}
@@ -106,97 +106,89 @@ export function PostInstallCard({
   const anySensitive = facts.ok && facts.facts.some((fact) => fact.sensitive);
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 space-y-0">
-        <div>
-          <CardTitle className="text-base">Connect to {name}</CardTitle>
-          <CardDescription>
-            {label}
-            {install.domain ? ` on ${install.domain}` : ', on this server only'}
-          </CardDescription>
-        </div>
-        {anySensitive &&
-          (known ? (
-            <Button size="sm" variant="outline" onClick={() => setShowing((value) => !value)}>
-              {showing ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showing ? 'Hide passwords' : 'Show passwords'}
-            </Button>
-          ) : canAdmin ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={revealing}
-              onClick={() => {
-                setShowing(true);
-                onReveal();
-              }}
-            >
-              {revealing ? (
-                <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-              ) : (
-                <Eye className="h-3.5 w-3.5" />
-              )}
-              Reveal passwords
-            </Button>
-          ) : (
-            <p className="max-w-56 text-xs text-muted-foreground">
-              Only an Admin can reveal the passwords.
-            </p>
-          ))}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {facts.ok ? (
-          <ul aria-label="Connection details" className="divide-y divide-border/60">
-            {facts.facts.map((fact) => (
-              <FactRow key={fact.id} fact={fact} showing={showing && known} known={known} />
-            ))}
-          </ul>
+    <DeployCard
+      icon={<Plug />}
+      title={`Connect to ${name}`}
+      description={`${label}${install.domain ? ` on ${install.domain}` : ', on this server only'}`}
+      actions={
+        anySensitive &&
+        (known ? (
+          <Button size="sm" variant="soft" onClick={() => setShowing((value) => !value)}>
+            {showing ? <EyeOff /> : <Eye />}
+            {showing ? 'Hide passwords' : 'Show passwords'}
+          </Button>
+        ) : canAdmin ? (
+          <Button
+            size="sm"
+            variant="soft"
+            disabled={revealing}
+            onClick={() => {
+              setShowing(true);
+              onReveal();
+            }}
+          >
+            {revealing ? <Spinner className="motion-safe:animate-spin" /> : <Eye />}
+            Reveal passwords
+          </Button>
         ) : (
-          <p role="alert" className="text-sm text-destructive">
-            {facts.reason}
+          <p className="max-w-56 text-xs text-muted-foreground">
+            Only an Admin can reveal the passwords.
           </p>
-        )}
+        ))
+      }
+      bodyClassName="space-y-4"
+    >
+      {facts.ok ? (
+        <ul aria-label="Connection details" className="settings-rows">
+          {facts.facts.map((fact) => (
+            <FactRow key={fact.id} fact={fact} showing={showing && known} known={known} />
+          ))}
+        </ul>
+      ) : (
+        <p role="alert" className="text-sm text-destructive">
+          {facts.reason}
+        </p>
+      )}
 
-        <section aria-label="Updates" className="space-y-2 border-t border-border/60 pt-3">
-          {offers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Up to date: it runs the images the App Store pins for {label}.
-            </p>
-          ) : (
-            offers.map((offer) =>
-              offer.kind === 'none' ? null : (
-                <div
-                  key={offer.kind}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1 text-sm">
-                    <p>{offer.text}</p>
-                    {offer.kind === 'digest' && (
-                      <p className="font-mono text-[11px] text-muted-foreground">{offer.detail}</p>
-                    )}
-                    {offer.kind === 'line' && (
-                      <p className="text-xs text-muted-foreground">
-                        A new release line can change how data is stored. Back up first.
-                      </p>
-                    )}
-                  </div>
-                  {canOperate && (
-                    <Button size="sm" disabled={busy} onClick={() => onUpdate(offer)}>
-                      {offer.kind === 'digest' ? 'Update' : `Move to ${offer.version.label}`}
-                    </Button>
+      <section aria-label="Updates" className={`space-y-2 pt-3 ${FOOTER_HAIRLINE}`}>
+        {offers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Up to date: it runs the images the App Store pins for {label}.
+          </p>
+        ) : (
+          offers.map((offer) =>
+            offer.kind === 'none' ? null : (
+              <div
+                key={offer.kind}
+                className="flex flex-wrap items-center gap-3 rounded-xl bg-primary/8 px-3 py-2 ring-1 ring-inset ring-primary/25"
+              >
+                <RefreshCw className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1 text-sm">
+                  <p>{offer.text}</p>
+                  {offer.kind === 'digest' && (
+                    <p className="font-mono text-[11px] text-muted-foreground">{offer.detail}</p>
+                  )}
+                  {offer.kind === 'line' && (
+                    <p className="text-xs text-muted-foreground">
+                      A new release line can change how data is stored. Back up first.
+                    </p>
                   )}
                 </div>
-              ),
-            )
-          )}
-          {canOperate && rollbackTo !== null && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={onRollback}>
-              <History className="h-3.5 w-3.5" /> Roll back to revision {rollbackTo}
-            </Button>
-          )}
-        </section>
-      </CardContent>
-    </Card>
+                {canOperate && (
+                  <Button size="sm" disabled={busy} onClick={() => onUpdate(offer)}>
+                    {offer.kind === 'digest' ? 'Update' : `Move to ${offer.version.label}`}
+                  </Button>
+                )}
+              </div>
+            ),
+          )
+        )}
+        {canOperate && rollbackTo !== null && (
+          <Button size="sm" variant="soft" disabled={busy} onClick={onRollback}>
+            <History /> Roll back to revision {rollbackTo}
+          </Button>
+        )}
+      </section>
+    </DeployCard>
   );
 }

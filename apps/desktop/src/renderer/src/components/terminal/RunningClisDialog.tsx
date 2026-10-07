@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { MENU_LABEL, OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -443,8 +444,6 @@ export function RunningClisDialog(): React.JSX.Element {
           <Button
             type="button"
             variant="destructive"
-            size="sm"
-            className="h-8 gap-1.5"
             disabled={selected.size === 0}
             onClick={() => void endRows(rows.filter((row) => selected.has(row.id)))}
           >
@@ -454,9 +453,8 @@ export function RunningClisDialog(): React.JSX.Element {
           <SimpleTooltip label="Refresh now">
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               size="icon"
-              className="h-8 w-8"
               aria-label="Refresh now"
               onClick={refreshUsage}
             >
@@ -517,14 +515,16 @@ export function RunningClisDialog(): React.JSX.Element {
               className="h-9 pl-9 pr-8"
             />
             {search ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 aria-label="Clear search"
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2"
               >
-                <X className="h-3 w-3" />
-              </button>
+                <X />
+              </Button>
             ) : null}
           </div>
           <FiltersPopover filters={filters} onChange={setFilters} hiddenCount={hiddenFilters} />
@@ -554,7 +554,7 @@ export function RunningClisDialog(): React.JSX.Element {
           </label>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
+              <Button type="button" variant="ghost" size="sm" className="gap-1.5">
                 <ChevronsUpDown className="h-3 w-3" />
                 Sort by {SORT_LABEL[sort.key]}
                 {sort.desc ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
@@ -654,7 +654,7 @@ function FilterOption({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-foreground/[0.06]">
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors hover:bg-foreground/[0.07]">
       <Checkbox checked={checked} onCheckedChange={onToggle} />
       {children}
     </label>
@@ -675,9 +675,10 @@ function FiltersPopover({
       <PopoverPrimitive.Trigger asChild>
         <Button
           type="button"
-          variant={hiddenCount > 0 ? 'secondary' : 'outline'}
+          variant="soft"
           size="sm"
-          className="h-9 gap-1.5"
+          // A filtered list tints the trigger, so it reads as on next to the plain search field.
+          className={cn('h-9 gap-1.5', hiddenCount > 0 && 'text-primary hover:text-primary')}
         >
           <Filter className="h-3 w-3" />
           Filters
@@ -693,9 +694,13 @@ function FiltersPopover({
           align="end"
           sideOffset={6}
           collisionPadding={8}
-          className="z-50 w-56 rounded-lg border border-border bg-popover/90 p-2 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          className={cn(
+            OVERLAY_SURFACE,
+            OVERLAY_MOTION,
+            'z-50 w-56 p-1 origin-[var(--radix-popover-content-transform-origin)]',
+          )}
         >
-          <p className="px-2 pb-1 pt-0.5 text-[11px] font-medium text-muted-foreground">Where</p>
+          <p className={MENU_LABEL}>Where</p>
           {ALL_SOURCES.map((source) => (
             <FilterOption
               key={source}
@@ -705,7 +710,7 @@ function FiltersPopover({
               {SOURCE_LABEL[source]}
             </FilterOption>
           ))}
-          <p className="px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">Kind</p>
+          <p className={MENU_LABEL}>Kind</p>
           <FilterOption
             checked={filters.kinds.has('agent')}
             onToggle={() => onChange({ ...filters, kinds: toggled(filters.kinds, 'agent') })}
@@ -718,7 +723,7 @@ function FiltersPopover({
           >
             Plain shells
           </FilterOption>
-          <p className="px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">State</p>
+          <p className={MENU_LABEL}>State</p>
           <FilterOption
             checked={filters.states.has('running')}
             onToggle={() => onChange({ ...filters, states: toggled(filters.states, 'running') })}

@@ -41,6 +41,13 @@ import type { SiteTabProps } from './tabTypes';
 
 const TONE = { ok: 'text-success', warn: 'text-warning', bad: 'text-destructive' } as const;
 
+/** The certificate's icon tile, tinted like the page kit's chips. */
+const TILE = {
+  ok: 'bg-success/12 text-success',
+  warn: 'bg-warning/12 text-warning',
+  bad: 'bg-destructive/12 text-destructive',
+} as const;
+
 export function SslTab({
   server,
   site,
@@ -145,7 +152,7 @@ export function SslTab({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Section title="Certificate">
         {!site ? (
           <p className="text-sm text-muted-foreground">
@@ -153,12 +160,16 @@ export function SslTab({
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <span
-                className={cn('flex items-center gap-2 text-base font-medium', TONE[badge.tone])}
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl',
+                  TILE[badge.tone],
+                )}
               >
-                <Mark className="h-4 w-4" /> {badge.label}
+                <Mark className="h-4 w-4" />
               </span>
+              <span className={cn('text-sm font-semibold', TONE[badge.tone])}>{badge.label}</span>
               <span className="text-sm text-muted-foreground">{badge.description}</span>
             </div>
             {certificate && (
@@ -227,7 +238,7 @@ export function SslTab({
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="soft"
                     disabled={busy === 'renew'}
                     onClick={() =>
                       void attempt('renew', () =>
@@ -243,18 +254,13 @@ export function SslTab({
                     Renew now
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setUploading(true)}
-                >
+                <Button type="button" size="sm" variant="soft" onClick={() => setUploading(true)}>
                   <Upload className="h-3.5 w-3.5" /> Upload a certificate
                 </Button>
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
+                  variant="soft"
                   disabled={busy === 'origin'}
                   onClick={() => void originCertificate()}
                 >
@@ -266,7 +272,12 @@ export function SslTab({
                   Cloudflare Origin CA
                 </Button>
                 {certificate && (
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setRemoving(true)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    onClick={() => setRemoving(true)}
+                  >
                     <Trash2 className="h-3.5 w-3.5" /> Remove
                   </Button>
                 )}

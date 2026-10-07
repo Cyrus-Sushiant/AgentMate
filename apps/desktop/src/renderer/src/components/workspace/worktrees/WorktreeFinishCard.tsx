@@ -1,6 +1,7 @@
 import { type Project, parseScopeId, type WorktreeInfo } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
 import { CircleCheck, GitBranch, GitMerge, GitPullRequest, Trash2 } from '@/components/icons';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { useWorktrees } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
@@ -50,14 +51,24 @@ export function WorktreeFinishCard({
     Boolean(worktree.branch) && !worktree.missing && (worktree.status?.ahead ?? 0) > 0;
 
   return (
+    // A glass card with a tinted ring: rings render on .glass, and the global border colour
+    // would repaint a tinted border.
     <div
       className={cn(
-        'mx-2.5 mt-2.5 rounded-lg border px-3 py-2.5',
-        done ? 'border-success/30 bg-success/[0.07]' : 'border-primary/25 bg-primary/[0.05]',
+        GLASS_CARD,
+        'mx-2 mt-2 px-3 py-2.5 ring-1 ring-inset',
+        done ? 'ring-success/30' : 'ring-primary/25',
       )}
     >
       <div className="flex items-center gap-1.5 text-xs">
-        <GitBranch className="h-3 w-3 shrink-0 text-primary" />
+        <span
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-md',
+            done ? 'bg-success/12 text-success' : 'bg-primary/12 text-primary',
+          )}
+        >
+          <GitBranch className="h-3 w-3" />
+        </span>
         <span className="truncate font-mono font-semibold">{worktreeLabel(worktree)}</span>
         <span className="shrink-0 text-muted-foreground">→ {base}</span>
       </div>
@@ -70,34 +81,31 @@ export function WorktreeFinishCard({
         {done ? <CircleCheck className="h-3 w-3" /> : null}
         {text}
       </p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1">
         <Button
-          size="sm"
-          variant={done ? 'outline' : 'default'}
-          className="h-7 gap-1.5 px-2.5 text-[11px]"
+          size="xs"
+          variant={done ? 'soft' : 'default'}
           disabled={!canMerge}
           onClick={() => commands.merge(project, worktree)}
         >
-          <GitMerge className="h-3 w-3" />
+          <GitMerge />
           Merge into {base}
         </Button>
         <Button
-          size="sm"
-          variant="outline"
-          className="h-7 gap-1.5 px-2.5 text-[11px]"
+          size="xs"
+          variant="soft"
           disabled={!worktree.branch}
           onClick={() => commands.pullRequest(project, worktree)}
         >
-          <GitPullRequest className="h-3 w-3" />
+          <GitPullRequest />
           Create pull request
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant={done ? 'default' : 'ghost'}
-          className="h-7 gap-1.5 px-2.5 text-[11px]"
           onClick={() => commands.remove(project, worktree)}
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 />
           Remove worktree
         </Button>
       </div>

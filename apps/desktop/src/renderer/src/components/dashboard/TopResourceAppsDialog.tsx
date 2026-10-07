@@ -131,8 +131,8 @@ function AppRow({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="mt-0.5 h-7 w-7 text-muted-foreground hover:text-destructive"
+          size="icon-sm"
+          className="mt-0.5 hover:text-destructive"
           disabled={killing}
           aria-label={`End ${app.name}`}
           onClick={() => onKill(app)}

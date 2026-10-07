@@ -17,7 +17,7 @@ export function Sparkline({
   const width = 80;
   const height = 24;
   if (values.length < 2) {
-    return <span className={`${className} block rounded bg-secondary/40`} aria-hidden />;
+    return <span className={`${className} block rounded bg-foreground/[0.05]`} aria-hidden />;
   }
   const top = Math.max(max ?? Math.max(...values), 1e-9);
   const points = values.map((value, i) => {

@@ -16,6 +16,7 @@ import {
   Spinner,
   StopCircle,
 } from '@/components/icons';
+import { GLASS_CARD, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   formatDuration,
@@ -39,18 +40,19 @@ import { StatusPill } from './StatusPill';
  */
 
 function StepMark({ state }: { state: StackStepState }): React.JSX.Element {
+  // Inset rings rather than borders: a tinted border would lose to the global border colour.
   const ring =
-    'relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background';
+    'relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-inset';
   if (state === 'succeeded') {
     return (
-      <span className={cn(ring, 'border-success/50 text-success')}>
+      <span className={cn(ring, 'bg-success/12 text-success ring-success/40')}>
         <CircleCheck className="h-3.5 w-3.5" />
       </span>
     );
   }
   if (state === 'failed') {
     return (
-      <span className={cn(ring, 'border-destructive/60 text-destructive')}>
+      <span className={cn(ring, 'bg-destructive/12 text-destructive ring-destructive/50')}>
         <CircleX className="h-3.5 w-3.5" />
       </span>
     );
@@ -60,7 +62,7 @@ function StepMark({ state }: { state: StackStepState }): React.JSX.Element {
       <span
         className={cn(
           ring,
-          'border-primary text-primary shadow-[0_0_14px_-2px_hsl(var(--primary)/0.7)]',
+          'bg-primary/12 text-primary ring-primary shadow-[0_0_14px_-2px_hsl(var(--primary)/0.7)]',
         )}
       >
         <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
@@ -69,20 +71,20 @@ function StepMark({ state }: { state: StackStepState }): React.JSX.Element {
   }
   if (state === 'cancelled') {
     return (
-      <span className={cn(ring, 'border-warning/50 text-warning')}>
+      <span className={cn(ring, 'bg-warning/12 text-warning ring-warning/40')}>
         <Ban className="h-3.5 w-3.5" />
       </span>
     );
   }
   if (state === 'skipped') {
     return (
-      <span className={cn(ring, 'border-dashed border-border text-muted-foreground')}>
+      <span className={cn(ring, 'text-muted-foreground ring-foreground/[0.12]')}>
         <Minus className="h-3.5 w-3.5" />
       </span>
     );
   }
   return (
-    <span className={cn(ring, 'border-border text-muted-foreground/60')}>
+    <span className={cn(ring, 'text-muted-foreground/60 ring-foreground/[0.12]')}>
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
     </span>
   );
@@ -121,7 +123,9 @@ function StepRow({
           aria-hidden="true"
           className={cn(
             'absolute top-7 bottom-0 left-[13px] w-px',
-            step.state === 'succeeded' || step.state === 'skipped' ? 'bg-success/40' : 'bg-border',
+            step.state === 'succeeded' || step.state === 'skipped'
+              ? 'bg-success/40'
+              : 'bg-foreground/[0.1]',
           )}
         />
       )}
@@ -133,7 +137,7 @@ function StepRow({
           disabled={!reached}
           aria-expanded={reached ? expanded : undefined}
           aria-controls={reached ? logId : undefined}
-          className="flex w-full items-start gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+          className="flex w-full cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent"
         >
           <span className="min-w-0 flex-1">
             <span
@@ -169,7 +173,10 @@ function StepRow({
             role="log"
             aria-label={`${label} log`}
             aria-live={step.state === 'running' ? 'polite' : 'off'}
-            className="mt-2 max-h-64 overflow-auto rounded-lg border border-border bg-secondary/40 p-3 font-mono text-xs leading-relaxed"
+            className={cn(
+              SECTION_WELL,
+              'mt-2 max-h-64 overflow-auto font-mono text-xs leading-relaxed',
+            )}
           >
             {lines.length === 0 ? (
               <p className="text-muted-foreground">
@@ -239,6 +246,7 @@ export function DeployTimeline({
   canOperate,
   onSettled,
   onRollback,
+  flat = false,
 }: {
   serverId: string;
   revision: StackRevisionInfo;
@@ -247,6 +255,8 @@ export function DeployTimeline({
   onSettled?: () => void;
   /** Offered on an older revision that ran once. */
   onRollback?: () => void;
+  /** Drawn as a soft well instead of a glass card, for a spot already inside one. */
+  flat?: boolean;
 }): React.JSX.Element {
   const log = useJobLines(serverId, revision.jobId ?? null);
   const steps = orderedSteps(revision.steps);
@@ -288,7 +298,7 @@ export function DeployTimeline({
   return (
     <section
       aria-label={`Deploy of revision ${revision.number}`}
-      className="glass space-y-4 rounded-xl border border-border p-4"
+      className={cn(flat ? SECTION_WELL : GLASS_CARD, 'space-y-4 p-4')}
     >
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="text-sm font-semibold text-foreground">Revision {revision.number}</h4>
@@ -307,7 +317,7 @@ export function DeployTimeline({
         )}
         <span className="ml-auto flex gap-2">
           {canOperate && running && revision.jobId && (
-            <Button size="sm" variant="outline" disabled={cancelling} onClick={() => void cancel()}>
+            <Button size="sm" variant="soft" disabled={cancelling} onClick={() => void cancel()}>
               {cancelling ? (
                 <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
               ) : (
@@ -317,7 +327,7 @@ export function DeployTimeline({
             </Button>
           )}
           {onRollback && !running && (
-            <Button size="sm" variant="outline" onClick={onRollback}>
+            <Button size="sm" variant="soft" onClick={onRollback}>
               <History className="h-3.5 w-3.5" /> Roll back to this revision
             </Button>
           )}

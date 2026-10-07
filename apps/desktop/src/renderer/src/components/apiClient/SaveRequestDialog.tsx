@@ -222,7 +222,7 @@ export function SaveRequestDialog({
                   : 'Pick where to save it'}
             </p>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="soft" size="sm" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" size="sm" disabled={!canSave || saving} className="min-w-20">

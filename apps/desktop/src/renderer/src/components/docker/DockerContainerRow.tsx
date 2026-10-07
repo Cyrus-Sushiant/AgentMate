@@ -1,6 +1,6 @@
 import type { DockerContainer } from '@shared/apiTypes';
 import { Docker as DockerIcon, Play, RefreshCw, StopCircle, Trash2 } from '@/components/icons';
-import { Chip, type ChipTone, SECTION_WELL, TILE_ACTION } from '@/components/pageKit';
+import { Chip, type ChipTone, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -133,8 +133,7 @@ export function DockerContainerRow({
           <SimpleTooltip label="Stop">
             <Button
               variant="ghost"
-              size="icon"
-              className={TILE_ACTION}
+              size="icon-sm"
               disabled={pending}
               aria-label={`Stop ${container.name}`}
               onClick={onStop}
@@ -146,8 +145,7 @@ export function DockerContainerRow({
           <SimpleTooltip label="Start">
             <Button
               variant="ghost"
-              size="icon"
-              className={TILE_ACTION}
+              size="icon-sm"
               disabled={pending}
               aria-label={`Start ${container.name}`}
               onClick={onStart}
@@ -159,8 +157,7 @@ export function DockerContainerRow({
         <SimpleTooltip label="Restart">
           <Button
             variant="ghost"
-            size="icon"
-            className={TILE_ACTION}
+            size="icon-sm"
             disabled={pending}
             aria-label={`Restart ${container.name}`}
             onClick={onRestart}
@@ -171,8 +168,8 @@ export function DockerContainerRow({
         <SimpleTooltip label="Remove">
           <Button
             variant="ghost"
-            size="icon"
-            className={cn(TILE_ACTION, 'hover:bg-destructive/10 hover:text-destructive')}
+            size="icon-sm"
+            className="hover:bg-destructive/10 hover:text-destructive"
             disabled={pending}
             aria-label={`Remove ${container.name}`}
             onClick={onRemove}

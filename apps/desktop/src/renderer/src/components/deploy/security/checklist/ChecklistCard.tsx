@@ -17,15 +17,15 @@ import {
   Shield,
   TriangleAlert,
 } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
-import { SetupFailure } from '../../SetupFailure';
 import { TwoFactorDialog } from '../../TwoFactorDialog';
+import { CARD_BODY, CARD_ROWS, LoadFailure, SecurityCard } from '../SecurityCard';
 import { useStepUp } from '../useStepUp';
 import { FIX_LABEL, fixAllowed, STATUS_WORD } from './fixes';
 import { ScoreRing } from './ScoreRing';
@@ -47,10 +47,18 @@ const STATUS_ICON = {
   unknown: CircleQuestion,
 } as const;
 const STATUS_TONE = {
-  pass: 'text-success',
-  warn: 'text-warning',
-  fail: 'text-destructive',
-  unknown: 'text-muted-foreground',
+  pass: 'success',
+  warn: 'warning',
+  fail: 'destructive',
+  unknown: 'neutral',
+} as const;
+
+/** The status mark's tile, tinted like its chip. */
+const STATUS_TILE = {
+  pass: 'bg-success/12 text-success',
+  warn: 'bg-warning/12 text-warning',
+  fail: 'bg-destructive/12 text-destructive',
+  unknown: 'bg-foreground/[0.06] text-muted-foreground',
 } as const;
 
 export function ChecklistCard({
@@ -202,34 +210,44 @@ export function ChecklistCard({
   let body: React.ReactNode;
   if (checklist.isPending) {
     body = (
-      <div className="space-y-3" aria-busy="true">
-        <div className="flex items-center gap-5">
+      <div aria-busy="true">
+        <div className={cn(CARD_BODY, 'flex items-center gap-6')}>
           <Skeleton className="h-[132px] w-[132px] rounded-full" />
-          <Skeleton className="h-10 flex-1" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-64 max-w-full" />
+          </div>
         </div>
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-14 w-full rounded-lg" />
-        ))}
+        <div className={CARD_ROWS}>
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="flex items-center gap-3 px-4 py-3">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-40" />
+                <Skeleton className="h-3 w-72 max-w-full" />
+              </div>
+              <Skeleton className="h-7 w-24 rounded-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   } else if (checklist.isError) {
     body = (
-      <div className="space-y-3">
-        <SetupFailure message={coreErrorMessage(checklist.error)} />
-        <Button size="sm" variant="outline" onClick={() => void checklist.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <LoadFailure
+        message={coreErrorMessage(checklist.error)}
+        onRetry={() => void checklist.refetch()}
+      />
     );
   } else {
     const { items, score } = checklist.data;
     const open = items.filter((item) => item.status === 'fail' || item.status === 'warn').length;
     body = (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-6">
+      <>
+        <div className={cn(CARD_BODY, 'flex flex-wrap items-center gap-6')}>
           <ScoreRing score={score} items={items} />
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-lg font-semibold text-foreground">
+            <p className="text-lg font-semibold tracking-tight text-foreground">
               {open === 0
                 ? 'Nothing left to fix'
                 : `${open} ${open === 1 ? 'thing' : 'things'} to fix`}
@@ -241,24 +259,23 @@ export function ChecklistCard({
           </div>
         </div>
         {pending && (
-          <SshChangeBanner
-            change={pending}
-            windowSeconds={Math.max(
-              1,
-              Math.round((pending.deadlineUnixMs - pending.createdAtUnixMs) / 1000),
-            )}
-            busy={deciding}
-            steps={deciding === 'revert' ? steps.revert : steps.confirm}
-            problem={problem}
-            canDecide={owner}
-            onKeep={() => void decide('keep', pending)}
-            onRevert={() => void decide('revert', pending)}
-          />
+          <div className={CARD_BODY}>
+            <SshChangeBanner
+              change={pending}
+              windowSeconds={Math.max(
+                1,
+                Math.round((pending.deadlineUnixMs - pending.createdAtUnixMs) / 1000),
+              )}
+              busy={deciding}
+              steps={deciding === 'revert' ? steps.revert : steps.confirm}
+              problem={problem}
+              canDecide={owner}
+              onKeep={() => void decide('keep', pending)}
+              onRevert={() => void decide('revert', pending)}
+            />
+          </div>
         )}
-        <ul
-          aria-label="Checklist"
-          className="divide-y divide-border rounded-lg border border-border"
-        >
+        <ul aria-label="Checklist" className={CARD_ROWS}>
           {items.map((item) => {
             const Icon = STATUS_ICON[item.status];
             const permission = fixAllowed(item.fix, { owner, admin });
@@ -272,15 +289,20 @@ export function ChecklistCard({
                 aria-label={`${item.title}: ${STATUS_WORD[item.status]}`}
                 className="flex flex-wrap items-start gap-3 px-4 py-3"
               >
-                <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', STATUS_TONE[item.status])} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {item.title}{' '}
-                    <span className={cn('ml-1 text-xs font-normal', STATUS_TONE[item.status])}>
-                      {STATUS_WORD[item.status]}
-                    </span>
+                <span
+                  className={cn(
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                    STATUS_TILE[item.status],
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-[min(100%,14rem)] flex-1 space-y-0.5">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-foreground">
+                    {item.title}
+                    <Chip tone={STATUS_TONE[item.status]}>{STATUS_WORD[item.status]}</Chip>
                   </p>
-                  <p className="text-xs text-muted-foreground">{item.detail}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
                 </div>
                 {!hidden && item.fix !== 'none' && (
                   <SimpleTooltip
@@ -295,7 +317,7 @@ export function ChecklistCard({
                   >
                     <Button
                       size="sm"
-                      variant={item.status === 'fail' ? 'default' : 'outline'}
+                      variant={item.status === 'fail' ? 'default' : 'soft'}
                       disabled={!permission.allowed || sshBusy}
                       onClick={() => void runFix(item)}
                     >
@@ -307,24 +329,19 @@ export function ChecklistCard({
             );
           })}
         </ul>
-      </div>
+      </>
     );
   }
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-        <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" /> Security checklist
-          </CardTitle>
-          <CardDescription>
-            How safe {server.nickname} is, and what each fix will change before it runs.
-          </CardDescription>
-        </div>
+    <SecurityCard
+      icon={<Shield />}
+      title="Security checklist"
+      description={`How safe ${server.nickname} is, and what each fix will change before it runs.`}
+      actions={
         <Button
           size="sm"
-          variant="ghost"
+          variant="soft"
           disabled={checklist.isFetching}
           onClick={() => void checklist.refetch()}
         >
@@ -333,8 +350,9 @@ export function ChecklistCard({
           />{' '}
           Check again
         </Button>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
+      }
+    >
+      {body}
       <SshFixDialog
         server={server}
         request={sshRequest}
@@ -356,6 +374,6 @@ export function ChecklistCard({
         onChanged={refresh}
       />
       {stepUp.dialog}
-    </Card>
+    </SecurityCard>
   );
 }

@@ -5,7 +5,7 @@ import type { SiteTabProps } from './tabTypes';
 
 export function PerformanceTab({ draft, set, error, readOnly }: SiteTabProps): React.JSX.Element {
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Section title="Compression">
         <ToggleRow
           label="Gzip"

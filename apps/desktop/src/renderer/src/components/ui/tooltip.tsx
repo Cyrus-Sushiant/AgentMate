@@ -20,14 +20,15 @@ const TooltipContent = React.forwardRef<
       hideWhenDetached={hideWhenDetached}
       className={cn(
         // `max-w` + wrapping keeps long labels (file paths, run commands, error
-        // text) from stretching into one unreadable line off the window edge.
-        'z-50 max-w-[min(22rem,calc(100vw-2rem))] overflow-hidden whitespace-pre-line break-words rounded-lg border border-white/15 bg-popover/70 px-2.5 py-1.5 text-xs font-medium leading-relaxed text-popover-foreground shadow-2xl backdrop-blur-xl data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=delayed-open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1',
+        // text) from stretching into one unreadable line off the window edge. A compact
+        // frosted chip with the menus' corners and no edge, so it reads lighter than a menu.
+        'overlay-motion z-50 max-w-[min(22rem,calc(100vw-2rem))] origin-[var(--radix-tooltip-content-transform-origin)] overflow-hidden whitespace-pre-line break-words rounded-lg bg-popover/80 px-2.5 py-1.5 text-xs font-medium leading-relaxed text-popover-foreground shadow-[0_8px_24px_-6px_hsl(0_0%_0%/0.35)] backdrop-blur-xl data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=delayed-open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1',
         className,
       )}
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className="fill-popover/70" />
+      <TooltipPrimitive.Arrow className="fill-popover/80" />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ));

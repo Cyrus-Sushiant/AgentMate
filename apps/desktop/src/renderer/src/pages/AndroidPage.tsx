@@ -14,14 +14,11 @@ import { WirelessPairDialog } from '@/components/android/WirelessPairDialog';
 import { Android, Copy, Plus, RefreshCw, Search, TriangleAlert, Wifi } from '@/components/icons';
 import {
   CARD_GRID,
-  CARD_PILL_SOFT,
   CatalogCardShimmer,
   Chip,
   CountChip,
   EmptyState,
   GLASS_CARD,
-  PILL_PRIMARY,
-  PILL_SOFT,
   PillTabs,
   SearchPill,
 } from '@/components/pageKit';
@@ -82,9 +79,7 @@ function PartialSdkBanner({ sdk }: { sdk: AndroidSdkStatus }): React.JSX.Element
         </p>
       </div>
       <Button
-        variant="ghost"
-        size="sm"
-        className={PILL_SOFT}
+        variant="soft"
         onClick={() => {
           void navigator.clipboard.writeText(command);
           toast.success('Command copied.');
@@ -274,9 +269,8 @@ export default function AndroidPage(): React.JSX.Element {
               </Chip>
             </SimpleTooltip>
             <Button
-              variant="ghost"
+              variant="soft"
               size="sm"
-              className={CARD_PILL_SOFT}
               disabled={busy}
               aria-busy={busy}
               onClick={state.refresh}
@@ -302,18 +296,13 @@ export default function AndroidPage(): React.JSX.Element {
             onChange={setView}
           />
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_SOFT}
-              onClick={() => setPairing(true)}
-            >
+            <Button variant="soft" onClick={() => setPairing(true)}>
               <Wifi className="h-3.5 w-3.5" />
               Pair over Wi-Fi
             </Button>
             {/* Never disabled. When avdmanager is missing the dialog says so and how to get it,
                 which a greyed-out button never could. */}
-            <Button size="sm" className={PILL_PRIMARY} onClick={() => setCreating(true)}>
+            <Button onClick={() => setCreating(true)}>
               <Plus className="h-3.5 w-3.5" />
               New device
             </Button>
@@ -333,7 +322,7 @@ export default function AndroidPage(): React.JSX.Element {
             title="No devices yet"
             description="Virtual devices you create, and phones you plug in with USB debugging turned on, show up here."
             action={
-              <Button className={PILL_PRIMARY} onClick={() => setCreating(true)}>
+              <Button onClick={() => setCreating(true)}>
                 <Plus /> Create a virtual device
               </Button>
             }

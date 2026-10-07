@@ -102,7 +102,7 @@ export function ChangeMasterPasswordDialog({
           )}
         </form>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="vault-change-password" disabled={!ready}>

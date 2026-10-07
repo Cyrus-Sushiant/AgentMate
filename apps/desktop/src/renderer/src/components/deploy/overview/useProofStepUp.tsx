@@ -182,7 +182,7 @@ function ProofDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="soft"
               disabled={busy}
               onClick={() => onDone({ ok: false })}
             >

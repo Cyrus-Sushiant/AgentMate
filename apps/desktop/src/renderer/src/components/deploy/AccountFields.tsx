@@ -1,5 +1,6 @@
 import type { DeployAccountInput } from '@shared/deployTypes';
 import { CircleCheck, CircleInfo } from '@/components/icons';
+import { SECTION_WELL } from '@/components/pageKit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
@@ -84,12 +85,15 @@ export function AccountFields({
         ? 'This core is already set up. Enter your account there to enroll this computer, or leave it empty and do it later from the server card.'
         : null;
   return (
-    <fieldset className="space-y-3 rounded-lg border border-border/70 bg-secondary/20 p-4">
-      <legend className="px-1 text-sm font-medium text-foreground">
+    // The well's edge is an inset ring, which a fieldset's own border would only fight.
+    <fieldset className={cn(SECTION_WELL, 'space-y-3 p-4')}>
+      <legend className="float-left mb-1 w-full text-sm font-medium text-foreground">
         {mode === 'create' ? 'Your account on the core' : 'Your account on this core'}
       </legend>
-      {note && <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">{note}</p>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {note && (
+        <p className="clear-both max-w-xl text-xs leading-relaxed text-muted-foreground">{note}</p>
+      )}
+      <div className="clear-both grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-user`}>User name</Label>
           <Input

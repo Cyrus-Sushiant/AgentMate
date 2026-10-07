@@ -404,7 +404,7 @@ export function CreateWorktreeDialog({
           ) : defaultsQuery.isPending ? (
             <FormSkeleton />
           ) : defaults && !defaults.isRepo ? (
-            <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
+            <div className="flex items-start gap-3 rounded-xl bg-warning/10 p-3 text-sm ring-1 ring-inset ring-warning/30">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p>
                 {project.name} is not a git repository yet, so it cannot have worktrees. Initialize
@@ -474,19 +474,21 @@ export function CreateWorktreeDialog({
                             }
                             wrapTrigger
                           >
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-xs"
                               aria-label="Suggest a branch name from the task"
                               disabled={!task.trim() && !suggesting}
                               onClick={() => void suggest()}
-                              className="flex h-6 w-6 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 disabled:text-muted-foreground/50 disabled:hover:bg-transparent"
+                              className="text-primary hover:bg-primary/10 hover:text-primary"
                             >
                               {suggesting ? (
                                 <Spinner className="h-3.5 w-3.5 animate-spin" />
                               ) : (
                                 <Sparkles className="h-3.5 w-3.5" />
                               )}
-                            </button>
+                            </Button>
                           </SimpleTooltip>
                         </div>
                       </div>
@@ -553,21 +555,11 @@ export function CreateWorktreeDialog({
                     )}
                   </span>
                   {parentOverride ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => setParentOverride(null)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => setParentOverride(null)}>
                       Reset
                     </Button>
                   ) : null}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2.5"
-                    onClick={() => void pickLocation()}
-                  >
+                  <Button variant="soft" size="sm" onClick={() => void pickLocation()}>
                     Change…
                   </Button>
                 </div>
@@ -645,10 +637,12 @@ export function CreateWorktreeDialog({
                           aria-checked={agentId === option.id}
                           onClick={() => setAgentChoice(option.id)}
                           className={cn(
-                            'flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            // Drawn like a filter chip; the edge is a ring, since the global
+                            // border colour would repaint a tinted border.
+                            'flex h-8 cursor-pointer items-center gap-2 rounded-full px-3 text-xs ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             agentId === option.id
-                              ? 'border-primary/50 bg-primary/10 text-foreground'
-                              : 'border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground',
+                              ? 'bg-primary/12 font-medium text-primary ring-primary/30'
+                              : 'bg-foreground/[0.05] text-muted-foreground ring-foreground/[0.07] hover:bg-foreground/[0.08] hover:text-foreground',
                           )}
                         >
                           {option.id ? <CliLogo cliId={option.id} className="h-3.5 w-3.5" /> : null}
@@ -678,7 +672,7 @@ export function CreateWorktreeDialog({
                 <Button variant="ghost" size="sm" onClick={() => setPhase('form')}>
                   Back
                 </Button>
-                <Button size="sm" onClick={onClose} variant="outline">
+                <Button size="sm" onClick={onClose} variant="soft">
                   Close
                 </Button>
               </div>

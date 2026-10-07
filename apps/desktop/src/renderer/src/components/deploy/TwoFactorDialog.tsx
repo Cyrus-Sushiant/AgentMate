@@ -138,7 +138,7 @@ export function TwoFactorDialog({
               </p>
             )}
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={busy || !password}>
@@ -172,7 +172,7 @@ export function TwoFactorDialog({
                   </p>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="soft"
                     size="sm"
                     onClick={() => void copy(setup.sharedKey.replace(/\s/g, ''), 'Key')}
                   >
@@ -200,7 +200,7 @@ export function TwoFactorDialog({
               </p>
             )}
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button
@@ -218,7 +218,7 @@ export function TwoFactorDialog({
         {step === 'codes' && (
           <div className="space-y-4">
             <ul
-              className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-secondary/30 p-3"
+              className="grid grid-cols-2 gap-2 rounded-xl bg-foreground/[0.03] p-3 ring-1 ring-inset ring-foreground/[0.07]"
               aria-label="Recovery codes"
             >
               {recovery.map((recoveryCode) => (
@@ -230,7 +230,7 @@ export function TwoFactorDialog({
             <DialogFooter>
               <Button
                 type="button"
-                variant="outline"
+                variant="soft"
                 onClick={() => void copy(recovery.join('\n'), 'Recovery codes')}
               >
                 <Copy className="h-3.5 w-3.5" /> Copy all

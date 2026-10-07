@@ -9,12 +9,13 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { RefreshCw } from '@/components/icons';
-import { Button } from '@/components/ui/button';
+import { Docker } from '@/components/icons';
+import { EmptyState, GLASS_CARD, LoadFailure } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { allContainers } from '@/lib/deploy/containers/list';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useDeployConnection } from '../overview/hooks';
 import { JobLogDialog } from '../overview/JobLogDialog';
@@ -47,12 +48,34 @@ const DONE: Record<DeployContainerAction, string> = {
   kill: 'Killed',
 };
 
+/** The resource switch drawn as the page kit's pill tabs, kept on Radix for its arrow keys. */
+const RESOURCE_TAB =
+  'h-7 rounded-full border-b-0 px-3 text-xs text-muted-foreground hover:bg-foreground/[0.06] focus-visible:ring-ring/60 data-[state=active]:bg-primary/12 data-[state=active]:text-primary data-[state=active]:hover:bg-primary/12';
+
+const RESOURCE_TABS: ReadonlyArray<{ value: ResourceTab; label: string }> = [
+  { value: 'containers', label: 'Containers' },
+  { value: 'images', label: 'Images' },
+  { value: 'volumes', label: 'Volumes' },
+  { value: 'networks', label: 'Networks' },
+  { value: 'disk', label: 'Disk use' },
+];
+
 function PanelSkeleton(): React.JSX.Element {
   return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-9 w-full max-w-md" />
+    <div className="flex flex-col gap-2" aria-busy="true">
+      <div className={cn(GLASS_CARD, 'flex items-center gap-2 px-2.5 py-2')}>
+        <Skeleton className="h-8 w-64 max-w-full rounded-full" />
+      </div>
+      <ListSkeleton />
+    </div>
+  );
+}
+
+function ListSkeleton(): React.JSX.Element {
+  return (
+    <div className={cn(GLASS_CARD, 'space-y-2 p-3')} aria-busy="true">
       {Array.from({ length: 5 }, (_, i) => (
-        <Skeleton key={i} className="h-12 w-full rounded-lg" />
+        <Skeleton key={i} className="h-11 w-full rounded-lg" />
       ))}
     </div>
   );
@@ -188,23 +211,22 @@ export function ContainersPanel({ server }: { server: DeployServer }): React.JSX
   if (access.isPending) return <PanelSkeleton />;
   if (!signedIn) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Sign in to {server.nickname} on its Overview to see and manage its containers.
-      </p>
+      <EmptyState
+        card
+        size="sm"
+        icon={Docker}
+        title="Not signed in"
+        description={`Sign in to ${server.nickname} on its Overview to see and manage its containers.`}
+      />
     );
   }
   if (status.isPending) return <PanelSkeleton />;
   if (status.error) {
     return (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-      >
-        Could not find out about Docker: {coreErrorMessage(status.error)}
-        <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => void status.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <LoadFailure
+        message={`Could not find out about Docker: ${coreErrorMessage(status.error)}`}
+        retry={() => void status.refetch()}
+      />
     );
   }
   if (!ready) {
@@ -230,60 +252,68 @@ export function ContainersPanel({ server }: { server: DeployServer }): React.JSX
 
   const engine = status.data;
   return (
-    <div className={stale ? 'space-y-3 opacity-60 transition-opacity' : 'space-y-3'}>
-      <p className="text-xs text-muted-foreground" aria-label="Docker version">
-        Docker {engine.engineVersion ?? 'unknown version'}
-        {engine.composeVersion ? `, Compose ${engine.composeVersion}` : ', no Compose'}
-        {engine.cgroupVersion ? `, cgroup v${engine.cgroupVersion}` : ''}
-        {engine.storageDriver ? `, ${engine.storageDriver}` : ''}
-      </p>
-      <Tabs value={tab} onValueChange={(next) => setTab(next as ResourceTab)}>
-        <TabsList>
-          <TabsTrigger value="containers">Containers</TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-          <TabsTrigger value="volumes">Volumes</TabsTrigger>
-          <TabsTrigger value="networks">Networks</TabsTrigger>
-          <TabsTrigger value="disk">Disk use</TabsTrigger>
-        </TabsList>
-        <TabsContent value="containers" className="mt-3">
+    // While the connection is tried again everything dims together, toolbar and lists alike.
+    <div className={cn('transition-opacity', stale && 'opacity-60')}>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTab(next as ResourceTab)}
+        className="flex flex-col gap-2"
+      >
+        <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-2 px-2.5 py-2')}>
+          <TabsList
+            aria-label="Docker resources"
+            className="mb-0 h-auto w-auto gap-0.5 p-0.5"
+            containerClassName="search-pill min-w-0 max-w-full rounded-full border-b-0"
+          >
+            {RESOURCE_TABS.map((entry) => (
+              <TabsTrigger key={entry.value} value={entry.value} className={RESOURCE_TAB}>
+                {entry.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <p
+            className="ml-auto min-w-0 truncate text-xs text-muted-foreground"
+            aria-label="Docker version"
+          >
+            Docker {engine.engineVersion ?? 'unknown version'}
+            {engine.composeVersion ? `, Compose ${engine.composeVersion}` : ', no Compose'}
+            {engine.cgroupVersion ? `, cgroup v${engine.cgroupVersion}` : ''}
+            {engine.storageDriver ? `, ${engine.storageDriver}` : ''}
+          </p>
+        </div>
+        <TabsContent value="containers" className="mt-0">
           {containers.isPending ? (
-            <PanelSkeleton />
+            <ListSkeleton />
           ) : containers.error ? (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              Could not list the containers: {coreErrorMessage(containers.error)}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="gap-1.5"
-                onClick={() => void containers.refetch()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Try again
-              </Button>
-            </div>
+            <LoadFailure
+              message={`Could not list the containers: ${coreErrorMessage(containers.error)}`}
+              retry={() => void containers.refetch()}
+            />
           ) : (
-            <>
-              {stats.error && (
-                <p role="status" className="mb-2 text-xs text-warning">
-                  Live figures are not coming in right now: {stats.error}
-                </p>
-              )}
-              <ContainerList list={containers.data} history={stats.history} actions={actions} />
-            </>
+            <ContainerList
+              list={containers.data}
+              history={stats.history}
+              actions={actions}
+              notice={
+                stats.error ? (
+                  <p role="status" className="text-xs text-warning">
+                    Live figures are not coming in right now: {stats.error}
+                  </p>
+                ) : null
+              }
+            />
           )}
         </TabsContent>
-        <TabsContent value="images" className="mt-3">
+        <TabsContent value="images" className="mt-0">
           <ImagesTab serverId={serverId} roles={{ canOperate, canAdmin }} onJob={setJob} />
         </TabsContent>
-        <TabsContent value="volumes" className="mt-3">
+        <TabsContent value="volumes" className="mt-0">
           <VolumesTab serverId={serverId} roles={{ canOperate, canAdmin }} />
         </TabsContent>
-        <TabsContent value="networks" className="mt-3">
+        <TabsContent value="networks" className="mt-0">
           <NetworksTab serverId={serverId} roles={{ canOperate, canAdmin }} />
         </TabsContent>
-        <TabsContent value="disk" className="mt-3">
+        <TabsContent value="disk" className="mt-0">
           <DiskUsageTab
             serverId={serverId}
             serverName={server.nickname}

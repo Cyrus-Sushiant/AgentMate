@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Key, Trash2, Vault } from '@/components/icons';
-import { PILL_DESTRUCTIVE, PILL_SOFT, SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
+import { SEGMENT_TRACK, segmentClass } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -177,9 +177,7 @@ export function VaultSettings({ settings }: { settings: AppSettings }): React.JS
             wrapTrigger
           >
             <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_SOFT}
+              variant="soft"
               disabled={state !== 'unlocked'}
               onClick={() => setChangeOpen(true)}
             >
@@ -188,9 +186,7 @@ export function VaultSettings({ settings }: { settings: AppSettings }): React.JS
             </Button>
           </SimpleTooltip>
           <Button
-            variant="ghost"
-            size="sm"
-            className={PILL_DESTRUCTIVE}
+            variant="danger"
             disabled={state === 'uninitialized'}
             onClick={() => setResetOpen(true)}
           >

@@ -1,5 +1,5 @@
 import type { IconProps } from '@/components/icons';
-import { GLASS_CARD, TILE_ACTION } from '@/components/pageKit';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -10,9 +10,6 @@ import { cn } from '@/lib/utils';
 
 /** The kit's glass card, clipped so the hairline rows meet its rounded corners. */
 export const REMOTE_CARD = cn(GLASS_CARD, 'overflow-hidden');
-
-/** The kit's round icon action, a size up so it lines up with the h-8 pills in a row. */
-export const ROUND_ICON = cn(TILE_ACTION, 'h-8 w-8 shrink-0 [&_svg]:size-4');
 
 /** A card's title row: the tinted icon tile, the title and a line about it, and its actions. */
 export function RemoteCardHeader({

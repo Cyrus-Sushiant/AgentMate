@@ -1,4 +1,5 @@
 import { Plus, X } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { ApiTab } from '@/stores/apiClientTabsStore';
@@ -103,14 +104,16 @@ export function RequestTabStrip({
         })}
       </div>
       <SimpleTooltip label="New request (Ctrl+N)">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label="New request tab"
           onClick={onNew}
-          className="flex h-7 w-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 self-center"
         >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+          <Plus />
+        </Button>
       </SimpleTooltip>
     </div>
   );

@@ -2,12 +2,12 @@ import type { DeployServer } from '@shared/deployTypes';
 import { sshErrorMessage } from '@shared/sshErrors';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Key, RefreshCw, Rocket } from '@/components/icons';
+import { CircleX, Key, RefreshCw, Rocket } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { installPhases, timeline } from '@/lib/deploy/setup';
 import { queryKeys } from '@/lib/queryKeys';
 import { withHostKeyTrust } from '@/lib/ssh/hostKeyTrust';
+import { cn } from '@/lib/utils';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
 import {
   type AccountDraft,
@@ -17,6 +17,7 @@ import {
   EMPTY_ACCOUNT,
   toAccount,
 } from './AccountFields';
+import { DeployCard, Notice } from './deployKit';
 import { PreflightChecklist, PreflightSkeleton } from './PreflightChecklist';
 import { RedeemCodeDialog } from './RedeemCodeDialog';
 import { SetupFailure } from './SetupFailure';
@@ -137,9 +138,9 @@ export function InstallPanel({
                 onClick={start}
                 disabled={!preflight || (needsPassword && !password) || accountIssue !== null}
               >
-                <RefreshCw className="h-3.5 w-3.5" /> Try again
+                <RefreshCw /> Try again
               </Button>
-              <Button size="sm" variant="outline" onClick={backToChecks}>
+              <Button size="sm" variant="soft" onClick={backToChecks}>
                 Check the server again
               </Button>
             </div>
@@ -153,8 +154,8 @@ export function InstallPanel({
     body = (
       <>
         <SetupFailure message={sshErrorMessage(preflightQuery.error)} />
-        <Button size="sm" variant="outline" onClick={() => void preflightQuery.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Check again
+        <Button size="sm" variant="soft" onClick={() => void preflightQuery.refetch()}>
+          <RefreshCw /> Check again
         </Button>
       </>
     );
@@ -172,30 +173,27 @@ export function InstallPanel({
       <>
         <PreflightChecklist preflight={preflight} />
         {preflight.installed && !server.enrolled && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-secondary/20 px-3 py-2.5">
-            <p className="min-w-0 flex-1 text-sm text-foreground">
-              The core already runs here. With an enrollment code from one of its Owners, this
-              computer can join it without sudo.
-            </p>
-            <Button size="sm" variant="outline" onClick={() => setRedeeming(true)}>
-              <Key className="h-3.5 w-3.5" /> Join with a code
-            </Button>
-          </div>
+          <Notice icon={Key}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-0 flex-1">
+                The core already runs here. With an enrollment code from one of its Owners, this
+                computer can join it without sudo.
+              </p>
+              <Button size="sm" variant="soft" onClick={() => setRedeeming(true)}>
+                <Key /> Join with a code
+              </Button>
+            </div>
+          </Notice>
         )}
         {blocked && (
-          <div
-            role="alert"
-            className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/10 p-3"
-          >
-            <p className="text-sm font-medium text-foreground">
-              This server cannot take the core yet
-            </p>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <Notice role="alert" tone="destructive" icon={CircleX}>
+            <p className="font-medium">This server cannot take the core yet</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
               {preflight.problems.map((problem) => (
                 <li key={problem}>{problem}</li>
               ))}
             </ul>
-          </div>
+          </Notice>
         )}
         {!blocked && accountFields}
         {!blocked && passwordField}
@@ -204,7 +202,7 @@ export function InstallPanel({
             sudo will use the saved login password.{' '}
             <button
               type="button"
-              className="cursor-pointer text-primary underline-offset-4 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="cursor-pointer rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setAskPassword(true)}
             >
               Use a different password
@@ -216,7 +214,7 @@ export function InstallPanel({
             onClick={start}
             disabled={blocked || (needsPassword && !password) || accountIssue !== null}
           >
-            <Rocket className="h-4 w-4" /> {label}
+            <Rocket /> {label}
           </Button>
           {!blocked && accountIssue && accountTouched && (
             <p className="text-xs text-muted-foreground" role="status">
@@ -224,18 +222,15 @@ export function InstallPanel({
             </p>
           )}
           <Button
-            variant="ghost"
-            size="sm"
+            variant="soft"
             disabled={preflightQuery.isFetching}
             onClick={() => void preflightQuery.refetch()}
           >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${preflightQuery.isFetching ? 'motion-safe:animate-spin' : ''}`}
-            />
+            <RefreshCw className={cn(preflightQuery.isFetching && 'motion-safe:animate-spin')} />
             Check again
           </Button>
           {onCancel && (
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button variant="soft" onClick={onCancel}>
               Cancel
             </Button>
           )}
@@ -245,19 +240,17 @@ export function InstallPanel({
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Rocket className="h-4 w-4 text-primary" />
-          {updating ? 'Update or reinstall the server core' : 'Install the server core'}
-        </CardTitle>
-        <CardDescription className="max-w-2xl leading-relaxed">
-          {updating
-            ? 'The running core keeps working until the new one is ready. If the new one does not start, the server goes back to the one it has now.'
-            : `A small service that runs on ${server.nickname} so AgentMate can show what happens there and act on it. It only listens on a private socket, so no port is opened: the app reaches it through your SSH login.`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">{body}</CardContent>
+    <DeployCard
+      icon={<Rocket />}
+      title={updating ? 'Update or reinstall the server core' : 'Install the server core'}
+      description={
+        updating
+          ? 'The running core keeps working until the new one is ready. If the new one does not start, the server goes back to the one it has now.'
+          : `A small service that runs on ${server.nickname} so AgentMate can show what happens there and act on it. It only listens on a private socket, so no port is opened: the app reaches it through your SSH login.`
+      }
+      bodyClassName="space-y-4"
+    >
+      {body}
       <RedeemCodeDialog
         server={server}
         open={redeeming}
@@ -268,6 +261,6 @@ export function InstallPanel({
           void queryClient.invalidateQueries({ queryKey: queryKeys.deployAccess(server.id) });
         }}
       />
-    </Card>
+    </DeployCard>
   );
 }

@@ -50,10 +50,6 @@ const SUGGESTIONS = [
 /** The model picker in the composer's bottom row: a small pill rather than a form field. */
 const MODEL_PICKER = 'search-pill h-7 w-44 rounded-full px-3 text-xs';
 
-/** A round icon-only button in the composer row. */
-const ROUND_ICON =
-  'h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground';
-
 export interface AskAiChatProps {
   className?: string;
   /** 'modal' trims the message list to a fixed height for use inside a popover/dialog. */
@@ -455,9 +451,9 @@ export function AskAiChat({
                     <SimpleTooltip label="Reload the model list">
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         aria-label="Reload the model list"
-                        className={ROUND_ICON}
+                        className="shrink-0"
                         disabled={geminiModelsQuery.isFetching}
                         onClick={() => void geminiModelsQuery.refetch()}
                       >
@@ -491,9 +487,9 @@ export function AskAiChat({
                   <SimpleTooltip label="Reload the model list">
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="icon-sm"
                       aria-label="Reload the model list"
-                      className={ROUND_ICON}
+                      className="shrink-0"
                       disabled={ollamaModelsQuery.isFetching}
                       onClick={() => void ollamaModelsQuery.refetch()}
                     >
@@ -511,7 +507,7 @@ export function AskAiChat({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 rounded-full bg-warning/12 px-3 text-xs text-warning hover:bg-warning/20 hover:text-warning"
+                  className="bg-warning/12 text-warning hover:bg-warning/20 hover:text-warning"
                   onClick={() => navigate('/settings')}
                 >
                   <SettingsIcon className="h-3 w-3" /> Add API key
@@ -524,7 +520,7 @@ export function AskAiChat({
                   <Button
                     size="icon"
                     aria-label="Send"
-                    className="h-9 w-9 shrink-0 rounded-full"
+                    className="h-9 w-9 shrink-0"
                     disabled={sending || !prompt.trim()}
                     onClick={() => void handleSend()}
                   >
@@ -544,21 +540,25 @@ export function AskAiChat({
 
       {isModal && messages.length > 0 && (
         <div className="flex items-center justify-center gap-2 pt-3">
-          <button
+          <Button
             type="button"
-            className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+            variant="ghost"
+            size="sm"
+            className="gap-1 px-2.5 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
             onClick={clearMessages}
           >
             <Trash2 className="h-3 w-3" /> Clear
-          </button>
+          </Button>
           {onRequestViewHistory && (
-            <button
+            <Button
               type="button"
-              className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+              variant="ghost"
+              size="sm"
+              className="gap-1 px-2.5 text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
               onClick={onRequestViewHistory}
             >
               <History className="h-3 w-3" /> View full history
-            </button>
+            </Button>
           )}
         </div>
       )}

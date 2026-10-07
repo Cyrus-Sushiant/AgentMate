@@ -41,6 +41,7 @@ import {
   TerminalSquare,
   Trash2,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import {
   RunRecommendationPanel,
   useRunRecommendation,
@@ -512,9 +513,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
                     <Button
                       type="button"
                       variant="ghost"
-                      size="sm"
                       className={cn(
-                        'h-8 gap-1.5 rounded-full px-2.5 text-xs',
+                        'gap-1.5 px-2.5',
                         voice.status === 'recording'
                           ? 'bg-destructive/12 text-destructive hover:bg-destructive/20 hover:text-destructive'
                           : 'text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground',
@@ -539,9 +539,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   {generateShortcut} to generate
                 </span>
                 <Button
+                  className="ml-auto shrink-0"
                   onClick={() => void handleGenerate()}
                   disabled={isGenerating}
-                  className="ml-auto h-8 shrink-0 rounded-full px-4"
                 >
                   {isGenerating ? <Spinner className="animate-spin" /> : <Sparkles />}
                   {isGenerating ? 'Generating…' : 'Generate Prompt'}
@@ -637,8 +637,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
                   : 'Choose a project above to park this request on it as a draft.'}
               </p>
               <Button
-                variant="ghost"
-                className={cn(PILL_GHOST, 'w-full')}
+                variant="soft"
+                className="w-full"
                 disabled={!projectId || !rawInput.trim() || saveDraftMutation.isPending}
                 onClick={() => saveDraftMutation.mutate()}
               >
@@ -651,12 +651,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
             <div className={cn(WELL, 'space-y-3')}>
               <div className="flex items-center justify-between gap-2">
                 <p className={SECTION_HEADING}>Scheduled series</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(PILL_GHOST, 'h-7 px-3 text-xs')}
-                  onClick={addQueueItem}
-                >
+                <Button variant="soft" size="sm" onClick={addQueueItem}>
                   <Plus /> Add task
                 </Button>
               </div>
@@ -702,9 +697,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
                         <SimpleTooltip label="Remove task">
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
+                            className="hover:bg-destructive/10 hover:text-destructive"
                             aria-label={`Remove task ${index + 1}`}
-                            className="h-7 w-7 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => removeQueueItem(item.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -737,7 +732,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
               )}
 
               <Button
-                className="w-full rounded-full"
+                className="w-full"
                 disabled={!canSaveSchedule || saveScheduleMutation.isPending}
                 onClick={() => saveScheduleMutation.mutate()}
               >
@@ -763,8 +758,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
                 options={TRANSLATE_LANGUAGES}
               />
               <Button
-                variant="secondary"
-                className="h-8 shrink-0 rounded-full border-0 bg-foreground/[0.08] px-3.5 hover:bg-foreground/[0.12]"
+                variant="soft"
+                className="shrink-0"
                 onClick={() => void handleTranslate()}
                 disabled={isTranslating}
               >
@@ -784,10 +779,10 @@ export default function PromptBuilderPage(): React.JSX.Element {
           <h2 className={SECTION_HEADING}>Generated prompt</h2>
           <SimpleTooltip label="Browse previously generated prompts">
             <Button
-              type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+              className="gap-1.5 px-2.5 text-muted-foreground hover:text-foreground"
+              type="button"
               onClick={() => setHistoryOpen(true)}
             >
               <History />
@@ -831,20 +826,14 @@ export default function PromptBuilderPage(): React.JSX.Element {
           </div>
           {/* On a narrow card the two quieter actions drop to their icons, so the row stays one line. */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <Button
-              size="sm"
-              className="h-8 rounded-full px-3"
-              disabled={!generated}
-              onClick={() => void handleSendToCli()}
-            >
+            <Button disabled={!generated} onClick={() => void handleSendToCli()}>
               <TerminalSquare /> Send to CLI
             </Button>
             <SimpleTooltip label="Save Template">
               <Button
-                variant="ghost"
-                size="sm"
+                variant="soft"
                 aria-label="Save Template"
-                className={cn(PILL_GHOST, 'px-2.5 @[34rem]/output:px-3')}
+                className="px-2.5 @[34rem]/output:px-3"
                 disabled={!generated}
                 onClick={() => setSaveDialogOpen(true)}
               >
@@ -853,10 +842,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
             </SimpleTooltip>
             <SimpleTooltip label="Export Markdown">
               <Button
-                variant="ghost"
-                size="sm"
+                variant="soft"
                 aria-label="Export Markdown"
-                className={cn(PILL_GHOST, 'px-2.5 @[34rem]/output:px-3')}
+                className="px-2.5 @[34rem]/output:px-3"
                 disabled={!generated}
                 onClick={() => void handleExportMarkdown()}
               >
@@ -865,10 +853,9 @@ export default function PromptBuilderPage(): React.JSX.Element {
             </SimpleTooltip>
             <SimpleTooltip label="Copy" wrapTrigger={!generated}>
               <Button
-                variant="ghost"
+                variant="soft"
                 size="icon"
                 aria-label="Copy"
-                className={cn(PILL_GHOST, 'w-8 px-0')}
                 disabled={!generated}
                 onClick={() => void handleCopy()}
               >
@@ -880,10 +867,10 @@ export default function PromptBuilderPage(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
+                className="hover:bg-destructive/10 hover:text-destructive"
                 aria-label="Clear"
                 disabled={!rawInput && !generated}
                 onClick={handleClear}
-                className="h-8 w-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 />
               </Button>
@@ -935,12 +922,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
             ) : historyQuery.isError ? (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <p className="text-sm text-muted-foreground">Couldn’t load prompt history.</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={PILL_GHOST}
-                  onClick={() => void historyQuery.refetch()}
-                >
+                <Button variant="soft" onClick={() => void historyQuery.refetch()}>
                   Try again
                 </Button>
               </div>
@@ -1002,9 +984,7 @@ export default function PromptBuilderPage(): React.JSX.Element {
 
           <DialogFooter>
             <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_GHOST}
+              variant="soft"
               onClick={() => {
                 setHistoryOpen(false);
                 navigate('/prompt-history');
@@ -1028,7 +1008,6 @@ export default function PromptBuilderPage(): React.JSX.Element {
           />
           <DialogFooter>
             <Button
-              className="rounded-full px-5"
               disabled={!templateName.trim() || saveTemplateMutation.isPending}
               onClick={() => saveTemplateMutation.mutate()}
             >
@@ -1044,16 +1023,8 @@ export default function PromptBuilderPage(): React.JSX.Element {
 /** One of the page's two cards: the app's glass card, rounded like the Settings cards. */
 const PANEL = 'glass flex flex-col overflow-hidden rounded-[calc(var(--radius)+2px)]';
 
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
 /** A soft inset area inside a card, for the panels that open under a choice. */
 const WELL = 'rounded-xl bg-foreground/[0.03] p-3 ring-1 ring-inset ring-foreground/[0.07]';
-
-/** A secondary action: the search box's faint pill, so only the primary action has weight. */
-const PILL_GHOST =
-  'search-pill h-8 rounded-full px-3 text-xs font-medium text-foreground/85 hover:text-foreground';
 
 /** The pickers in the option rows, sized so their right edges line up. */
 const OPTION_CONTROL = 'h-8 w-[min(15rem,62%)] rounded-full';

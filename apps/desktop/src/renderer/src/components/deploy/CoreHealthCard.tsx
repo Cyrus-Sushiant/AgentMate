@@ -3,9 +3,8 @@ import { sshErrorMessage } from '@shared/sshErrors';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { EllipsisVertical, RefreshCw, Rocket, Trash2 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +18,9 @@ import { formatUptime } from '@/lib/deploy/setup';
 import { queryKeys } from '@/lib/queryKeys';
 import { withHostKeyTrust } from '@/lib/ssh/hostKeyTrust';
 import { shortAge, timeAgo } from '@/lib/time';
+import { cn } from '@/lib/utils';
 import { TRANSPORT_PHRASE, TRANSPORT_TEXT, useCoreHealth } from './coreHealth';
+import { DeployCard } from './deployKit';
 import { SetupFailure } from './SetupFailure';
 
 function Fact({
@@ -32,10 +33,10 @@ function Fact({
   mono?: boolean;
 }): React.JSX.Element {
   return (
-    <div className="min-w-0 rounded-lg border border-border/70 bg-secondary/30 px-3 py-2.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
+    <div className="min-w-0 rounded-xl bg-foreground/[0.03] px-3 py-2.5 ring-1 ring-inset ring-foreground/[0.07]">
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
       <dd
-        className={`mt-0.5 truncate text-sm font-medium text-foreground ${mono ? 'font-mono' : ''}`}
+        className={cn('mt-0.5 truncate text-sm font-medium text-foreground', mono && 'font-mono')}
       >
         {children}
       </dd>
@@ -87,53 +88,46 @@ export function CoreHealthCard({
 
   const answering = health.isSuccess && !health.isError;
   const status = health.isError ? (
-    <Badge variant="warning">Not answering</Badge>
+    <Chip tone="warning">Not answering</Chip>
   ) : answering ? (
-    <Badge variant="success" className="gap-1.5">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-      </span>
+    <Chip tone="success" dot pulse>
       Online
-    </Badge>
+    </Chip>
   ) : (
-    <Badge variant="secondary">Connecting…</Badge>
+    <Chip>Connecting…</Chip>
   );
 
   return (
-    <Card className="glass">
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0 space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Rocket className="h-4 w-4 text-primary" /> Server core
-          </CardTitle>
-          <CardDescription>
-            {health.isError
-              ? 'The last check did not get an answer.'
-              : health.data
-                ? `Answering through ${TRANSPORT_PHRASE[core.transport]}, checked ${shortAge(health.data.checkedAt, now)} ago.`
-                : 'Checking whether the core answers.'}
-          </CardDescription>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {status}
+    <DeployCard
+      icon={<Rocket />}
+      title="Server core"
+      extra={status}
+      description={
+        health.isError
+          ? 'The last check did not get an answer.'
+          : health.data
+            ? `Answering through ${TRANSPORT_PHRASE[core.transport]}, checked ${shortAge(health.data.checkedAt, now)} ago.`
+            : 'Checking whether the core answers.'
+      }
+      actions={
+        <>
           <SimpleTooltip label="Check now">
             <Button
-              size="icon"
+              size="icon-sm"
               variant="ghost"
               aria-label="Check now"
               disabled={checking}
               onClick={() => void checkNow()}
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${checking ? 'motion-safe:animate-spin' : ''}`} />
+              <RefreshCw className={cn(checking && 'motion-safe:animate-spin')} />
             </Button>
           </SimpleTooltip>
           {(onReinstall || onRemove) && (
             <DropdownMenu>
               <SimpleTooltip label="More actions">
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" aria-label="More actions">
-                    <EllipsisVertical className="h-3.5 w-3.5" />
+                  <Button size="icon-sm" variant="ghost" aria-label="More actions">
+                    <EllipsisVertical />
                   </Button>
                 </DropdownMenuTrigger>
               </SimpleTooltip>
@@ -149,10 +143,7 @@ export function CoreHealthCard({
                     <DropdownMenuItem onSelect={() => onRemove(true)}>
                       <Trash2 className="h-3.5 w-3.5" /> Remove the core, keep its data
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onSelect={() => onRemove(false)}
-                    >
+                    <DropdownMenuItem tone="danger" onSelect={() => onRemove(false)}>
                       <Trash2 className="h-3.5 w-3.5" /> Remove the core and its data
                     </DropdownMenuItem>
                   </>
@@ -160,46 +151,46 @@ export function CoreHealthCard({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+        </>
+      }
+      bodyClassName="space-y-3"
+    >
+      {health.isError && (
+        <div className="space-y-2">
+          <SetupFailure message={sshErrorMessage(health.error)} />
+          <p className="text-xs text-muted-foreground">
+            If the server just restarted, the core starts with it and answers again shortly.
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {health.isError && (
-          <div className="space-y-2">
-            <SetupFailure message={sshErrorMessage(health.error)} />
-            <p className="text-xs text-muted-foreground">
-              If the server just restarted, the core starts with it and answers again shortly.
-            </p>
-          </div>
-        )}
-        <dl className="grid grid-cols-2 gap-2 md:grid-cols-3">
-          <Fact label="Version" mono>
-            {health.data ? (
-              health.data.version
-            ) : health.isPending ? (
-              <Skeleton className="h-5 w-16" />
-            ) : (
-              core.version
-            )}
-          </Fact>
-          <Fact label="Up for">
-            {health.data ? (
-              formatUptime(health.data.startedAtUnixMs, now)
-            ) : health.isPending ? (
-              <Skeleton className="h-5 w-20" />
-            ) : (
-              'Unknown'
-            )}
-          </Fact>
-          <Fact label="Installed">
-            {server.dev ? 'From your checkout' : timeAgo(new Date(core.installedAt).toISOString())}
-          </Fact>
-          <Fact label="Operating system">{core.os}</Fact>
-          <Fact label="Processor" mono>
-            {core.architecture}
-          </Fact>
-          <Fact label="Connection">{TRANSPORT_TEXT[core.transport]}</Fact>
-        </dl>
-      </CardContent>
-    </Card>
+      )}
+      <dl className="grid grid-cols-2 gap-2 md:grid-cols-3">
+        <Fact label="Version" mono>
+          {health.data ? (
+            health.data.version
+          ) : health.isPending ? (
+            <Skeleton className="h-5 w-16" />
+          ) : (
+            core.version
+          )}
+        </Fact>
+        <Fact label="Up for">
+          {health.data ? (
+            formatUptime(health.data.startedAtUnixMs, now)
+          ) : health.isPending ? (
+            <Skeleton className="h-5 w-20" />
+          ) : (
+            'Unknown'
+          )}
+        </Fact>
+        <Fact label="Installed">
+          {server.dev ? 'From your checkout' : timeAgo(new Date(core.installedAt).toISOString())}
+        </Fact>
+        <Fact label="Operating system">{core.os}</Fact>
+        <Fact label="Processor" mono>
+          {core.architecture}
+        </Fact>
+        <Fact label="Connection">{TRANSPORT_TEXT[core.transport]}</Fact>
+      </dl>
+    </DeployCard>
   );
 }

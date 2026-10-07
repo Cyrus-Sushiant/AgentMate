@@ -8,9 +8,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Globe } from '@/components/icons';
+import { EmptyState, GLASS_CARD } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { SiteTab } from '@/lib/deploy/sites/problems';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { CoreAccessCard } from '../CoreAccessCard';
 import { JobLogDialog } from '../overview/JobLogDialog';
 import { hasRole } from '../security/format';
@@ -83,18 +86,29 @@ export function SitesPanel({ server }: { server: DeployServer }): React.JSX.Elem
 
   if (access.isPending) {
     return (
-      <div className="space-y-4" aria-busy="true">
-        <Skeleton className="h-28 w-full rounded-lg" />
-        <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="flex flex-col gap-2" aria-busy="true">
+        <div className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-3 w-56" />
+        </div>
+        <div className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
       </div>
     );
   }
   if (!signedIn) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Sign in to see the websites on {server.nickname}.
-        </p>
+      <div className="flex flex-col gap-2">
+        <EmptyState
+          card
+          size="sm"
+          icon={Globe}
+          title="Not signed in"
+          description={`Sign in to see the websites on ${server.nickname}.`}
+        />
         <CoreAccessCard server={server} />
       </div>
     );
@@ -141,7 +155,7 @@ export function SitesPanel({ server }: { server: DeployServer }): React.JSX.Elem
     : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       <ApplyBar
         pending={nginx?.pendingChanges ?? false}
         applying={applying}

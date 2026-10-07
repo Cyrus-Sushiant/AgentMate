@@ -18,7 +18,7 @@ function StepIcon({ status }: { status: TimelineStatus }): React.JSX.Element {
   }
   return (
     <span className="flex h-5 w-5 items-center justify-center">
-      <span className="h-2.5 w-2.5 rounded-full border-2 border-muted-foreground/40" />
+      <span className="h-2.5 w-2.5 rounded-full ring-2 ring-inset ring-muted-foreground/40" />
     </span>
   );
 }
@@ -40,7 +40,7 @@ export function SetupTimeline({
               aria-hidden
               className={cn(
                 'absolute left-[9.5px] top-6 bottom-1 w-px',
-                step.status === 'done' ? 'bg-success/40' : 'bg-border',
+                step.status === 'done' ? 'bg-success/40' : 'bg-foreground/[0.1]',
               )}
             />
           )}
@@ -65,7 +65,7 @@ export function SetupTimeline({
                 aria-valuenow={step.percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-secondary"
+                className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-foreground/[0.08]"
               >
                 <div
                   className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none"

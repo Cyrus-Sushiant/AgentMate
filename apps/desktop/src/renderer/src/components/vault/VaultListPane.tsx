@@ -14,6 +14,7 @@ import {
   Vault,
   X,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -40,14 +41,6 @@ const SORT_LABELS: Record<VaultSort, string> = {
   updated: 'Recently updated',
   created: 'Newest first',
 };
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
-/** A small square icon button for the card header, with the main menu's hover wash. */
-const HEADER_BUTTON =
-  'flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.06] data-[state=open]:text-foreground';
 
 export interface VaultListGroup {
   label: string | null;
@@ -148,21 +141,21 @@ export const VaultListPane = forwardRef<
       <div className="flex h-10 shrink-0 items-center gap-0.5 pl-3.5 pr-1.5">
         <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Vault</h2>
         <SimpleTooltip label={newShortcut ? `New entry (${newShortcut})` : 'New entry'}>
-          <button
-            type="button"
-            aria-label="New entry"
-            onClick={() => onNew()}
-            className={HEADER_BUTTON}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          <Button variant="ghost" size="icon-sm" aria-label="New entry" onClick={() => onNew()}>
+            <Plus />
+          </Button>
         </SimpleTooltip>
         <DropdownMenu>
           <SimpleTooltip label="More">
             <DropdownMenuTrigger asChild>
-              <button type="button" aria-label="More vault actions" className={HEADER_BUTTON}>
-                <EllipsisVertical className="h-3.5 w-3.5" />
-              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="More vault actions"
+                className="data-[state=open]:bg-foreground/[0.06] data-[state=open]:text-foreground"
+              >
+                <EllipsisVertical />
+              </Button>
             </DropdownMenuTrigger>
           </SimpleTooltip>
           <DropdownMenuContent align="end" className="w-56">
@@ -182,14 +175,14 @@ export const VaultListPane = forwardRef<
           </DropdownMenuContent>
         </DropdownMenu>
         <SimpleTooltip label={lockShortcut ? `Lock vault (${lockShortcut})` : 'Lock vault'}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label="Lock vault"
             onClick={() => void actions.lock()}
-            className={HEADER_BUTTON}
           >
-            <Lock className="h-3.5 w-3.5" />
-          </button>
+            <Lock />
+          </Button>
         </SimpleTooltip>
       </div>
 
@@ -211,14 +204,15 @@ export const VaultListPane = forwardRef<
             className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70 [&::-webkit-search-cancel-button]:appearance-none"
           />
           {query && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               aria-label="Clear search"
-              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="shrink-0"
               onClick={() => setQuery('')}
             >
-              <X className="h-3 w-3" />
-            </button>
+              <X />
+            </Button>
           )}
         </div>
 
@@ -336,16 +330,11 @@ export const VaultListPane = forwardRef<
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
-              <Button size="sm" className="rounded-full" onClick={() => onNew()}>
+              <Button onClick={() => onNew()}>
                 <Plus className="h-3 w-3" />
                 Add your first entry
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="search-pill rounded-full text-foreground/85 hover:text-foreground"
-                onClick={onImport}
-              >
+              <Button variant="soft" onClick={onImport}>
                 <Upload className="h-3 w-3" />
                 Import from CSV
               </Button>
@@ -359,13 +348,13 @@ export const VaultListPane = forwardRef<
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {trimmed && (
-                <Button size="sm" className="rounded-full" onClick={() => onNew(trimmed)}>
+                <Button onClick={() => onNew(trimmed)}>
                   <Plus className="h-3 w-3" />
                   Create "{trimmed}"
                 </Button>
               )}
               {filtered && (
-                <Button size="sm" variant="ghost" className="rounded-full" onClick={clearFilters}>
+                <Button variant="ghost" onClick={clearFilters}>
                   Clear filters
                 </Button>
               )}

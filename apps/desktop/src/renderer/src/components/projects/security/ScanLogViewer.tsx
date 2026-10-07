@@ -81,8 +81,8 @@ export function ScanLogViewer({ runs }: { runs: ScannerRunResult[] }): React.JSX
                 <SimpleTooltip label="Copy this scanner's output">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
+                    size="icon-sm"
+                    className="shrink-0"
                     aria-label="Copy output"
                     onClick={() => void copyLog(run)}
                   >

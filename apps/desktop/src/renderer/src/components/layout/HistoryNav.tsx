@@ -83,8 +83,7 @@ export function HistoryNav(): React.JSX.Element {
       <SimpleTooltip label="Back" side="bottom">
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-md text-muted-foreground [&_svg]:size-3.5"
+          size="icon-sm"
           onClick={goBack}
           disabled={!canGoBack}
           aria-label="Go back"
@@ -95,8 +94,7 @@ export function HistoryNav(): React.JSX.Element {
       <SimpleTooltip label="Forward" side="bottom">
         <Button
           variant="ghost"
-          size="icon"
-          className="h-7 w-7 rounded-md text-muted-foreground [&_svg]:size-3.5"
+          size="icon-sm"
           onClick={goForward}
           disabled={!canGoForward}
           aria-label="Go forward"

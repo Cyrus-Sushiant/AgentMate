@@ -101,9 +101,8 @@ export function ProjectPromptDialog({
               <Copy /> Copy
             </Button>
             <Button
-              variant="outline"
+              variant="danger"
               size="sm"
-              className="text-destructive hover:text-destructive"
               disabled={!saved || saveMutation.isPending}
               onClick={() => saveMutation.mutate('')}
             >

@@ -24,6 +24,7 @@ import {
 import { queryKeys } from '@/lib/queryKeys';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useStack } from '../apps/hooks';
+import { CODE_WELL } from '../security/SecurityCard';
 
 /**
  * "Make private" in the exposure view (E13 T5). For a container of an AgentMate app it asks
@@ -66,7 +67,7 @@ function OutsideDialog({
         </DialogHeader>
         <pre
           aria-label={target.kind === 'compose' ? 'Compose change' : 'Run change'}
-          className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs"
+          className={CODE_WELL}
         >
           {change}
         </pre>
@@ -76,7 +77,7 @@ function OutsideDialog({
         </p>
         <DialogFooter>
           <Button
-            variant="outline"
+            variant="soft"
             onClick={() =>
               void navigator.clipboard
                 .writeText(change)

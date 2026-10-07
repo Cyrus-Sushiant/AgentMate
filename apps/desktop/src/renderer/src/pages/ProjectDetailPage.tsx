@@ -89,7 +89,6 @@ import { PackagesTab } from '@/components/projects/PackagesTab';
 import {
   AGENT_TYPE_LABELS,
   isProjectSectionId,
-  PILL_GHOST,
   PROJECT_CARD,
   ProjectDetailHeader,
   ProjectDetailSkeleton,
@@ -628,7 +627,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
           variant="ghost"
           size="sm"
           onClick={() => navigate('/projects')}
-          className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/[0.06]"
+          className="px-2.5 text-muted-foreground hover:bg-foreground/[0.06]"
         >
           <ArrowLeft /> Back to Projects
         </Button>
@@ -637,7 +636,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
           title="Project not found"
           description="It may have been removed, or this link is out of date."
           action={
-            <Button className="rounded-full px-5" onClick={() => navigate('/projects')}>
+            <Button onClick={() => navigate('/projects')}>
               <ArrowLeft /> Back to Projects
             </Button>
           }
@@ -689,12 +688,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 description="The context agents start from every time they work on this project."
                 actions={
                   project.prompt ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={PILL_GHOST}
-                      onClick={() => setPromptOpen(true)}
-                    >
+                    <Button variant="soft" onClick={() => setPromptOpen(true)}>
                       <MessageSquare /> Edit prompt
                     </Button>
                   ) : null
@@ -709,11 +703,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                     title="No standing prompt"
                     description="Set the context agents should start from every time they work on this project."
                     action={
-                      <Button
-                        size="sm"
-                        className="h-8 rounded-full px-4"
-                        onClick={() => setPromptOpen(true)}
-                      >
+                      <Button onClick={() => setPromptOpen(true)}>
                         <MessageSquare /> Define prompt
                       </Button>
                     }
@@ -761,8 +751,6 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 }
                 actions={
                   <Button
-                    size="sm"
-                    className="h-8 rounded-full px-4"
                     onClick={() => setDescribeOpen(true)}
                     disabled={
                       bootstrapMutation.isPending || (planBridgeReady && !bootstrapPlanQuery.data)
@@ -859,9 +847,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   <>
                     {allProjectSkillSubjects.length > 0 && (
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className={PILL_GHOST}
+                        variant="soft"
                         disabled={checkAllSkillsMutation.isPending}
                         onClick={() => checkAllSkillsMutation.mutate(allProjectSkillSubjects)}
                       >
@@ -880,9 +866,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                       </Button>
                     )}
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className={PILL_GHOST}
+                      variant="soft"
                       onClick={() => navigate(`/skills?projectId=${project.id}`)}
                     >
                       <Blocks /> Browse marketplace
@@ -914,11 +898,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                     title="No skills installed"
                     description="Pull skills from the marketplace so agents on this project can use them."
                     action={
-                      <Button
-                        size="sm"
-                        className="h-8 rounded-full px-4"
-                        onClick={() => navigate(`/skills?projectId=${project.id}`)}
-                      >
+                      <Button onClick={() => navigate(`/skills?projectId=${project.id}`)}>
                         <Blocks /> Browse marketplace
                       </Button>
                     }
@@ -952,9 +932,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
                                   v{update.latestVersion} available
                                 </ToneChip>
                                 <Button
-                                  variant="ghost"
+                                  variant="soft"
                                   size="sm"
-                                  className={cn(PILL_GHOST, 'h-7 px-3')}
                                   disabled={
                                     updateSkillMutation.isPending &&
                                     updateSkillMutation.variables?.skillId === skill.skillId
@@ -968,8 +947,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                             <SimpleTooltip label={`Check ${skill.skillId} for unsafe instructions`}>
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className={ROW_ICON_BUTTON}
+                                size="icon-sm"
                                 aria-label={`Check ${skill.skillId}`}
                                 onClick={() =>
                                   setSecuritySubject({
@@ -989,11 +967,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
                             <SimpleTooltip label={`Remove ${skill.skillId}`}>
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className={cn(
-                                  ROW_ICON_BUTTON,
-                                  'hover:bg-destructive/10 hover:text-destructive',
-                                )}
+                                size="icon-sm"
+                                className="hover:bg-destructive/10 hover:text-destructive"
                                 aria-label={`Remove ${skill.skillId}`}
                                 onClick={() => {
                                   void confirmDialog({
@@ -1043,9 +1018,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
                             </p>
                           </div>
                           <Button
-                            variant="ghost"
+                            variant="soft"
                             size="sm"
-                            className={cn(PILL_GHOST, 'h-7 shrink-0 px-3')}
+                            className="shrink-0"
                             onClick={() =>
                               setSecuritySubject({
                                 skillId: skill.name,
@@ -1071,12 +1046,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
               title="MCP servers"
               description="MCP servers installed into this project."
               actions={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={PILL_GHOST}
-                  onClick={() => navigate(`/mcp?projectId=${project.id}`)}
-                >
+                <Button variant="soft" onClick={() => navigate(`/mcp?projectId=${project.id}`)}>
                   <Plug /> Browse marketplace
                 </Button>
               }
@@ -1088,11 +1058,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   title="No MCP servers installed"
                   description="Install servers from the marketplace to give this project's agents extra tools."
                   action={
-                    <Button
-                      size="sm"
-                      className="h-8 rounded-full px-4"
-                      onClick={() => navigate(`/mcp?projectId=${project.id}`)}
-                    >
+                    <Button onClick={() => navigate(`/mcp?projectId=${project.id}`)}>
                       <Plug /> Browse marketplace
                     </Button>
                   }
@@ -1112,11 +1078,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
                       <SimpleTooltip label={`Remove ${server.serverId}`}>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className={cn(
-                            ROW_ICON_BUTTON,
-                            'hover:bg-destructive/10 hover:text-destructive',
-                          )}
+                          size="icon-sm"
+                          className="hover:bg-destructive/10 hover:text-destructive"
                           aria-label={`Remove ${server.serverId}`}
                           onClick={() => {
                             void confirmDialog({
@@ -1243,10 +1206,6 @@ const ROWS = 'settings-rows -mx-4 -mb-4 shadow-[inset_0_1px_0_hsl(var(--foregrou
 const ROW =
   'flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-foreground/[0.03]';
 
-/** A small round icon button inside a row, with the main menu's hover wash. */
-const ROW_ICON_BUTTON =
-  'h-7 w-7 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground';
-
 /** A status or count as a small tinted chip: the page kit's one chip. */
 const ToneChip = Chip;
 
@@ -1342,15 +1301,15 @@ function ProjectTerminalSection({
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" className="h-8 rounded-full px-4" onClick={onOpenHere}>
+        <Button onClick={onOpenHere}>
           <TerminalSquare /> Open terminal here
         </Button>
         {runCommands.length > 0 ? (
-          <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onRun}>
+          <Button variant="soft" onClick={onRun}>
             <Run /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
           </Button>
         ) : (
-          <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onSetRun}>
+          <Button variant="soft" onClick={onSetRun}>
             Set a run command
           </Button>
         )}
@@ -1409,12 +1368,7 @@ function ProjectConfigEditor({
       title="Config"
       description={<span className="font-mono">.agentmate/config.json</span>}
       actions={
-        <Button
-          size="sm"
-          className="h-8 rounded-full px-4"
-          disabled={!loaded}
-          onClick={() => void handleSave()}
-        >
+        <Button disabled={!loaded} onClick={() => void handleSave()}>
           <Save /> Save
         </Button>
       }
@@ -1757,15 +1711,10 @@ function AiSuggestButton({
     return (
       <SimpleTooltip label={pendingTooltip}>
         <Button
-          variant={pill ? 'ghost' : 'outline'}
-          size={size}
+          variant="danger"
+          size={pill ? undefined : size}
           onClick={onCancel}
           aria-label={`${pendingLabel} Click to cancel.`}
-          className={
-            pill
-              ? 'h-8 rounded-full bg-destructive/10 px-3.5 text-xs text-foreground ring-1 ring-inset ring-destructive/30 hover:bg-destructive/15'
-              : 'border-destructive/40 hover:bg-destructive/10'
-          }
         >
           <Spinner className={`${iconSize} animate-spin`} />
           {pendingLabel}
@@ -1776,13 +1725,7 @@ function AiSuggestButton({
   }
 
   return (
-    <Button
-      variant={pill ? 'ghost' : 'outline'}
-      size={size}
-      disabled={disabled}
-      onClick={onStart}
-      className={pill ? PILL_GHOST : undefined}
-    >
+    <Button variant="soft" size={pill ? undefined : size} disabled={disabled} onClick={onStart}>
       <Sparkles className={iconSize} /> {label}
     </Button>
   );
@@ -1823,22 +1766,19 @@ function GitOpButton({
   pending: boolean;
   disabled?: boolean;
   onClick: () => void;
-  variant?: 'outline' | 'destructive';
+  variant?: 'soft' | 'destructive';
   size?: 'sm';
-  /** Draws it as the Git tab's pill; the dialogs keep the plain button. */
+  /** Draws it at the Git tab's pill size; the dialogs keep the smaller one. */
   pill?: boolean;
 }): React.JSX.Element {
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
   return (
     <Button
-      variant={pill && variant === 'outline' ? 'ghost' : variant}
-      size={size}
+      variant={variant}
+      size={pill ? undefined : size}
       disabled={disabled || pending}
       onClick={onClick}
       aria-busy={pending}
-      className={
-        pill ? (variant === 'outline' ? PILL_GHOST : 'h-8 rounded-full px-3.5 text-xs') : undefined
-      }
     >
       {pending ? (
         <Spinner className={`${iconSize} animate-spin`} />
@@ -2095,7 +2035,7 @@ function GitTab({
           title="This folder isn't a git repository yet"
           description="Start one on a master branch, then publish it to a GitHub account or organization without leaving the app."
           action={
-            <Button className="rounded-full px-5" onClick={() => setSetupOpen(true)}>
+            <Button onClick={() => setSetupOpen(true)}>
               <GitBranch className="h-4 w-4" /> Initialize repository
             </Button>
           }
@@ -2185,7 +2125,6 @@ function GitTab({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground"
                     disabled={anyOpPending}
                     onClick={() => setHistoryBranch(status.branch)}
                     aria-label="Branch chart and history"
@@ -2228,20 +2167,14 @@ function GitTab({
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {diffrayInstalled && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className={PILL_GHOST}
-              onClick={onReviewWithDiffray}
-              disabled={anyOpPending}
-            >
+            <Button variant="soft" onClick={onReviewWithDiffray} disabled={anyOpPending}>
               <GitPullRequest /> Review with diffray
             </Button>
           )}
           <GitOpButton
             pill
             size="sm"
-            variant="outline"
+            variant="soft"
             icon={CloudDownload}
             label="Fetch"
             pendingLabel="Fetching…"
@@ -2252,7 +2185,7 @@ function GitTab({
           <GitOpButton
             pill
             size="sm"
-            variant={pullPrimary ? undefined : 'outline'}
+            variant={pullPrimary ? undefined : 'soft'}
             icon={Download}
             label="Pull"
             pendingLabel="Pulling…"
@@ -2263,7 +2196,7 @@ function GitTab({
           <GitOpButton
             pill
             size="sm"
-            variant={pushPrimary ? undefined : 'outline'}
+            variant={pushPrimary ? undefined : 'soft'}
             icon={CloudUpload}
             label="Push"
             pendingLabel="Pushing…"
@@ -2275,7 +2208,7 @@ function GitTab({
             <GitOpButton
               pill
               size="sm"
-              variant={pullPrimary || pushPrimary ? 'outline' : undefined}
+              variant={pullPrimary || pushPrimary ? 'soft' : undefined}
               icon={RefreshCw}
               label="Sync"
               pendingLabel="Syncing…"
@@ -2284,11 +2217,7 @@ function GitTab({
               onClick={() => syncMutation.mutate()}
             />
           ) : (
-            <Button
-              size="sm"
-              className="h-8 rounded-full px-3.5 text-xs"
-              onClick={() => setSetupOpen(true)}
-            >
+            <Button onClick={() => setSetupOpen(true)}>
               <CloudUpload className="h-3.5 w-3.5" /> Connect to GitHub
             </Button>
           )}
@@ -2486,8 +2415,7 @@ function GitTab({
                           <SimpleTooltip label="Chart and history">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className={ROW_ICON_BUTTON}
+                              size="icon-sm"
                               disabled={anyOpPending}
                               onClick={() => setHistoryBranch(branch.name)}
                               aria-label={`History of ${branch.name}`}
@@ -2499,8 +2427,7 @@ function GitTab({
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"
-                                size="icon"
-                                className={ROW_ICON_BUTTON}
+                                size="icon-sm"
                                 disabled={anyOpPending}
                                 aria-label={`Actions for ${branch.name}`}
                               >
@@ -2524,7 +2451,7 @@ function GitTab({
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 disabled={!canDelete}
-                                className="text-destructive focus:text-destructive"
+                                tone="danger"
                                 onSelect={() => {
                                   setDeleteTarget(branch);
                                   setDeleteRemote(!branch.local && branch.remote);
@@ -2646,12 +2573,7 @@ function GitTab({
               ))}
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(PILL_GHOST, 'mt-auto self-start')}
-            onClick={() => setTagOpen(true)}
-          >
+          <Button variant="soft" className="mt-auto self-start" onClick={() => setTagOpen(true)}>
             <Tag className="h-3.5 w-3.5" /> Tag a version
           </Button>
         </div>
@@ -2674,9 +2596,8 @@ function GitTab({
             wrapTrigger
           >
             <Button
-              variant="ghost"
-              size="sm"
-              className={cn(PILL_GHOST, 'mt-auto self-start')}
+              variant="soft"
+              className="mt-auto self-start"
               onClick={() => setPrOpen(true)}
               disabled={!status.hasRemote}
             >
@@ -3043,7 +2964,7 @@ function ApplyVersionDialog({
               <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                 Cancelled. Any edits already written are listed below.
               </p>
-              <Button variant="outline" size="sm" onClick={handleRetry}>
+              <Button variant="soft" size="sm" onClick={handleRetry}>
                 <RefreshCw className="h-3.5 w-3.5" /> Try again
               </Button>
             </div>
@@ -3059,7 +2980,7 @@ function ApplyVersionDialog({
                   <TriangleAlert className="h-3.5 w-3.5 shrink-0" /> The run failed
                 </p>
                 <Button
-                  variant="outline"
+                  variant="soft"
                   size="sm"
                   onClick={handleRetry}
                   className="shrink-0 self-start sm:self-auto"
@@ -3085,7 +3006,7 @@ function ApplyVersionDialog({
                   early
                 </p>
                 <Button
-                  variant="outline"
+                  variant="soft"
                   size="sm"
                   onClick={handleRetry}
                   className="shrink-0 self-start sm:self-auto"
@@ -3197,7 +3118,7 @@ function ApplyVersionDialog({
                 The run finished without changing any files. The version may already be set, or the
                 CLI could not find where it lives.
               </p>
-              <Button variant="outline" size="sm" onClick={handleRetry}>
+              <Button variant="soft" size="sm" onClick={handleRetry}>
                 <RefreshCw className="h-3.5 w-3.5" /> Try again
               </Button>
             </div>
@@ -3221,18 +3142,14 @@ function ApplyVersionDialog({
               <Button variant="ghost" onClick={() => onOpenChange(false)}>
                 Close, keep it running
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleCancel}
-                className="border-destructive/40 hover:bg-destructive/10"
-              >
-                <X className="h-4 w-4 text-destructive" /> Cancel
+              <Button variant="danger" onClick={handleCancel}>
+                <X className="h-4 w-4" /> Cancel
               </Button>
             </>
           ) : (
             <>
               {canRetry ? (
-                <Button variant="outline" onClick={handleRetry}>
+                <Button variant="soft" onClick={handleRetry}>
                   <RefreshCw className="h-4 w-4" /> Try again
                 </Button>
               ) : null}
@@ -3562,7 +3479,7 @@ function TagVersionDialog({
                 </p>
               </div>
               <Button
-                variant="outline"
+                variant="soft"
                 size="sm"
                 className="shrink-0 self-start sm:self-auto"
                 disabled={createTagMutation.isPending}
@@ -3620,7 +3537,7 @@ function TagVersionDialog({
                         : 'text-muted-foreground',
                   )}
                 >
-                  {trimmedVersion ? tag : '—'}
+                  {trimmedVersion ? tag : 'None'}
                 </p>
               </div>
             </div>
@@ -3844,7 +3761,7 @@ function TagVersionDialog({
             </div>
             <SimpleTooltip label={trimmedVersion ? null : 'Pick a version first.'} wrapTrigger>
               <Button
-                variant="outline"
+                variant="soft"
                 size="sm"
                 disabled={!trimmedVersion || createTagMutation.isPending}
                 onClick={handleApplyVersion}
@@ -4065,12 +3982,7 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
             <TriangleAlert className="h-4 w-4 shrink-0 text-warning" />
             Set up your Telegram bot in Settings before enabling the Telegram hooks.
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={PILL_GHOST}
-            onClick={() => navigate('/settings')}
-          >
+          <Button variant="soft" onClick={() => navigate('/settings')}>
             Open Settings
           </Button>
         </div>
@@ -4151,9 +4063,8 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
                   <SimpleTooltip label="Edit hook">
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="icon-sm"
                       aria-label={`Edit ${hook.event} hook`}
-                      className={ROW_ICON_BUTTON}
                       onClick={() => setEditingHook(hook)}
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -4162,12 +4073,9 @@ function HooksTab({ project }: { project: Project }): React.JSX.Element {
                   <SimpleTooltip label="Delete hook">
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="icon-sm"
+                      className="hover:bg-destructive/10 hover:text-destructive"
                       aria-label={`Delete ${hook.event} hook`}
-                      className={cn(
-                        ROW_ICON_BUTTON,
-                        'hover:bg-destructive/10 hover:text-destructive',
-                      )}
                       onClick={() => {
                         void confirmDialog({
                           title: `Remove ${hook.event} hook?`,
@@ -4348,12 +4256,7 @@ function NotificationHookCard({
             <span>
               The desktop companion is off, so this hook stays quiet until you turn it back on.
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(PILL_GHOST, 'h-7')}
-              onClick={() => navigate('/settings')}
-            >
+            <Button variant="soft" size="sm" onClick={() => navigate('/settings')}>
               Open Settings
             </Button>
           </div>
@@ -4391,8 +4294,6 @@ function NotificationHookCard({
 
         <div className="flex items-center gap-1.5 pt-1">
           <Button
-            size="sm"
-            className="h-8 rounded-full px-4"
             disabled={!dirty || saving}
             onClick={() => {
               onSave({ enabled, cliId: cliId || null, message });
@@ -4402,9 +4303,7 @@ function NotificationHookCard({
             <Save className="h-4 w-4" /> Save
           </Button>
           <Button
-            size="sm"
-            variant="ghost"
-            className={PILL_GHOST}
+            variant="soft"
             disabled={testing || !message.trim()}
             onClick={() => void handleTest()}
           >

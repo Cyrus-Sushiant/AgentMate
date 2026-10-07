@@ -1,6 +1,7 @@
 import { CLOUDFLARE_PERMISSIONS } from '@shared/cloudflare/permissions';
 import type { CloudflarePermissionCheck, CloudflarePermissionState } from '@shared/cloudflareTypes';
 import { CircleCheck, CircleQuestion, CircleX } from '@/components/icons';
+import { Chip, type ChipTone, SECTION_WELL } from '@/components/pageKit';
 import { cn } from '@/lib/utils';
 
 const STATE_TEXT: Record<CloudflarePermissionState, string> = {
@@ -9,20 +10,19 @@ const STATE_TEXT: Record<CloudflarePermissionState, string> = {
   unverified: 'Checked when first used',
 };
 
-function StateMark({ state }: { state: CloudflarePermissionState }): React.JSX.Element {
+const STATE_TONE: Record<CloudflarePermissionState, ChipTone> = {
+  granted: 'success',
+  missing: 'destructive',
+  unverified: 'neutral',
+};
+
+function StateChip({ state }: { state: CloudflarePermissionState }): React.JSX.Element {
   const Icon = state === 'granted' ? CircleCheck : state === 'missing' ? CircleX : CircleQuestion;
   return (
-    <span
-      className={cn(
-        'flex shrink-0 items-center gap-1.5 text-xs font-medium',
-        state === 'granted' && 'text-success',
-        state === 'missing' && 'text-destructive',
-        state === 'unverified' && 'text-muted-foreground',
-      )}
-    >
-      <Icon className="h-3.5 w-3.5" />
+    <Chip tone={STATE_TONE[state]}>
+      <Icon />
       {STATE_TEXT[state]}
-    </span>
+    </Chip>
   );
 }
 
@@ -37,7 +37,8 @@ export function PermissionList({
 }): React.JSX.Element {
   const stateOf = new Map(checks?.map((check) => [check.id, check.state]));
   return (
-    <ul className="divide-y divide-border/60 rounded-lg border border-border/70 bg-secondary/20">
+    // The well keeps its own padding off, so the hairlines run edge to edge like a Settings card.
+    <ul className={cn(SECTION_WELL, 'settings-rows p-0')}>
       {CLOUDFLARE_PERMISSIONS.map((permission) => {
         const state = stateOf.get(permission.id);
         return (
@@ -46,7 +47,7 @@ export function PermissionList({
               <p className="font-mono text-xs text-foreground">{permission.label}</p>
               <p className="text-xs text-muted-foreground">{permission.purpose}</p>
             </div>
-            {state && <StateMark state={state} />}
+            {state && <StateChip state={state} />}
           </li>
         );
       })}

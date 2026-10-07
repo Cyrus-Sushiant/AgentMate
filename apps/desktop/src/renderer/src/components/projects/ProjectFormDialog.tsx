@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { COLOR_FIELD, Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -456,8 +457,8 @@ export function ProjectFormDialog({
                   />
                   <Button
                     type="button"
-                    variant="outline"
-                    className="shrink-0"
+                    variant="soft"
+                    className="h-9 shrink-0"
                     onClick={() => void handlePickFolder()}
                   >
                     <FolderOpen className="h-4 w-4" /> Browse
@@ -488,8 +489,8 @@ export function ProjectFormDialog({
                   {repoUrl.trim() && (
                     <Button
                       type="button"
-                      variant="outline"
-                      className="shrink-0"
+                      variant="soft"
+                      className="h-9 shrink-0"
                       onClick={() =>
                         void window.agentmat.shell.openExternal(browsableRepoUrl(repoUrl))
                       }
@@ -646,8 +647,8 @@ export function ProjectFormDialog({
                   />
                   <Button
                     type="button"
-                    variant="outline"
-                    className="shrink-0"
+                    variant="soft"
+                    className="h-9 shrink-0"
                     disabled={!websiteUrl.trim() || fetchingFavicon}
                     onClick={() => void handleFetchFavicon(false)}
                   >
@@ -803,7 +804,7 @@ export function ProjectFormDialog({
                         variant="ghost"
                         size="icon"
                         aria-label={`Remove command ${index + 1}`}
-                        className="shrink-0"
+                        className="h-9 w-9 shrink-0"
                         onClick={() =>
                           setRunCommands((prev) => {
                             const next = prev.filter((item) => item.id !== row.id);
@@ -991,7 +992,11 @@ function ColorSwatches({
             // The native colour dialog pulls focus out of the popover; without
             // this the popover would close under it and drop the pick.
             onFocusOutside={(event) => event.preventDefault()}
-            className="z-50 w-56 space-y-3 rounded-lg border border-border bg-popover/95 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+            className={cn(
+              OVERLAY_SURFACE,
+              OVERLAY_MOTION,
+              'z-50 w-56 space-y-3 p-3 origin-[var(--radix-popover-content-transform-origin)]',
+            )}
           >
             <input
               type="color"

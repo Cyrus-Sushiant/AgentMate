@@ -212,7 +212,7 @@ export function PromptComposerDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={pending}>
+          <Button variant="soft" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
           <Button disabled={!canSubmit || pending} onClick={submit}>

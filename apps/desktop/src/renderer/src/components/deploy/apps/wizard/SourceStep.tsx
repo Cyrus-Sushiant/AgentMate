@@ -46,7 +46,7 @@ export function SourceStep({
     <div className="space-y-5">
       <Field label="Project" htmlFor={`${ids}-project`}>
         {projects.isPending ? (
-          <Skeleton className="h-9 w-full" aria-busy="true" />
+          <Skeleton className="h-9 w-full rounded-full" aria-busy="true" />
         ) : (
           <NativeSelect
             id={`${ids}-project`}
@@ -74,11 +74,11 @@ export function SourceStep({
 
       {source.projectId !== '' && (
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-foreground">Compose file</legend>
+          <legend className="mb-2 text-sm font-medium text-foreground">Compose file</legend>
           {discovery.isPending ? (
             <div className="space-y-2" aria-busy="true">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
             </div>
           ) : discovery.isError ? (
             <Problem
@@ -99,10 +99,11 @@ export function SourceStep({
                   <label
                     key={file.path}
                     className={cn(
-                      'flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 transition-colors',
+                      // Inset rings, since a tinted border would lose to the global border colour.
+                      'flex cursor-pointer items-start gap-3 rounded-xl px-3 py-2 ring-1 ring-inset transition-colors',
                       checked
-                        ? 'border-primary/50 bg-primary/5'
-                        : 'border-border hover:border-foreground/20',
+                        ? 'bg-primary/12 ring-primary/40'
+                        : 'ring-foreground/[0.08] hover:bg-foreground/[0.06]',
                       unreadable && 'cursor-not-allowed opacity-60',
                     )}
                   >

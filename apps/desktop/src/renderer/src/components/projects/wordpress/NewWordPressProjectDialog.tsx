@@ -269,8 +269,8 @@ export function NewWordPressProjectDialog({
                       spellCheck={false}
                     />
                     <Button
-                      variant="outline"
-                      className="shrink-0"
+                      variant="soft"
+                      className="h-9 shrink-0"
                       onClick={() => void pickFolder()}
                     >
                       <FolderOpen className="h-4 w-4" /> Browse
@@ -357,7 +357,7 @@ export function NewWordPressProjectDialog({
                     Hide
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="soft"
                     disabled={run.cancelling}
                     onClick={() => void cancelRun(run.operationId)}
                   >

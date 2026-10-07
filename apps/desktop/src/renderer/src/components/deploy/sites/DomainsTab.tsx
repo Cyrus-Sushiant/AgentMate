@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { suggestId } from '@/lib/deploy/sites/draft';
 import { FieldError, Section, TextField } from './fields';
 import type { SiteTabProps } from './tabTypes';
@@ -19,7 +20,7 @@ export function DomainsTab({ draft, set, error, readOnly }: SiteTabProps): React
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Section
         title="Domains"
         description="Every name this site answers to. Point each one at this server in DNS before you issue a certificate. Write *.example.com for every subdomain."
@@ -40,15 +41,20 @@ export function DomainsTab({ draft, set, error, readOnly }: SiteTabProps): React
                   className="font-mono"
                 />
                 {draft.domains.length > 1 && !readOnly && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remove ${domain || `domain ${index + 1}`}`}
-                    onClick={() => set({ domains: draft.domains.filter((_, at) => at !== index) })}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <SimpleTooltip label="Remove">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Remove ${domain || `domain ${index + 1}`}`}
+                      onClick={() =>
+                        set({ domains: draft.domains.filter((_, at) => at !== index) })
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
+                  </SimpleTooltip>
                 )}
               </div>
               <FieldError message={error(`domains[${index}]`)} />
@@ -59,7 +65,7 @@ export function DomainsTab({ draft, set, error, readOnly }: SiteTabProps): React
         {!readOnly && draft.domains.length < MAX_DOMAINS && (
           <Button
             type="button"
-            variant="outline"
+            variant="soft"
             size="sm"
             onClick={() => set({ domains: [...draft.domains, ''] })}
           >

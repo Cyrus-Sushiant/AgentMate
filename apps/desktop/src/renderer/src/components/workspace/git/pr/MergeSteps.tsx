@@ -43,7 +43,7 @@ export function MergeSteps({
           {index === 0 ? (
             <Spinner className="h-2.5 w-2.5 shrink-0 animate-spin motion-reduce:animate-none" />
           ) : (
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-border" />
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-inset ring-foreground/20" />
           )}
           {PENDING_LABEL[step]}
         </li>

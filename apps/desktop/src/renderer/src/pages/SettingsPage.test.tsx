@@ -183,6 +183,18 @@ describe('SettingsPage appearance', () => {
     expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ theme: 'light' });
   });
 
+  it('draws the Light preview in light even while the app is dark', async () => {
+    const { user } = renderSettings();
+    const group = within(await screen.findByRole('group', { name: 'Theme' }));
+
+    await user.click(group.getByRole('button', { name: /^Dark/ }));
+
+    // Light has no class on <html>, so its preview needs its own to undo the inherited dark colours.
+    const light = group.getByRole('button', { name: /^Light/ });
+    expect(light.querySelector('.theme-light')).not.toBeNull();
+    expect(light.querySelector('.dark')).toBeNull();
+  });
+
   it('keeps the main menu on the left until the user moves it', async () => {
     renderSettings();
     const group = within(await screen.findByRole('group', { name: 'Main menu' }));

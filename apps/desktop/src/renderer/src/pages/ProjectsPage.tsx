@@ -30,6 +30,7 @@ import {
   Sparkles,
   X,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { DiffrayReviewWizardDialog } from '@/components/projects/DiffrayReviewWizard';
 import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects/ProjectFormDialog';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
@@ -390,16 +391,14 @@ export default function ProjectsPage(): React.JSX.Element {
             <SimpleTooltip
               label={showArchived ? 'Back to active projects' : 'Show archived projects'}
             >
-              <button
-                type="button"
+              <Button
+                // The pressed state is the primary tint, with a hairline ring so it reads as on.
+                // The weight stays medium in both states so the label doesn't shift.
+                variant={showArchived ? 'tint' : 'soft'}
                 aria-pressed={showArchived}
                 className={cn(
-                  'inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  // The pill wash is unlayered CSS and would cover a tint, so the pressed state
-                  // swaps it out for the primary one instead of layering on top.
-                  showArchived
-                    ? 'bg-primary/12 text-primary ring-1 ring-inset ring-primary/25'
-                    : 'search-pill text-foreground/85 hover:text-foreground',
+                  'h-9 shrink-0 font-medium',
+                  showArchived && 'ring-1 ring-inset ring-primary/25',
                 )}
                 onClick={toggleArchivedView}
               >
@@ -407,7 +406,7 @@ export default function ProjectsPage(): React.JSX.Element {
                 <span className="rounded-full bg-current/10 px-1.5 text-[10px] leading-4 tabular-nums">
                   {archivedProjects.length}
                 </span>
-              </button>
+              </Button>
             </SimpleTooltip>
           )}
           {projects.length > 0 && (
@@ -521,7 +520,7 @@ export default function ProjectsPage(): React.JSX.Element {
             title="No projects yet"
             description="Add a folder AgentMate can bootstrap and work in. You can pin it, run it, and build prompts from here."
             action={
-              <Button className="rounded-full px-5" onClick={() => setDialogOpen(true)}>
+              <Button onClick={() => setDialogOpen(true)}>
                 <Plus /> New Project
               </Button>
             }
@@ -538,11 +537,7 @@ export default function ProjectsPage(): React.JSX.Element {
                 : `No ${agentFilterLabel(agentFilter)} projects yet.`
             }
             action={
-              <Button
-                variant="ghost"
-                className="search-pill rounded-full px-4 text-foreground/85 hover:text-foreground"
-                onClick={clearFilters}
-              >
+              <Button variant="soft" onClick={clearFilters}>
                 <X /> Clear filters
               </Button>
             }
@@ -624,14 +619,6 @@ const LIST_CARD = cn(CARD, 'settings-rows overflow-hidden');
 /** A grid card's footer, set off by a hairline drawn as a shadow so the theme border rule can't recolour it. */
 const CARD_FOOTER =
   'flex items-center gap-2 px-4 py-2.5 shadow-[inset_0_1px_0_hsl(var(--foreground)/0.08)]';
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
-/** A small round icon button with the main menu's hover wash. */
-const ROUND_ICON_BUTTON =
-  'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 type PillTransition = React.ComponentProps<typeof motion.span>['transition'];
 
@@ -1076,17 +1063,17 @@ function ProjectSecondaryActions({
     >
       {actions.map(({ key, label, icon: Icon, onSelect }) => (
         <SimpleTooltip key={key} label={label}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={label}
-            className={cn(ROUND_ICON_BUTTON, 'h-7 w-7')}
             onClick={(e) => {
               e.stopPropagation();
               onSelect();
             }}
           >
             <Icon className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </SimpleTooltip>
       ))}
     </div>
@@ -1119,23 +1106,19 @@ function ProjectQuickActions({
 
   const pin = (
     <SimpleTooltip label={project.pinned ? 'Unpin project' : 'Pin to top'}>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-sm"
         aria-label={project.pinned ? 'Unpin project' : 'Pin to top'}
         aria-pressed={project.pinned}
-        className={cn(
-          ROUND_ICON_BUTTON,
-          'h-7 w-7',
-          reveal,
-          project.pinned && 'text-primary opacity-100 hover:text-primary',
-        )}
+        className={cn(reveal, project.pinned && 'text-primary opacity-100 hover:text-primary')}
         onClick={(e) => {
           e.stopPropagation();
           onTogglePin();
         }}
       >
         <Pin className="h-3.5 w-3.5" />
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 
@@ -1143,17 +1126,18 @@ function ProjectQuickActions({
   const ArchiveIcon = project.archived ? ArchiveRestore : Archive;
   const archive = (
     <SimpleTooltip label={archiveLabel}>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-sm"
         aria-label={archiveLabel}
-        className={cn(ROUND_ICON_BUTTON, 'h-7 w-7', reveal, project.archived && 'opacity-100')}
+        className={cn(reveal, project.archived && 'opacity-100')}
         onClick={(e) => {
           e.stopPropagation();
           onToggleArchive();
         }}
       >
         <ArchiveIcon className="h-3.5 w-3.5" />
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 
@@ -1187,13 +1171,10 @@ function RunButton({
   return (
     <SimpleTooltip label={label}>
       <Button
-        size={iconOnly ? 'icon' : 'sm'}
-        variant={iconOnly ? 'ghost' : 'default'}
+        size={iconOnly ? 'icon' : undefined}
+        variant={iconOnly ? 'soft' : 'default'}
         aria-label={iconOnly ? 'Run' : undefined}
-        className={cn(
-          'shrink-0 rounded-full',
-          iconOnly ? 'search-pill h-8 w-8 text-foreground/85 hover:text-primary' : 'px-3.5',
-        )}
+        className={cn('shrink-0', iconOnly && 'hover:text-primary')}
         onClick={(e) => {
           e.stopPropagation();
           onRun();
@@ -1274,32 +1255,32 @@ function ProjectMetaLinks({
       </SimpleTooltip>
       {project.websiteUrl ? (
         <SimpleTooltip label={`Open ${stripUrl(project.websiteUrl)}`}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             aria-label={`Open ${stripUrl(project.websiteUrl)}`}
-            className={cn(ROUND_ICON_BUTTON, 'h-6 w-6')}
             onClick={(e) => {
               e.stopPropagation();
               void window.agentmat.shell.openExternal(project.websiteUrl);
             }}
           >
-            <Globe className="h-3 w-3" />
-          </button>
+            <Globe />
+          </Button>
         </SimpleTooltip>
       ) : null}
       {project.repoUrl ? (
         <SimpleTooltip label={`Open ${stripUrl(project.repoUrl)}`}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             aria-label={`Open ${stripUrl(project.repoUrl)}`}
-            className={cn(ROUND_ICON_BUTTON, 'h-6 w-6')}
             onClick={(e) => {
               e.stopPropagation();
               void window.agentmat.shell.openExternal(project.repoUrl);
             }}
           >
-            <GitBranch className="h-3 w-3" />
-          </button>
+            <GitBranch />
+          </Button>
         </SimpleTooltip>
       ) : null}
     </div>

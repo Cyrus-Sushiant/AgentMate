@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes } from '@/lib/format';
 import {
   clampDesktopSize,
+  cleanEngineText,
   describeConnectError,
   displayControl,
   enableCredssp,
@@ -21,7 +22,7 @@ export type RdpPhase =
   | { kind: 'connecting' }
   | { kind: 'connected' }
   | { kind: 'ended'; reason: string }
-  | { kind: 'failed'; message: string };
+  | { kind: 'failed'; message: string; detail?: string };
 
 export interface RdpTransfer {
   key: string;
@@ -315,7 +316,9 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
         uiRef.current = ui;
         elementRef.current = element;
 
-        ui.onWarningCallback((warning) => setNotice({ tone: 'warning', message: warning }));
+        ui.onWarningCallback((warning) =>
+          setNotice({ tone: 'warning', message: cleanEngineText(warning) }),
+        );
         // The element fixes its clipboard mode when it mounts, so this is a per-server setting
         // decided before connecting, like the clipboard box in Windows' own client. Files
         // travel over the same channel and need it on.
@@ -412,22 +415,19 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
             if (cancelled) return;
             connectedRef.current = false;
             sessionRef.current = null;
-            setPhase({ kind: 'ended', reason: termination.reason() });
+            setPhase({ kind: 'ended', reason: cleanEngineText(termination.reason()) });
           })
           .catch((error: unknown) => {
             if (cancelled) return;
             connectedRef.current = false;
             sessionRef.current = null;
-            setPhase({
-              kind: 'failed',
-              message: describeConnectError(error, proxyErrorRef.current),
-            });
+            setPhase({ kind: 'failed', ...describeConnectError(error, proxyErrorRef.current) });
           });
       } catch (error) {
         if (cancelled) return;
         connectedRef.current = false;
         sessionRef.current = null;
-        setPhase({ kind: 'failed', message: describeConnectError(error, proxyErrorRef.current) });
+        setPhase({ kind: 'failed', ...describeConnectError(error, proxyErrorRef.current) });
       }
     })();
 

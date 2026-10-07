@@ -6,6 +6,7 @@ import type {
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Lock, Spinner, TriangleAlert } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,7 +20,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { POLICY_LABEL } from '@/lib/deploy/firewall/format';
+import { cn } from '@/lib/utils';
+import { Notice } from '../deployKit';
 import type { ProofStepUp } from '../overview/useProofStepUp';
+import { CODE_WELL } from '../security/SecurityCard';
 import { StepList, type StepStates } from './StepList';
 
 /**
@@ -118,13 +122,8 @@ export function ApplyDialog({
             <div className="space-y-4">
               <p className="text-sm text-foreground">{preview.data.summary}</p>
               <div>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  Commands the server runs
-                </p>
-                <pre
-                  aria-label="Commands"
-                  className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-relaxed text-foreground"
-                >
+                <p className={cn(SECTION_HEADING, 'mb-1.5')}>Commands the server runs</p>
+                <pre aria-label="Commands" className={cn(CODE_WELL, 'max-h-40')}>
                   {preview.data.commands.join('\n')}
                 </pre>
               </div>
@@ -141,13 +140,14 @@ export function ApplyDialog({
                 </ul>
               )}
               {blocked && verdict && (
-                <div
+                <Notice
                   role="alert"
-                  className="space-y-2 rounded-md border border-destructive/50 bg-destructive/10 p-3"
+                  tone="destructive"
+                  icon={TriangleAlert}
+                  className="[&>div]:space-y-2"
                 >
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
-                    <TriangleAlert className="h-3.5 w-3.5" /> This could lock this computer out of
-                    SSH
+                  <p className="text-sm font-medium text-destructive">
+                    This could lock this computer out of SSH
                   </p>
                   <ul className="space-y-0.5 text-xs text-foreground">
                     {verdict.reasons.map((reason) => (
@@ -166,7 +166,7 @@ export function ApplyDialog({
                     spellCheck={false}
                     className="font-mono"
                   />
-                </div>
+                </Notice>
               )}
               {preview.data.needsStepUp && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -184,7 +184,7 @@ export function ApplyDialog({
           </p>
         )}
         <DialogFooter>
-          <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
+          <Button variant="soft" disabled={busy} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

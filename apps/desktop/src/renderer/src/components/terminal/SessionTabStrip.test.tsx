@@ -44,7 +44,7 @@ describe('SessionTabStrip', () => {
       expect(tab.className).toContain('px-2.5');
       expect(tab.querySelector('button[aria-label^="Close "]')).not.toBeNull();
     }
-    expect(tabs[1].className).toContain('hover:bg-foreground/8');
+    expect(tabs[1].className).toContain('hover:bg-foreground/[0.05]');
     expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['true', 'false']);
   });
 

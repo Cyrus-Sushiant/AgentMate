@@ -2,6 +2,7 @@ import type { OpenWidgetOptions, WidgetPeriod, WidgetSize, WidgetStyle } from '@
 import { clampWidgetBlurPercent, widgetBackgroundColor } from '@agentmat/core';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { PeriodChips } from './PeriodCompare';
 
@@ -117,28 +118,28 @@ export function WidgetSettingsForm({
           {BG_PRESETS.map((preset) => {
             const active = selectedBg === preset.color;
             return (
-              <button
-                key={preset.label}
-                type="button"
-                title={preset.label}
-                aria-label={preset.label}
-                aria-pressed={active}
-                className={cn(
-                  'h-6 w-6 rounded-full border transition-shadow',
-                  active
-                    ? 'border-foreground ring-2 ring-foreground/30 ring-offset-1 ring-offset-background'
-                    : 'border-foreground/20 hover:border-foreground/50',
-                )}
-                style={
-                  preset.color
-                    ? { backgroundColor: preset.color }
-                    : {
-                        background:
-                          'conic-gradient(from 90deg, hsl(var(--card)) 0 50%, hsl(var(--muted)) 50% 100%)',
-                      }
-                }
-                onClick={() => onChange({ ...value, backgroundColor: preset.color })}
-              />
+              <SimpleTooltip key={preset.label} label={preset.label}>
+                <button
+                  type="button"
+                  aria-label={preset.label}
+                  aria-pressed={active}
+                  className={cn(
+                    'h-6 w-6 rounded-full border transition-shadow',
+                    active
+                      ? 'border-foreground ring-2 ring-foreground/30 ring-offset-1 ring-offset-background'
+                      : 'border-foreground/20 hover:border-foreground/50',
+                  )}
+                  style={
+                    preset.color
+                      ? { backgroundColor: preset.color }
+                      : {
+                          background:
+                            'conic-gradient(from 90deg, hsl(var(--card)) 0 50%, hsl(var(--muted)) 50% 100%)',
+                        }
+                  }
+                  onClick={() => onChange({ ...value, backgroundColor: preset.color })}
+                />
+              </SimpleTooltip>
             );
           })}
           <label

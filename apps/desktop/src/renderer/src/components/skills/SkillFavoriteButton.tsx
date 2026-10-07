@@ -21,9 +21,9 @@ export function SkillFavoriteButton({
     <SimpleTooltip label={starred ? 'Remove from favorites' : 'Add to favorites'}>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-pressed={starred}
-        className={cn('h-7 w-7 rounded-full hover:bg-foreground/[0.06]', className)}
+        className={className}
         onClick={onToggle}
       >
         <Star

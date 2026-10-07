@@ -9,6 +9,7 @@ import { AppStorePanel } from '@/components/deploy/appStore/AppStorePanel';
 import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
 import { AssistantLauncher } from '@/components/deploy/assistant/AssistantLauncher';
 import { ContainersPanel } from '@/components/deploy/containers/ContainersPanel';
+import { Notice } from '@/components/deploy/deployKit';
 import { FirewallPanel } from '@/components/deploy/firewall/FirewallPanel';
 import { InstallPanel } from '@/components/deploy/InstallPanel';
 import { LogsPanel } from '@/components/deploy/logs/LogsPanel';
@@ -27,10 +28,10 @@ import { wpProblem } from '@/components/deploy/wordpress/messages';
 import { siteSectionFromView } from '@/components/deploy/wordpress/SiteSections';
 import { SiteView } from '@/components/deploy/wordpress/SiteView';
 import { Lock, RefreshCw, Server } from '@/components/icons';
-import { ProjectEmptyState } from '@/components/projects/ProjectDetailChrome';
+import { Chip, EmptyState, GLASS_CARD, GLASS_PANEL } from '@/components/pageKit';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConnectSiteDialog } from '@/components/wordpress/ConnectSiteDialog';
 import { WordPressMark } from '@/components/wordpress/WordPressMark';
@@ -39,20 +40,102 @@ import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useDeploySetupStore } from '@/stores/deploySetupStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
+import { PANEL_WIDTHS, usePanelWidth } from '@/stores/panelWidthStore';
 
+/**
+ * The page's frame, in the API Client's shape: from lg up the rail is a glass card on the left
+ * with a quiet resize handle in the gap, and the rail and the content scroll on their own. Below
+ * lg there is no room for a column, so the rail sits on top and the page scrolls as one.
+ */
+function DeployLayout({
+  rail,
+  contentClassName,
+  children,
+}: {
+  rail: React.ReactNode;
+  contentClassName?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const [width, setWidth] = usePanelWidth('deployRail');
+  return (
+    <div className="flex flex-1 flex-col gap-2 p-2 lg:min-h-0 lg:flex-row lg:gap-0 lg:overflow-hidden">
+      <div
+        style={{ '--deploy-rail': `${width}px` } as React.CSSProperties}
+        // The cap keeps a wide saved width from squeezing the content on a narrow window.
+        className={cn(GLASS_PANEL, 'shrink-0 lg:w-[var(--deploy-rail)] lg:max-w-[36%]')}
+      >
+        <div className="rail-scroll p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{rail}</div>
+      </div>
+      <ResizeHandle
+        orientation="vertical"
+        label="Resize servers"
+        size={width}
+        min={PANEL_WIDTHS.deployRail.min}
+        max={PANEL_WIDTHS.deployRail.max}
+        defaultSize={PANEL_WIDTHS.deployRail.default}
+        onSizeChange={setWidth}
+        quiet
+        className="hidden w-2 lg:flex"
+      />
+      <div
+        className={cn(
+          'rail-scroll flex min-w-0 flex-1 flex-col gap-2 lg:min-h-0 lg:overflow-y-auto',
+          contentClassName,
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The page while the servers load: each card shimmers in its own spot. */
 function DeployPageSkeleton(): React.JSX.Element {
   return (
-    <div className="grid gap-6 p-6 lg:grid-cols-[17rem_minmax(0,1fr)]" aria-busy="true">
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-20" />
+    <div className="flex flex-1 flex-col gap-2 p-2 lg:flex-row" aria-busy="true">
+      <div className={cn(GLASS_CARD, 'space-y-1.5 p-3 lg:w-64 lg:shrink-0')}>
+        <Skeleton className="mb-3 h-3 w-16" />
         {Array.from({ length: 3 }, (_, index) => (
-          <Skeleton key={index} className="h-14 w-full rounded-lg" />
+          <Skeleton key={index} className="h-11 w-full rounded-lg" />
         ))}
       </div>
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-64 w-full rounded-lg" />
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className={cn(GLASS_CARD, 'flex items-center gap-3 px-4 py-3')}>
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+        <Skeleton className="h-8 w-96 max-w-full rounded-full" />
+        <div className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-40 w-full rounded-lg" />
+        </div>
       </div>
+    </div>
+  );
+}
+
+/** A failure that leaves nothing else to show, with the way to try again. */
+function PageFailure({
+  message,
+  onRetry,
+  children,
+}: {
+  message: string;
+  onRetry: () => void;
+  children?: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-1 flex-col gap-2 p-2">
+      <div className={cn(GLASS_CARD, 'space-y-3 p-4')}>
+        <SetupFailure message={message} />
+        <Button size="sm" variant="soft" onClick={onRetry}>
+          <RefreshCw /> Try again
+        </Button>
+      </div>
+      {children}
     </div>
   );
 }
@@ -66,29 +149,32 @@ function VaultLockedBanner({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5">
-      <Lock className="h-4 w-4 shrink-0 text-warning" />
-      <p className="min-w-0 flex-1 text-sm text-foreground">{children}</p>
-      <Button size="sm" onClick={onUnlock}>
-        Unlock
-      </Button>
-    </div>
+    <Notice tone="warning" icon={Lock} className="shrink-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="min-w-0 flex-1">{children}</p>
+        <Button size="sm" onClick={onUnlock}>
+          Unlock
+        </Button>
+      </div>
+    </Notice>
   );
 }
 
 function ServerHeader({ server }: { server: DeployServer }): React.JSX.Element {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+    <div className={cn(GLASS_CARD, 'flex shrink-0 flex-wrap items-center gap-3 px-4 py-3')}>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-[0_0_28px_-12px_hsl(var(--primary)/0.7)]">
         <Server className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <h2 className="truncate text-lg font-semibold text-foreground">{server.nickname}</h2>
-        <p className="truncate font-mono text-xs text-muted-foreground">
+        <h2 className="truncate text-base font-semibold leading-tight tracking-tight text-foreground">
+          {server.nickname}
+        </h2>
+        <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
           {server.username}@{server.host}:{server.port}
         </p>
       </div>
-      {server.dev && <Badge variant="warning">Development</Badge>}
+      {server.dev && <Chip tone="warning">Development</Chip>}
       {server.core && (
         <span className="ml-auto">
           <ConnectionBadge serverId={server.id} />
@@ -178,12 +264,10 @@ export default function DeployPage(): React.JSX.Element {
 
   if (serversQuery.isError) {
     return (
-      <div className="space-y-3 p-6">
-        <SetupFailure message={sshErrorMessage(serversQuery.error)} />
-        <Button size="sm" variant="outline" onClick={() => void serversQuery.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
-      </div>
+      <PageFailure
+        message={sshErrorMessage(serversQuery.error)}
+        onRetry={() => void serversQuery.refetch()}
+      />
     );
   }
 
@@ -213,32 +297,30 @@ export default function DeployPage(): React.JSX.Element {
 
   if (servers.length === 0 && sitesQuery.isError) {
     return (
-      <div className="space-y-3 p-6">
-        <SetupFailure message={wpProblem(sitesQuery.error)} />
-        <Button size="sm" variant="outline" onClick={() => void sitesQuery.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
-        </Button>
+      <PageFailure message={wpProblem(sitesQuery.error)} onRetry={() => void sitesQuery.refetch()}>
         {unlockDialog}
-      </div>
+      </PageFailure>
     );
   }
 
   if (servers.length === 0 && sites.length === 0) {
     return (
-      <div className="space-y-4 p-6">
-        <ProjectEmptyState
+      <div className="flex flex-1 flex-col gap-2 p-2">
+        <EmptyState
+          card
+          size="lg"
           icon={Server}
           title="No servers yet"
           description="Deploy works with the servers you save in Remote, and with WordPress sites that run the AgentMate Connector plugin. Add a server in Remote, or connect a site."
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Button size="sm" onClick={() => navigate('/remote')}>
-                <Server className="h-3.5 w-3.5" /> Open Remote
+              <Button onClick={() => navigate('/remote')}>
+                <Server /> Open Remote
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setConnectOpen(true)}>
+              <Button variant="soft" onClick={() => setConnectOpen(true)}>
                 <WordPressMark className="h-3.5 w-3.5" /> Connect a WordPress site
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate('/deploy/cloudflare')}>
+              <Button variant="soft" onClick={() => navigate('/deploy/cloudflare')}>
                 <CloudflareMark className="h-3.5 w-3.5" /> Manage Cloudflare
               </Button>
             </div>
@@ -267,33 +349,32 @@ export default function DeployPage(): React.JSX.Element {
   if (selectedSite) {
     // No Deploy AI here: the assistant works on a server's core, which a WordPress site has not.
     return (
-      <div className="grid gap-6 p-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <ServerRail {...railProps} selectedId={null} selectedSiteId={selectedSite.id} />
-        <div className="min-w-0 space-y-4">
-          {locked && (
-            <VaultLockedBanner onUnlock={() => setUnlockOpen(true)}>
-              Your saved servers and WordPress sites are locked with a passkey. Unlock them to reach
-              this site.
-            </VaultLockedBanner>
-          )}
-          <SiteView
-            key={selectedSite.id}
-            site={selectedSite}
-            section={siteSectionFromView(params.get('view'))}
-            onSectionChange={(next) =>
-              setParams(
-                next === 'overview'
-                  ? { site: selectedSite.id }
-                  : { site: selectedSite.id, view: next },
-                { replace: true },
-              )
-            }
-            onDisconnected={() => setParams({}, { replace: true })}
-          />
-        </div>
+      <DeployLayout
+        rail={<ServerRail {...railProps} selectedId={null} selectedSiteId={selectedSite.id} />}
+      >
+        {locked && (
+          <VaultLockedBanner onUnlock={() => setUnlockOpen(true)}>
+            Your saved servers and WordPress sites are locked with a passkey. Unlock them to reach
+            this site.
+          </VaultLockedBanner>
+        )}
+        <SiteView
+          key={selectedSite.id}
+          site={selectedSite}
+          section={siteSectionFromView(params.get('view'))}
+          onSectionChange={(next) =>
+            setParams(
+              next === 'overview'
+                ? { site: selectedSite.id }
+                : { site: selectedSite.id, view: next },
+              { replace: true },
+            )
+          }
+          onDisconnected={() => setParams({}, { replace: true })}
+        />
         {connectDialog}
         {unlockDialog}
-      </div>
+      </DeployLayout>
     );
   }
 
@@ -364,10 +445,12 @@ export default function DeployPage(): React.JSX.Element {
   }
 
   return (
-    <div className="grid gap-6 p-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <ServerRail {...railProps} selectedId={selected.id} />
-      {/* Room at the bottom so the Deploy AI button never covers the last controls. */}
-      <div className={cn('min-w-0 space-y-4', sections && 'pb-16')}>
+    <>
+      <DeployLayout
+        rail={<ServerRail {...railProps} selectedId={selected.id} />}
+        // Room at the bottom so the Deploy AI button never covers the last controls.
+        contentClassName={sections ? 'pb-16' : undefined}
+      >
         {locked && (
           <VaultLockedBanner onUnlock={() => setUnlockOpen(true)}>
             Your saved servers are locked with a passkey. Unlock them to reach their cores.
@@ -386,10 +469,10 @@ export default function DeployPage(): React.JSX.Element {
           />
         )}
         {content}
-      </div>
+      </DeployLayout>
       {sections && <AssistantLauncher server={selected} />}
       {connectDialog}
       {unlockDialog}
-    </div>
+    </>
   );
 }

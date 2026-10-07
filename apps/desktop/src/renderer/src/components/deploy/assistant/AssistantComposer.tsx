@@ -95,17 +95,12 @@ export function AssistantComposer({
           ]}
         />
         {running ? (
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={onStop}>
-            <StopCircle className="h-3.5 w-3.5" /> Stop
+          <Button variant="danger" onClick={onStop}>
+            <StopCircle /> Stop
           </Button>
         ) : (
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => void start()}
-            disabled={!prompt.trim() || starting || disabled}
-          >
-            <Send className="h-3.5 w-3.5" /> {finished ? 'Ask' : 'Start'}
+          <Button onClick={() => void start()} disabled={!prompt.trim() || starting || disabled}>
+            <Send /> {finished ? 'Ask' : 'Start'}
           </Button>
         )}
       </div>

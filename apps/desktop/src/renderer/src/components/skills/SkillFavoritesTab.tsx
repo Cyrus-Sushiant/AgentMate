@@ -11,13 +11,11 @@ import {
 } from '@/components/icons';
 import {
   CARD_GRID,
-  CARD_PILL,
   CatalogCardShimmer,
   Chip,
   EmptyState,
   GLASS_CARD,
   SearchPill,
-  TILE_ACTION,
 } from '@/components/pageKit';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
 import { SkillCatalogCard } from '@/components/skills/SkillCatalogCard';
@@ -183,7 +181,7 @@ export function SkillFavoritesTab({
                 actions={
                   <>
                     {installable && (
-                      <Button size="sm" className={CARD_PILL} onClick={() => onInstall(favorite)}>
+                      <Button size="sm" onClick={() => onInstall(favorite)}>
                         <Download /> Install
                       </Button>
                     )}
@@ -192,8 +190,7 @@ export function SkillFavoritesTab({
                         <SimpleTooltip label="Copy the install command">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             aria-label={`Copy the install command for ${favorite.name}`}
                             onClick={() => onCopyInstallCommand(favorite.installCommand!)}
                           >
@@ -205,8 +202,7 @@ export function SkillFavoritesTab({
                         <SimpleTooltip label="Check this skill for unsafe instructions">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             aria-label={`Check ${favorite.name} for unsafe instructions`}
                             onClick={() => onCheckSecurity(securityTarget)}
                           >
@@ -218,8 +214,7 @@ export function SkillFavoritesTab({
                         <SimpleTooltip label="Open on skills.sh">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className={TILE_ACTION}
+                            size="icon-sm"
                             aria-label={`Open ${favorite.name} on skills.sh`}
                             onClick={() => void window.agentmat.shell.openExternal(favorite.url!)}
                           >

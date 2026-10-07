@@ -16,6 +16,8 @@ import {
   Tablet,
   X,
 } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -82,21 +85,22 @@ function ToolButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-sm"
         aria-label={label}
         aria-pressed={pressed}
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35',
+          'relative shrink-0',
           pressed &&
             'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)] hover:bg-primary/20 hover:text-primary',
           className,
         )}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -125,23 +129,17 @@ function AddressBar({
   else if (url.startsWith('http:')) secure = isLocalUrl(url) ? 'local' : 'insecure';
 
   return (
-    <div
-      className={cn(
-        'flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-lg border bg-background/60 px-2 transition-colors',
-        editing
-          ? 'border-primary/50 ring-2 ring-primary/15'
-          : 'border-border/60 hover:border-foreground/20',
-      )}
-    >
+    // The search pill, like the API Client's URL bar. Its edge turns primary while it holds focus.
+    <div className="search-pill flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full px-3 transition-colors">
       {secure === 'https' && !editing ? (
         <SimpleTooltip label="Secure connection">
           <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
         </SimpleTooltip>
       ) : null}
       {secure === 'insecure' && !editing ? (
-        <span className="shrink-0 rounded bg-warning/15 px-1 text-[10px] font-medium text-warning">
+        <Chip tone="warning" className="h-[1.125rem] px-1.5 text-[10px]">
           Not secure
-        </span>
+        </Chip>
       ) : null}
       <input
         ref={inputRef}
@@ -173,7 +171,7 @@ function AddressBar({
           event.currentTarget.blur();
         }}
         className={cn(
-          'h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/70',
+          'h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70',
           editing ? 'text-foreground' : 'text-foreground/85',
         )}
       />
@@ -204,7 +202,7 @@ export function BrowserToolbar({
   const pickKey = useShortcutLabel('workspace.pickElement');
 
   return (
-    <div className="relative flex h-10 shrink-0 items-center gap-1 border-b border-border/60 bg-card/50 px-1.5">
+    <div className="relative flex h-10 shrink-0 items-center gap-1 px-1.5 shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]">
       <ToolButton label="Back" onClick={onBack} disabled={!nav.canGoBack}>
         <ArrowLeft className="h-3 w-3" />
       </ToolButton>
@@ -247,21 +245,22 @@ export function BrowserToolbar({
         </ToolButton>
       </div>
 
-      <span className="mx-0.5 h-4 w-px bg-border/70" />
+      <span aria-hidden className="mx-0.5 h-4 w-px bg-foreground/10" />
 
       <DropdownMenu>
         <SimpleTooltip label={`Device size: ${preset.label}`}>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label={`Device size: ${preset.label}`}
               className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10',
+                'data-[state=open]:bg-foreground/10',
                 preset.id !== 'responsive' && 'text-primary',
               )}
             >
               <PresetIcon className="h-3 w-3" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
         </SimpleTooltip>
         <DropdownMenuContent align="end" className="w-52">
@@ -289,20 +288,21 @@ export function BrowserToolbar({
       <DropdownMenu>
         <SimpleTooltip label="More">
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label="More"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10"
+              className="data-[state=open]:bg-foreground/10"
             >
               <EllipsisVertical className="h-3 w-3" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
         </SimpleTooltip>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem disabled={!hasPage} onSelect={onDevTools}>
             <Bug className="h-3.5 w-3.5 text-muted-foreground" />
             Open DevTools
-            <span className="ml-auto text-[10px] text-muted-foreground">F12</span>
+            <DropdownMenuShortcut>F12</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!hasPage} onSelect={() => onReload(true)}>
             <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />

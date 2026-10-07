@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { CoreAccessCard } from '../CoreAccessCard';
 import { AuditCard } from './AuditCard';
 import { BackupCard } from './backup/BackupCard';
@@ -14,8 +15,13 @@ import { ChecklistCard } from './checklist/ChecklistCard';
 import { DevicesCard } from './DevicesCard';
 import { DirectTlsCard } from './directTls/DirectTlsCard';
 import { hasRole } from './format';
+import { SECURITY_CARD } from './SecurityCard';
 import { SessionsCard } from './SessionsCard';
 import { UsersCard } from './UsersCard';
+
+/** One tab, drawn as the main menu's tinted pill when it is the one shown. */
+const TAB =
+  'h-7 rounded-full border-none px-3 text-xs data-[state=active]:bg-primary/12 data-[state=active]:text-primary data-[state=active]:shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.2)] data-[state=inactive]:hover:bg-foreground/[0.06] focus-visible:ring-inset';
 
 /**
  * A server's Security area: the security checklist (Admins and Owners), who can sign in (Owners),
@@ -43,23 +49,28 @@ export function SecurityPanel({
 
   if (access.isPending) {
     return (
-      <div className="space-y-4" aria-busy="true">
-        <Skeleton className="h-9 w-72" />
-        <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="space-y-2" aria-busy="true">
+        <Skeleton className="h-8 w-80 max-w-full rounded-full" />
+        <div className={cn(SECURITY_CARD, 'space-y-3 p-4')}>
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
       </div>
     );
   }
 
   if (access.data?.state !== 'signed-in') {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
+      <div className="space-y-2">
+        <p className="px-1 text-sm text-muted-foreground">
           Sign in to see who can reach {server.nickname}, and from which computers.
         </p>
         <CoreAccessCard server={server} />
         {!server.dev && (
           <>
-            <Button size="sm" variant="outline" onClick={() => setRestoring(true)}>
+            <Button size="sm" variant="soft" onClick={() => setRestoring(true)}>
               <ArchiveRestore className="h-3.5 w-3.5" /> Restore a backup over SSH
             </Button>
             <RestoreDialog server={server} open={restoring} onOpenChange={setRestoring} />
@@ -77,41 +88,66 @@ export function SecurityPanel({
     <Tabs
       key={owner ? 'owner' : admin ? 'admin' : 'member'}
       defaultValue={admin ? 'checklist' : 'devices'}
-      className="space-y-4"
+      className="space-y-2"
     >
-      <TabsList aria-label="Security">
-        {admin && <TabsTrigger value="checklist">Checklist</TabsTrigger>}
-        {owner && <TabsTrigger value="users">Users</TabsTrigger>}
-        <TabsTrigger value="devices">Devices and sessions</TabsTrigger>
-        {admin && <TabsTrigger value="audit">Audit trail</TabsTrigger>}
-        {owner && <TabsTrigger value="backups">Backups</TabsTrigger>}
-        <TabsTrigger value="connection">Connection</TabsTrigger>
+      {/* Radix tabs drawn as the kit's pill track, so arrow keys and roles stay as they were. */}
+      <TabsList
+        aria-label="Security"
+        containerClassName="w-fit max-w-full border-b-0"
+        className="search-pill mb-0 h-auto w-auto max-w-full gap-0.5 rounded-full p-0.5"
+      >
+        {admin && (
+          <TabsTrigger value="checklist" className={TAB}>
+            Checklist
+          </TabsTrigger>
+        )}
+        {owner && (
+          <TabsTrigger value="users" className={TAB}>
+            Users
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="devices" className={TAB}>
+          Devices and sessions
+        </TabsTrigger>
+        {admin && (
+          <TabsTrigger value="audit" className={TAB}>
+            Audit trail
+          </TabsTrigger>
+        )}
+        {owner && (
+          <TabsTrigger value="backups" className={TAB}>
+            Backups
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="connection" className={TAB}>
+          Connection
+        </TabsTrigger>
       </TabsList>
       {admin && (
-        <TabsContent value="checklist">
+        <TabsContent value="checklist" className="mt-0">
           <ChecklistCard server={server} owner={owner} admin={admin} onUpdateCore={onUpdateCore} />
         </TabsContent>
       )}
       {owner && (
-        <TabsContent value="users">
+        <TabsContent value="users" className="mt-0">
           <UsersCard server={server} />
         </TabsContent>
       )}
-      <TabsContent value="devices" className="space-y-4">
+      <TabsContent value="devices" className="mt-0 space-y-2">
         <DevicesCard server={server} everyone={admin} />
         <SessionsCard server={server} />
       </TabsContent>
       {admin && (
-        <TabsContent value="audit">
+        <TabsContent value="audit" className="mt-0">
           <AuditCard server={server} />
         </TabsContent>
       )}
       {owner && (
-        <TabsContent value="backups">
+        <TabsContent value="backups" className="mt-0">
           <BackupCard server={server} userName={access.data.user?.userName} />
         </TabsContent>
       )}
-      <TabsContent value="connection">
+      <TabsContent value="connection" className="mt-0">
         <DirectTlsCard server={server} owner={owner} />
       </TabsContent>
     </Tabs>

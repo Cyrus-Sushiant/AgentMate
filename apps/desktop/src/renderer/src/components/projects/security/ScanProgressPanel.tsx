@@ -73,8 +73,8 @@ export function ScanProgressPanel({
                   {state && state.lines.length > 0 && (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0"
+                      size="icon-xs"
+                      className="shrink-0"
                       aria-label={isOpen ? 'Hide output' : 'Show output'}
                       onClick={() => setOpenLog(isOpen ? null : scannerId)}
                     >

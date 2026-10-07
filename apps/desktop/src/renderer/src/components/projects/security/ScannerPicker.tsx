@@ -134,7 +134,7 @@ function BlockedLine({
     <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">{blocker.remedy}</p>
       {action.kind === 'install-tool' && (
-        <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={onInstall}>
+        <Button variant="outline" size="sm" className="gap-1 px-2.5" onClick={onInstall}>
           <Download className="h-3 w-3" /> Install
         </Button>
       )}
@@ -142,7 +142,7 @@ function BlockedLine({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 gap-1 px-2 text-xs"
+          className="gap-1 px-2.5"
           onClick={action.kind === 'configure' ? onConfigure : onInstall}
         >
           <SettingsIcon className="h-3 w-3" />

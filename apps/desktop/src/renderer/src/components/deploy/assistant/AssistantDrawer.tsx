@@ -3,8 +3,11 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Robot, X } from '@/components/icons';
+import { Chip, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SimpleTooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { useDeployAssistantStore } from '@/stores/deployAssistantStore';
 import { AssistantComposer } from './AssistantComposer';
 import { AssistantTimeline } from './AssistantTimeline';
@@ -90,28 +93,29 @@ export function AssistantDrawer({ server }: { server: DeployServer }): React.JSX
       onKeyDown={(event) => {
         if (event.key === 'Escape') close();
       }}
-      className="fixed bottom-0 right-0 top-0 z-40 flex w-[min(28rem,100vw)] flex-col border-l border-border bg-card shadow-xl focus:outline-none"
+      // Near-opaque glass, so the logs it sits beside never show through its text.
+      className="glass-opaque fixed bottom-2 right-2 top-2 z-40 flex w-[min(28rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-[calc(var(--radius)+4px)] focus:outline-none"
     >
-      <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Robot className="h-4 w-4 text-primary" />
+      <header className="flex items-center gap-3 px-4 py-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-[0_0_28px_-12px_hsl(var(--primary)/0.7)]">
+          <Robot className="h-4 w-4" />
+        </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-foreground">Deploy AI</h2>
+          <h2 className="text-sm font-semibold leading-tight text-foreground">Deploy AI</h2>
           <p className="truncate text-xs text-muted-foreground">on {server.nickname}</p>
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          aria-label="Close"
-          onClick={close}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <SimpleTooltip label="Close">
+          <Button size="icon-sm" variant="ghost" aria-label="Close" onClick={close}>
+            <X />
+          </Button>
+        </SimpleTooltip>
       </header>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
+      <div
+        className={cn('rail-scroll flex-1 space-y-4 overflow-y-auto px-4 py-3', FOOTER_HAIRLINE)}
+      >
         {mode.loading ? (
-          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-7 w-full rounded-full" />
         ) : mode.forbidden ? (
           <p role="alert" className="text-sm text-muted-foreground">
             The Deploy AI runs commands on the server, which only an Admin of this core may do.
@@ -126,19 +130,15 @@ export function AssistantDrawer({ server }: { server: DeployServer }): React.JSX
 
         {context && (
           <div aria-label="Context" className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-foreground">
+            <Chip tone="primary" className="max-w-full truncate">
               {context.title}
-            </span>
-            {context.containerId && (
-              <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                container {context.containerId}
-              </span>
-            )}
+            </Chip>
+            {context.containerId && <Chip>container {context.containerId}</Chip>}
             {!running && (
               <button
                 type="button"
                 onClick={clearDraft}
-                className="text-xs text-muted-foreground underline-offset-2 hover:underline cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="cursor-pointer rounded-sm text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Clear
               </button>
@@ -157,7 +157,7 @@ export function AssistantDrawer({ server }: { server: DeployServer }): React.JSX
         />
       </div>
 
-      <footer className="border-t border-border px-4 py-3">
+      <footer className={cn('px-4 py-3', FOOTER_HAIRLINE)}>
         <AssistantComposer
           key={draft?.serverId === serverId ? draft.prompt : 'free'}
           running={running}

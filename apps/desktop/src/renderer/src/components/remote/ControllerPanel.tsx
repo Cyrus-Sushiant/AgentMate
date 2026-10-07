@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ExternalLink, Folder, Link, LinkOff, Monitor, Pencil, Trash2 } from '@/components/icons';
-import { Chip, FOOTER_HAIRLINE, PILL_SOFT } from '@/components/pageKit';
+import { Chip, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,7 +14,7 @@ import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useRemoteStore } from '@/stores/remoteStore';
-import { REMOTE_CARD, RemoteCardHeader, ROUND_ICON } from './remoteCard';
+import { REMOTE_CARD, RemoteCardHeader } from './remoteCard';
 
 function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.Element {
   const navigate = useNavigate();
@@ -119,22 +119,11 @@ function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.El
         </p>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <Button
-          size="sm"
-          className="rounded-full px-3.5"
-          onClick={() => void connect()}
-          disabled={connecting}
-        >
+        <Button onClick={() => void connect()} disabled={connecting}>
           <Link className="h-3.5 w-3.5" /> {connecting ? 'Connecting…' : 'Connect'}
         </Button>
         <SimpleTooltip label="Browse this machine's files, without opening a control session">
-          <Button
-            size="sm"
-            variant="ghost"
-            className={PILL_SOFT}
-            onClick={() => void browseFiles()}
-            disabled={browsing}
-          >
+          <Button variant="soft" onClick={() => void browseFiles()} disabled={browsing}>
             <Folder className="h-3.5 w-3.5" /> {browsing ? 'Connecting…' : 'Browse files'}
           </Button>
         </SimpleTooltip>
@@ -143,7 +132,7 @@ function SavedServerRow({ server }: { server: RemoteSavedServer }): React.JSX.El
             size="icon"
             variant="ghost"
             aria-label={`Forget ${server.nickname}`}
-            className={cn(ROUND_ICON, 'hover:bg-destructive/10 hover:text-destructive')}
+            className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
             onClick={() => void remove()}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -241,30 +230,18 @@ export function ControllerPanel(): React.JSX.Element {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {filesOnly ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className={PILL_SOFT}
-                onClick={() => navigate('/remote-files')}
-              >
+              <Button variant="soft" onClick={() => navigate('/remote-files')}>
                 <Folder className="h-3.5 w-3.5" /> Open file manager
               </Button>
             ) : (
               <Button
-                size="sm"
-                variant="ghost"
-                className={PILL_SOFT}
+                variant="soft"
                 onClick={() => void window.agentmat.remote.openSessionWindow()}
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Show remote window
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="destructive"
-              className="rounded-full px-3.5"
-              onClick={() => void window.agentmat.remote.disconnect()}
-            >
+            <Button variant="destructive" onClick={() => void window.agentmat.remote.disconnect()}>
               <LinkOff className="h-3.5 w-3.5" /> Disconnect
             </Button>
           </div>
@@ -310,7 +287,7 @@ export function ControllerPanel(): React.JSX.Element {
           )}
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              className="rounded-full px-5"
+              size="lg"
               onClick={() => void connect()}
               disabled={connecting || connectingFiles}
             >
@@ -318,8 +295,8 @@ export function ControllerPanel(): React.JSX.Element {
             </Button>
             <SimpleTooltip label="Skip the control session, just browse and transfer files">
               <Button
-                variant="ghost"
-                className={cn(PILL_SOFT, 'h-9 px-4')}
+                variant="soft"
+                size="lg"
                 onClick={() => void connectFiles()}
                 disabled={connecting || connectingFiles}
               >

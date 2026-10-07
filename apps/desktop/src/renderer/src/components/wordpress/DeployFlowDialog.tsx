@@ -335,7 +335,7 @@ export function DeployFlowDialog({
               <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button variant="outline" onClick={() => void makePlan()}>
+              <Button variant="soft" onClick={() => void makePlan()}>
                 <RefreshCw className="h-4 w-4" /> Check again
               </Button>
               <SimpleTooltip label={blockedReason} wrapTrigger>
@@ -364,7 +364,7 @@ export function DeployFlowDialog({
                   Hide
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="soft"
                   disabled={run.cancelling}
                   onClick={() => void cancelRun(run.operationId)}
                 >
@@ -377,7 +377,7 @@ export function DeployFlowDialog({
                 {run.status === 'failed' &&
                 (needsNewPlan(run.errorCode) || run.errorCode === 'syntaxError') ? (
                   <Button
-                    variant="outline"
+                    variant="soft"
                     onClick={() => {
                       clearRun(run.operationId);
                       void makePlan();

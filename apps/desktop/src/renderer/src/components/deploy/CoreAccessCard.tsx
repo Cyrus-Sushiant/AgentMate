@@ -4,11 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Key, Lock, RefreshCw, Shield, TriangleAlert } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/queryKeys';
+import { DeployCard } from './deployKit';
 import { EnrollDialog } from './EnrollDialog';
 import { RedeemCodeDialog } from './RedeemCodeDialog';
 import { SignInDialog } from './SignInDialog';
@@ -70,8 +70,8 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
           {access.data?.message ?? 'The core could not be asked who is signed in.'}
         </p>
-        <Button size="sm" variant="outline" onClick={() => void access.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" /> Try again
+        <Button size="sm" variant="soft" onClick={() => void access.refetch()}>
+          <RefreshCw /> Try again
         </Button>
       </div>
     );
@@ -84,9 +84,9 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
           <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
             Signed in as <span className="font-medium">{user?.userName ?? 'you'}</span>
             {user?.roles.map((role) => (
-              <Badge key={role} variant="secondary" className="capitalize">
+              <Chip key={role} tone="primary" className="capitalize">
                 {role}
-              </Badge>
+              </Chip>
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -97,13 +97,12 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
         </div>
         <Button
           size="sm"
-          variant={twoFactor ? 'outline' : 'default'}
+          variant={twoFactor ? 'soft' : 'default'}
           onClick={() => setDialog(twoFactor ? 'two-factor-off' : 'two-factor-on')}
         >
-          <Shield className="h-3.5 w-3.5" />{' '}
-          {twoFactor ? 'Turn off two-factor' : 'Turn on two-factor'}
+          <Shield /> {twoFactor ? 'Turn off two-factor' : 'Turn on two-factor'}
         </Button>
-        <Button size="sm" variant="ghost" disabled={signingOut} onClick={() => void signOut()}>
+        <Button size="sm" variant="soft" disabled={signingOut} onClick={() => void signOut()}>
           Sign out
         </Button>
       </div>
@@ -135,12 +134,11 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
         </p>
         {!server.dev && (
           <Button size="sm" onClick={() => setDialog('enroll')}>
-            <Key className="h-3.5 w-3.5" />{' '}
-            {state === 'needs-re-enroll' ? 'Enroll again' : 'Enroll this computer'}
+            <Key /> {state === 'needs-re-enroll' ? 'Enroll again' : 'Enroll this computer'}
           </Button>
         )}
         {!server.dev && (
-          <Button size="sm" variant="outline" onClick={() => setDialog('redeem')}>
+          <Button size="sm" variant="soft" onClick={() => setDialog('redeem')}>
             Use an enrollment code
           </Button>
         )}
@@ -149,16 +147,12 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-primary" /> Your access
-        </CardTitle>
-        <CardDescription>
-          How this computer signs in to the core: its own key, your password, and optionally a code.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
+    <DeployCard
+      icon={<Shield />}
+      title="Your access"
+      description="How this computer signs in to the core: its own key, your password, and optionally a code."
+    >
+      {body}
       <SignInDialog
         server={server}
         open={dialog === 'sign-in'}
@@ -186,6 +180,6 @@ export function CoreAccessCard({ server }: { server: DeployServer }): React.JSX.
         }}
         onChanged={refresh}
       />
-    </Card>
+    </DeployCard>
   );
 }

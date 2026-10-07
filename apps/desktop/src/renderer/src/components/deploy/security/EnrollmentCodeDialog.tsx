@@ -3,6 +3,7 @@ import type { EnrollmentCodeInfo } from '@shared/deploy/protocol/generated/Agent
 import type { DeployServer } from '@shared/deployTypes';
 import { useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { Copy, Key, Spinner, TriangleAlert } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Notice } from '../deployKit';
 import { clockTime, fromNow } from './format';
 import type { StepUp } from './useStepUp';
 
@@ -105,7 +107,7 @@ export function EnrollmentCodeDialog({
 
         {made ? (
           <div className="space-y-4">
-            <div className="space-y-2 rounded-lg border border-border/70 bg-secondary/30 p-4 text-center">
+            <div className="space-y-2 rounded-xl bg-foreground/[0.03] p-4 text-center ring-1 ring-inset ring-foreground/[0.07]">
               <p
                 aria-label="Enrollment code"
                 className="select-all break-all font-mono text-xl font-semibold tracking-wider text-foreground"
@@ -117,19 +119,16 @@ export function EnrollmentCodeDialog({
                 ).
               </p>
             </div>
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-foreground">
-              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-              <span>
-                Copy it now: this is the only time it is shown. Anyone with the code and {whose}{' '}
-                password can enroll a computer until it is used or runs out.
-              </span>
-            </div>
+            <Notice tone="warning" icon={TriangleAlert}>
+              Copy it now: this is the only time it is shown. Anyone with the code and {whose}{' '}
+              password can enroll a computer until it is used or runs out.
+            </Notice>
             <p className="text-xs leading-relaxed text-muted-foreground">
               On the other computer, save this server in Remote with an SSH login that is in the
               server's agentmate group, open Deploy, pick the server and choose Join with a code.
             </p>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => void copy(made.code)}>
+              <Button type="button" variant="soft" onClick={() => void copy(made.code)}>
                 <Copy className="h-3.5 w-3.5" /> Copy the code
               </Button>
               <Button type="button" onClick={() => onOpenChange(false)}>
@@ -141,18 +140,18 @@ export function EnrollmentCodeDialog({
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor={validityId}>Valid for</Label>
-              <select
+              <NativeSelect
                 id={validityId}
                 value={minutes}
                 onChange={(event) => setMinutes(Number(event.target.value))}
-                className="h-9 w-full max-w-48 rounded-md border border-input bg-background px-2 text-sm"
+                className="max-w-48"
               >
                 {VALIDITY.map((option) => (
                   <option key={option.minutes} value={option.minutes}>
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
             {problem && (
               <p role="alert" className="text-sm text-destructive">
@@ -160,7 +159,7 @@ export function EnrollmentCodeDialog({
               </p>
             )}
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="button" disabled={busy} onClick={() => void make()}>

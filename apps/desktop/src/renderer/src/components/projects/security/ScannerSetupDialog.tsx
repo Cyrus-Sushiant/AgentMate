@@ -104,7 +104,12 @@ export function ScannerSetupDialog({
                     options={CODEQL_LANGUAGES.map((l) => ({ value: l.value, label: l.label }))}
                     placeholder="Choose a language"
                   />
-                  <Button variant="outline" disabled={suggesting} onClick={() => void suggest()}>
+                  <Button
+                    variant="soft"
+                    className="h-9"
+                    disabled={suggesting}
+                    onClick={() => void suggest()}
+                  >
                     {suggesting ? 'Looking...' : 'Detect'}
                   </Button>
                 </div>

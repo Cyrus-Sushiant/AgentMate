@@ -1,10 +1,6 @@
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { cn } from '@/lib/utils';
-import {
-  CATALOG_SIDEBAR_WIDTH,
-  type CatalogSidebar,
-  useCatalogSidebarWidth,
-} from '@/stores/catalogLayoutStore';
+import { PANEL_WIDTHS, usePanelWidth } from '@/stores/panelWidthStore';
 import { GLASS_PANEL } from './styles';
 
 /**
@@ -19,13 +15,13 @@ export function CatalogSplit({
   aside,
   children,
 }: {
-  sidebar: CatalogSidebar;
+  sidebar: 'mcpRepositories' | 'skillRepositories';
   sidebarLabel: string;
   resizeLabel: string;
   aside: React.ReactNode;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const [width, setWidth] = useCatalogSidebarWidth(sidebar);
+  const [width, setWidth] = usePanelWidth(sidebar);
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <aside
@@ -40,9 +36,9 @@ export function CatalogSplit({
         orientation="vertical"
         label={resizeLabel}
         size={width}
-        min={CATALOG_SIDEBAR_WIDTH.min}
-        max={CATALOG_SIDEBAR_WIDTH.max}
-        defaultSize={CATALOG_SIDEBAR_WIDTH.default}
+        min={PANEL_WIDTHS[sidebar].min}
+        max={PANEL_WIDTHS[sidebar].max}
+        defaultSize={PANEL_WIDTHS[sidebar].default}
         onSizeChange={setWidth}
         quiet
         className="w-2"

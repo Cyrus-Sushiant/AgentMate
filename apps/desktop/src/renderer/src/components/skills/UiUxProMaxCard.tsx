@@ -26,7 +26,7 @@ import {
   Spinner,
   TriangleAlert,
 } from '@/components/icons';
-import { Chip, PILL_PRIMARY, PILL_SOFT, TILE_ACTION } from '@/components/pageKit';
+import { Chip } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -58,9 +58,6 @@ const PIPELINE = [
     detail: 'Pattern, style, colors, type, effects, anti-patterns, pre-delivery checklist.',
   },
 ];
-
-/** The hero's actions stay a size up from the kit's pills, to match its larger heading. */
-const HERO_SIZE = 'h-9 text-sm';
 
 /** Keeps the check off the app's loading overlay: it reports progress on its own button. */
 const UPDATE_CHECK_META = { silentLoading: true } as const;
@@ -200,19 +197,15 @@ export function UiUxProMaxCard(): React.JSX.Element {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button className={cn(PILL_PRIMARY, HERO_SIZE)} onClick={() => setWizardOpen(true)}>
+            <Button size="lg" onClick={() => setWizardOpen(true)}>
               <Download className="h-4 w-4" /> {globalRecord ? 'Install again' : 'Install'}
             </Button>
-            <Button
-              variant="ghost"
-              className={cn(PILL_SOFT, HERO_SIZE)}
-              onClick={() => setDetailsOpen(true)}
-            >
+            <Button variant="soft" size="lg" onClick={() => setDetailsOpen(true)}>
               <Eye className="h-4 w-4" /> What it does
             </Button>
             <Button
-              variant="ghost"
-              className={cn(PILL_SOFT, HERO_SIZE)}
+              variant="soft"
+              size="lg"
               disabled={updateCheck.isPending}
               onClick={() => updateCheck.mutate()}
             >
@@ -227,7 +220,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className={cn(TILE_ACTION, 'h-9 w-9 [&_svg]:size-4')}
+                className="h-9 w-9"
                 aria-label="Open the repository on GitHub"
                 onClick={() => void window.agentmat.shell.openExternal(UI_UX_PRO_MAX_GITHUB_URL)}
               >
@@ -238,7 +231,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className={cn(TILE_ACTION, 'h-9 w-9 [&_svg]:size-4')}
+                className="h-9 w-9"
                 aria-label="Open uupm.cc"
                 onClick={() => void window.agentmat.shell.openExternal(UI_UX_PRO_MAX_HOMEPAGE)}
               >
@@ -274,16 +267,14 @@ export function UiUxProMaxCard(): React.JSX.Element {
               </div>
 
               {status.kind === 'missing' ? (
-                <Button size="sm" className={PILL_PRIMARY} onClick={() => setWizardOpen(true)}>
+                <Button onClick={() => setWizardOpen(true)}>
                   <Download className="h-4 w-4" /> Install
                 </Button>
               ) : (
                 !isPluginInstall &&
                 status.kind !== 'offline' && (
                   <Button
-                    size="sm"
-                    variant={status.kind === 'update' ? 'default' : 'ghost'}
-                    className={status.kind === 'update' ? PILL_PRIMARY : PILL_SOFT}
+                    variant={status.kind === 'update' ? 'default' : 'soft'}
                     onClick={runUpdate}
                   >
                     <CloudDownload className="h-4 w-4" />
@@ -406,7 +397,7 @@ export function UiUxProMaxCard(): React.JSX.Element {
               <Download className="h-4 w-4" /> Install…
             </Button>
             <Button
-              variant="outline"
+              variant="soft"
               onClick={() => void window.agentmat.shell.openExternal(UI_UX_PRO_MAX_GITHUB_URL)}
             >
               <ExternalLink className="h-4 w-4" /> Open on GitHub

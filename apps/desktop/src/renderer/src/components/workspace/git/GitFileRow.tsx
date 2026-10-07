@@ -1,11 +1,13 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import type { GitDiffSide } from '@shared/apiTypes';
 import { FileCode, Minus, Plus, Sparkles, Spinner, Trash2, Undo } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { changeStatusMeta, splitGitPath } from '@/lib/git';
 import { cn } from '@/lib/utils';
 import { GitFileMenu } from './GitFileMenu';
+import { StatusLetter } from './StatusLetter';
 
 export interface GitFileRowProps {
   project: Project;
@@ -40,8 +42,10 @@ function RowAction({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label} delayDuration={400}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={label}
         tabIndex={-1}
         onClick={(event) => {
@@ -49,13 +53,14 @@ function RowAction({
           onClick();
         }}
         onDoubleClick={(event) => event.stopPropagation()}
+        // A touch smaller than the panel's icon buttons, so a row of them fits a 28px row.
         className={cn(
-          'flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-foreground/10',
-          tone === 'danger' ? 'hover:text-destructive' : 'hover:text-foreground',
+          'h-5 w-5 [&_svg]:size-2.5',
+          tone === 'danger' && 'hover:bg-destructive/10 hover:text-destructive',
         )}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -130,13 +135,19 @@ export function GitFileRow({
             }
           }}
           className={cn(
-            'group/row relative mx-1 flex h-[26px] cursor-pointer select-none items-center gap-2 rounded-md pl-6 pr-2 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary/60',
+            'group/row relative mx-1.5 flex h-7 cursor-pointer select-none items-center gap-2 rounded-lg pl-6 pr-1.5 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
             selected
-              ? 'bg-primary/12 text-foreground'
-              : 'text-foreground/90 hover:bg-foreground/[0.05]',
+              ? 'bg-primary/12 font-medium text-primary'
+              : 'text-foreground/85 hover:bg-foreground/[0.06] hover:text-foreground',
             aiResolving && 'shimmer',
           )}
         >
+          {selected ? (
+            <span
+              aria-hidden
+              className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+            />
+          ) : null}
           <span
             className={cn(
               'min-w-0 shrink truncate',
@@ -163,7 +174,7 @@ export function GitFileRow({
               className="max-w-[min(32rem,90vw)] break-all font-mono text-[11px]"
             >
               <span
-                className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/80 [direction:rtl]"
+                className="min-w-0 flex-1 truncate text-left text-[11px] font-normal text-muted-foreground/80 [direction:rtl]"
                 aria-hidden
               >
                 <bdi>{dir.replace(/\/$/, '')}</bdi>
@@ -175,7 +186,7 @@ export function GitFileRow({
 
           <span className="flex shrink-0 items-center gap-1.5 group-focus-within/row:hidden group-hover/row:hidden">
             {hasCounts ? (
-              <span className="font-mono text-[10px] tabular-nums">
+              <span className="font-mono text-[10px] font-normal tabular-nums">
                 {entry.additions ? <span className="text-success">+{entry.additions}</span> : null}
                 {entry.additions && entry.deletions ? ' ' : null}
                 {entry.deletions ? (
@@ -195,30 +206,34 @@ export function GitFileRow({
             {onResolve && !aiResolving ? (
               <>
                 <SimpleTooltip label="Keep your version" delayDuration={400}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
                       onResolve('ours');
                     }}
-                    className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:bg-foreground/[0.06]"
                   >
                     Ours
-                  </button>
+                  </Button>
                 </SimpleTooltip>
                 <SimpleTooltip label="Keep the incoming version" delayDuration={400}>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
                       onResolve('theirs');
                     }}
-                    className="rounded px-1.5 text-[10px] font-medium text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:bg-foreground/[0.06]"
                   >
                     Theirs
-                  </button>
+                  </Button>
                 </SimpleTooltip>
               </>
             ) : null}
@@ -262,15 +277,7 @@ export function GitFileRow({
             </RowAction>
           ) : null}
 
-          <span
-            className={cn(
-              'w-3 shrink-0 text-center font-mono text-[11px] font-semibold',
-              meta.className,
-            )}
-            aria-label={meta.label}
-          >
-            {meta.letter}
-          </span>
+          <StatusLetter status={entry.status} />
         </div>
       </ContextMenuTrigger>
       <GitFileMenu

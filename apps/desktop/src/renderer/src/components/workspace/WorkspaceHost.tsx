@@ -2,9 +2,11 @@ import { allGroups, findGroup, isWorktreeScope, type Project } from '@agentmat/c
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Workspace } from '@/components/icons';
+import { FolderOpen, Workspace } from '@/components/icons';
+import { EmptyState, GLASS_CARD } from '@/components/pageKit';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
 import { ProjectPromptBuildDialog } from '@/components/projects/ProjectPromptBuildDialog';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaceProject } from '@/hooks/useWorktrees';
 import { startBrowserSync } from '@/lib/browser/browserSync';
@@ -36,29 +38,42 @@ function WorkspaceWelcome({
   const navigate = useNavigate();
   const visible = projects.filter((p) => !p.archived);
   return (
-    <div className="flex h-full w-full items-start justify-center overflow-y-auto px-6 py-12">
+    // A container, so the grid follows the space beside the rail rather than the window.
+    <div className="@container flex h-full w-full items-start justify-center overflow-y-auto px-6 py-6">
       <div className="w-full max-w-3xl">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]">
-            <Workspace className="h-5 w-5" />
-          </div>
-          <h2 className="mt-4 text-xl font-semibold tracking-tight">Pick a project to work on</h2>
-          <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
-            Run agents and shells side by side in its folder, and watch every change they make land
-            in the panel on the right.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        <EmptyState
+          size="lg"
+          icon={Workspace}
+          // Still the page's heading for screen readers, as the h2 it replaced was.
+          title={
+            <span role="heading" aria-level={2}>
+              Pick a project to work on
+            </span>
+          }
+          description={
+            <p>
+              Run agents and shells side by side in its folder, and watch every change they make
+              land in the panel on the right.
+            </p>
+          }
+          className="pb-8"
+        />
+        <div className="grid grid-cols-1 gap-2 @xl:grid-cols-2 @3xl:grid-cols-3">
           {loading
             ? Array.from({ length: 6 }, (_, i) => (
-                <Skeleton key={i} className="h-[4.5rem] rounded-xl" />
+                <Skeleton key={i} className="h-[4.25rem] rounded-[calc(var(--radius)+2px)]" />
               ))
             : visible.map((project) => (
                 <button
                   key={project.id}
                   type="button"
                   onClick={() => navigate(`/workspace/${project.id}`)}
-                  className="glass group flex items-center gap-3 rounded-xl p-3.5 text-left transition-all duration-150 hover:-translate-y-px hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0"
+                  className={cn(
+                    GLASS_CARD,
+                    // An inset ring for the hover edge, since a tinted border loses to the global
+                    // border colour.
+                    'group flex items-center gap-3 p-3.5 text-left ring-1 ring-inset ring-transparent transition-[box-shadow,transform] duration-150 hover:-translate-y-px hover:ring-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0',
+                  )}
                 >
                   <ProjectIcon
                     iconDataUrl={project.iconDataUrl}
@@ -76,9 +91,14 @@ function WorkspaceWelcome({
               ))}
         </div>
         {!loading && visible.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
-            No projects yet. Add one on the Projects page first.
-          </p>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-muted-foreground">
+              No projects yet. Add one on the Projects page first.
+            </p>
+            <Button variant="soft" size="sm" onClick={() => navigate('/projects')}>
+              <FolderOpen /> Go to Projects
+            </Button>
+          </div>
         ) : null}
       </div>
     </div>

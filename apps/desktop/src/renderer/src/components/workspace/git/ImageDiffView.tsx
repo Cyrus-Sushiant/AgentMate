@@ -4,18 +4,23 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { formatImageSize, type ImageSize, ImageView } from '@/components/editor/ImageView';
 import { ImageIcon } from '@/components/icons';
+import { EmptyState, SECTION_HEADING } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBytes } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import type { WorkspaceDiffTab } from '@/stores/workspaceStore';
+import { HAIRLINE_BELOW } from './PanelTabs';
 
 function Notice({ title, detail }: { title: string; detail: string }): React.JSX.Element {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
-      <ImageIcon className="h-5 w-5 text-muted-foreground" />
-      <p className="text-sm font-medium">{title}</p>
-      <p className="max-w-sm text-xs text-muted-foreground">{detail}</p>
-    </div>
+    <EmptyState
+      size="sm"
+      icon={ImageIcon}
+      title={title}
+      description={<span className="block text-xs">{detail}</span>}
+      className="h-full"
+    />
   );
 }
 
@@ -39,10 +44,8 @@ function Side({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex h-7 shrink-0 items-center gap-2 border-b border-border/60 px-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
+      <div className={cn('flex h-8 shrink-0 items-center gap-2 px-3', HAIRLINE_BELOW)}>
+        <span className={SECTION_HEADING}>{label}</span>
         <span className="flex-1" />
         {caption ? (
           <span className="truncate text-[11px] tabular-nums text-muted-foreground">{caption}</span>

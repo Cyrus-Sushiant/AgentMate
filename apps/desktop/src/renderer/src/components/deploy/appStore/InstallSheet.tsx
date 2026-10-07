@@ -1,5 +1,6 @@
 import type { AnyCatalogTemplate } from '@agentmat/core';
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { CircleCheck, CircleInfo, Rocket, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +28,7 @@ import {
   shortDigest,
   versionImages,
 } from '@/lib/deploy/appStore/format';
-import { FieldError, SELECT_CLASS, TextField } from '../sites/fields';
+import { FieldError, TextField } from '../sites/fields';
 import { ExposeFields, ParamFields, SecretRows } from './InstallFields';
 
 /**
@@ -50,7 +51,7 @@ function ImageBadges({ template, version }: { template: AnyCatalogTemplate; vers
       {versionImages(pinned).map((image) => (
         <li
           key={`${image.repository}@${image.digest}`}
-          className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-2.5 py-1 text-xs"
+          className="flex items-center gap-2 rounded-full bg-success/10 px-2.5 py-1 text-xs ring-1 ring-inset ring-success/25"
         >
           <CircleCheck className="h-3.5 w-3.5 shrink-0 text-success" />
           <span className="font-medium text-foreground">{publisherText(image)}</span>
@@ -58,7 +59,10 @@ function ImageBadges({ template, version }: { template: AnyCatalogTemplate; vers
             label={`${image.repository}:${image.tag}@${image.digest}, checked ${image.resolvedAt} for ${image.platforms.join(', ')}`}
             className="max-w-96 break-all"
           >
-            <span tabIndex={0} className="font-mono text-[11px] text-muted-foreground">
+            <span
+              tabIndex={0}
+              className="rounded-sm font-mono text-[11px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               {image.repository.replace(/^docker\.io\/(library\/)?/, '')}:{image.tag} @
               {shortDigest(image.digest)}
             </span>
@@ -134,9 +138,8 @@ export function InstallSheet({
                 />
                 <div className="space-y-1.5">
                   <Label htmlFor="store-version">Version</Label>
-                  <select
+                  <NativeSelect
                     id="store-version"
-                    className={SELECT_CLASS}
                     value={draft.version}
                     onChange={(event) => change({ version: event.target.value })}
                   >
@@ -148,7 +151,7 @@ export function InstallSheet({
                           : ''}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
               </div>
               <ParamFields
@@ -199,15 +202,11 @@ export function InstallSheet({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
+            <Button type="button" variant="soft" onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || (tried && !ready)}>
-              {busy ? (
-                <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
-              ) : (
-                <Rocket className="h-3.5 w-3.5" />
-              )}
+              {busy ? <Spinner className="motion-safe:animate-spin" /> : <Rocket />}
               Install {template.name}
             </Button>
           </DialogFooter>

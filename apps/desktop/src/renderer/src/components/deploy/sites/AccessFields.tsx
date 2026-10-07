@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { Textarea } from '@/components/ui/textarea';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { splitList } from '@/lib/deploy/sites/settings';
 import { FieldError, Section, TextField, ToggleRow } from './fields';
 import type { SiteTabProps } from './tabTypes';
@@ -126,15 +127,20 @@ export function AccessFields({ draft, set, error, readOnly }: SiteTabProps): Rea
                       disabled={readOnly}
                     />
                     {!readOnly && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove user ${user.name || index + 1}`}
-                        onClick={() => set({ users: draft.users.filter((_, at) => at !== index) })}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <SimpleTooltip label="Remove">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Remove user ${user.name || index + 1}`}
+                          onClick={() =>
+                            set({ users: draft.users.filter((_, at) => at !== index) })
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      </SimpleTooltip>
                     )}
                   </div>
                   <FieldError message={error(`basicAuth.users[${index}].name`)} />
@@ -145,7 +151,7 @@ export function AccessFields({ draft, set, error, readOnly }: SiteTabProps): Rea
             {!readOnly && (
               <Button
                 type="button"
-                variant="outline"
+                variant="soft"
                 size="sm"
                 onClick={() =>
                   set({ users: [...draft.users, { name: '', password: '', saved: false }] })

@@ -8,9 +8,9 @@ import { entrySubtitle } from './entryTypes';
 
 // Same look as the palette's other groups.
 const groupClass =
-  'px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5';
+  'px-1 py-1 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-muted-foreground/60';
 const itemClass =
-  'flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2 py-2 text-sm text-foreground outline-none aria-selected:bg-primary/12 aria-selected:text-foreground';
+  'flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground outline-none transition-colors aria-selected:bg-foreground/[0.07] aria-selected:text-foreground';
 
 /**
  * The Vault's part of the command palette. Entry titles only appear while the vault is unlocked,

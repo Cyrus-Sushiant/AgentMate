@@ -8,10 +8,9 @@ import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
-import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { RdpServerFormDialog } from './RdpServerFormDialog';
-import { REMOTE_CARD, RemoteCardHeader, ROUND_ICON, ServerRowsSkeleton } from './remoteCard';
+import { REMOTE_CARD, RemoteCardHeader, ServerRowsSkeleton } from './remoteCard';
 import { ServersVaultControls } from './ServersVaultControls';
 import { SshVaultUnlockDialog } from './SshVaultUnlockDialog';
 
@@ -92,7 +91,7 @@ function SavedRdpServerRow({
           <Button
             size="icon"
             variant="ghost"
-            className={ROUND_ICON}
+            className="shrink-0"
             aria-label={`Edit ${server.nickname}`}
             onClick={() => onEdit(server)}
           >
@@ -103,7 +102,7 @@ function SavedRdpServerRow({
           <Button
             size="icon"
             variant="ghost"
-            className={cn(ROUND_ICON, 'hover:bg-destructive/10 hover:text-destructive')}
+            className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
             aria-label={`Remove ${server.nickname}`}
             onClick={() => void remove()}
             disabled={removing}
@@ -111,12 +110,7 @@ function SavedRdpServerRow({
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </SimpleTooltip>
-        <Button
-          size="sm"
-          className="ml-1 rounded-full px-3.5"
-          onClick={() => void connect()}
-          disabled={connecting}
-        >
+        <Button className="ml-1" onClick={() => void connect()} disabled={connecting}>
           <Link className="h-3.5 w-3.5" /> {connecting ? 'Opening…' : 'Connect'}
         </Button>
       </div>
@@ -194,7 +188,7 @@ export function RdpServersPanel(): React.JSX.Element {
                 }}
               />
               {servers.length > 0 ? (
-                <Button size="sm" className="rounded-full px-3.5" onClick={openAdd}>
+                <Button onClick={openAdd}>
                   <Plus className="h-3.5 w-3.5" /> Add server
                 </Button>
               ) : null}
@@ -211,7 +205,7 @@ export function RdpServersPanel(): React.JSX.Element {
               title="No Remote Desktop servers yet"
               description="Add a Windows Server or Windows PC with Remote Desktop turned on, then connect with one click."
               action={
-                <Button size="sm" className="rounded-full px-4" onClick={openAdd}>
+                <Button onClick={openAdd}>
                   <Plus className="h-3.5 w-3.5" /> Add server
                 </Button>
               }

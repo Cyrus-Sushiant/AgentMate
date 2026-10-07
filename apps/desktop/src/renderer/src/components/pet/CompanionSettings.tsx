@@ -18,7 +18,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Paw, Plus, Trash2 } from '@/components/icons';
-import { CARD_PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -233,9 +232,9 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
                 .
               </p>
               <Button
-                variant="ghost"
+                variant="soft"
                 size="sm"
-                className={cn(CARD_PILL_SOFT, 'shrink-0')}
+                className="shrink-0"
                 onClick={() => void window.agentmat.pet.cancelSnooze()}
               >
                 Show now
@@ -289,14 +288,15 @@ export function CompanionSettings({ settings }: { settings: AppSettings }): Reac
                     </p>
                   </button>
                   <SimpleTooltip label="Remove">
-                    <button
-                      type="button"
-                      className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="absolute right-1.5 top-1.5 z-10 hover:bg-destructive/15 hover:text-destructive"
                       aria-label={`Remove ${custom.name}`}
                       onClick={() => void handleRemovePet(custom.id, custom.name)}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   </SimpleTooltip>
                 </div>
               );

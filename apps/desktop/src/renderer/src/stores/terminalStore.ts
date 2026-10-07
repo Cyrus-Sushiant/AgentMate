@@ -53,8 +53,14 @@ export interface SshSessionExtras {
 interface TerminalState {
   isOpen: boolean;
   drawerHeight: number;
+  /**
+   * The drawer fills the page area. Kept here rather than in the drawer so the shell can hide
+   * the page under it. Not persisted: a fresh start always opens the drawer at its height.
+   */
+  isMaximized: boolean;
   sessions: TerminalSessionMeta[];
   activeSessionId: string | null;
+  setMaximized: (maximized: boolean) => void;
   openDrawer: () => void;
   closeDrawer: () => void;
   toggleDrawer: () => void;
@@ -105,8 +111,10 @@ export const useTerminalStore = create<TerminalState>()(
     (set, get) => ({
       isOpen: false,
       drawerHeight: TERMINAL_DEFAULT_HEIGHT,
+      isMaximized: false,
       sessions: [],
       activeSessionId: null,
+      setMaximized: (maximized) => set({ isMaximized: maximized }),
       openDrawer: () => set({ isOpen: true }),
       closeDrawer: () => set({ isOpen: false }),
       toggleDrawer: () => set((state) => ({ isOpen: !state.isOpen })),

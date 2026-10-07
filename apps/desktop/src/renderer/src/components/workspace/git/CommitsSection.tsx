@@ -3,13 +3,15 @@ import type { GitCommitInfo, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ChevronRight, Copy, GitCommit, Tag } from '@/components/icons';
+import { Chip } from '@/components/pageKit';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { changeStatusMeta, splitGitPath } from '@/lib/git';
+import { splitGitPath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { StatusLetter } from './StatusLetter';
 
 function CommitFiles({
   project,
@@ -29,8 +31,8 @@ function CommitFiles({
   if (files.isPending) {
     return (
       <div className="space-y-1 py-1 pl-8 pr-3">
-        <Skeleton className="h-3.5 w-3/4 rounded" />
-        <Skeleton className="h-3.5 w-1/2 rounded" />
+        <Skeleton className="h-6 w-3/4 rounded-lg" />
+        <Skeleton className="h-6 w-1/2 rounded-lg" />
       </div>
     );
   }
@@ -38,10 +40,9 @@ function CommitFiles({
     return <p className="py-1.5 pl-8 text-[11px] text-muted-foreground">No file changes.</p>;
   }
   return (
-    <div className="pb-1">
+    <div className="space-y-px pb-1">
       {files.data.map((entry) => {
         const { dir, name } = splitGitPath(entry.path);
-        const meta = changeStatusMeta(entry.status);
         return (
           <button
             key={entry.path}
@@ -61,7 +62,7 @@ function CommitFiles({
                 { pin: true },
               )
             }
-            className="mx-1 flex h-6 w-[calc(100%-0.5rem)] items-center gap-2 rounded-md pl-7 pr-2 text-left text-[12px] hover:bg-foreground/[0.05]"
+            className="mx-1.5 flex h-6 w-[calc(100%-0.75rem)] cursor-pointer items-center gap-2 rounded-lg pl-7 pr-1.5 text-left text-[12px] text-foreground/85 outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <span className="min-w-0 shrink truncate">{name}</span>
             {dir ? (
@@ -77,11 +78,7 @@ function CommitFiles({
                 <span className="text-destructive">−{entry.deletions ?? 0}</span>
               </span>
             ) : null}
-            <span
-              className={cn('w-3 text-center font-mono text-[10px] font-semibold', meta.className)}
-            >
-              {meta.letter}
-            </span>
+            <StatusLetter status={entry.status} />
           </button>
         );
       })}
@@ -141,12 +138,9 @@ export function CommitsSection({
   }
   if (history.isPending) {
     return (
-      <div className="space-y-2 p-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="space-y-1">
-            <Skeleton className="h-3.5 rounded" style={{ width: `${85 - i * 8}%` }} />
-            <Skeleton className="h-2.5 w-1/3 rounded" />
-          </div>
+      <div className="space-y-1 px-2 py-1.5">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-10 rounded-lg" style={{ width: `${96 - i * 8}%` }} />
         ))}
       </div>
     );
@@ -154,7 +148,7 @@ export function CommitsSection({
 
   const commits = history.data?.commits ?? [];
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto py-1">
+    <div className="min-h-0 flex-1 space-y-px overflow-y-auto py-1">
       {commits.map((commit, index) => {
         const open = expanded === commit.hash;
         const unpushed = index < state.ahead;
@@ -165,20 +159,23 @@ export function CommitsSection({
               aria-expanded={open}
               onClick={() => setExpanded(open ? null : commit.hash)}
               className={cn(
-                'group/commit relative mx-1 flex w-[calc(100%-0.5rem)] items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-foreground/[0.05]',
-                open && 'bg-foreground/[0.04]',
+                'group/commit relative mx-1.5 flex w-[calc(100%-0.75rem)] cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60',
+                open ? 'bg-foreground/[0.05]' : 'hover:bg-foreground/[0.06]',
               )}
             >
               <span className="relative mt-1 flex w-3 shrink-0 justify-center">
-                {/* The line of history, with a hollow dot for commits not pushed yet. */}
+                {/* The line of history, with a hollow dot for commits not pushed yet. The dot's
+                    edge is a ring, since the global border colour would repaint a border. */}
                 <span
                   className={cn(
-                    'h-2 w-2 rounded-full border-2',
-                    unpushed ? 'border-primary bg-transparent' : 'border-primary/70 bg-primary/70',
+                    'relative z-[1] h-2 w-2 rounded-full',
+                    unpushed
+                      ? 'bg-background ring-2 ring-inset ring-primary'
+                      : 'bg-primary/70 shadow-[0_0_6px_hsl(var(--primary)/0.5)]',
                   )}
                 />
                 {index < commits.length - 1 ? (
-                  <span className="absolute top-3 h-[calc(100%+0.5rem)] w-px bg-border" />
+                  <span className="absolute top-3 h-[calc(100%+0.5rem)] w-px bg-foreground/10" />
                 ) : null}
               </span>
               <span className="min-w-0 flex-1">
@@ -197,18 +194,23 @@ export function CommitsSection({
                   <span className="truncate">{commit.author}</span>
                   <span>·</span>
                   <span className="shrink-0">{timeAgo(commit.date)}</span>
-                  {unpushed ? <span className="shrink-0 text-primary">not pushed</span> : null}
+                  {unpushed ? (
+                    <Chip tone="primary" className="h-4 px-1.5 text-[10px]">
+                      not pushed
+                    </Chip>
+                  ) : null}
                 </span>
                 {commit.tags.length > 0 ? (
                   <span className="mt-1 flex flex-wrap gap-1 pl-3.5">
                     {commit.tags.map((tag) => (
-                      <span
+                      <Chip
                         key={tag}
-                        className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 text-[10px] text-primary"
+                        tone="primary"
+                        className="h-4 px-1.5 font-mono text-[10px] [&_svg]:size-2.5"
                       >
-                        <Tag className="h-2 w-2" />
+                        <Tag />
                         {tag}
-                      </span>
+                      </Chip>
                     ))}
                   </span>
                 ) : null}
@@ -222,7 +224,7 @@ export function CommitsSection({
                     event.stopPropagation();
                     void navigator.clipboard.writeText(commit.hash);
                   }}
-                  className="mt-0.5 hidden h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground group-hover/commit:flex"
+                  className="mt-0.5 hidden h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/[0.08] hover:text-foreground group-hover/commit:flex"
                 >
                   <Copy className="h-2.5 w-2.5" />
                 </span>

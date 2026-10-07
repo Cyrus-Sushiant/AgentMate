@@ -1,6 +1,7 @@
 import type { AutoContinuePending } from '@agentmat/core';
 import { useState } from 'react';
 import { Play } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -56,19 +57,21 @@ export function AutoContinueMenu({ projectId, tab }: AutoContinueMenuProps): Rea
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <SimpleTooltip label={label}>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label="Auto-continue"
             className={cn(
-              'relative flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground',
+              'relative data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground',
               enabled && 'text-primary hover:text-primary',
             )}
           >
-            <Play className="h-3 w-3" />
+            <Play />
             {pending ? (
               <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-warning" />
             ) : null}
-          </button>
+          </Button>
         </DropdownMenuTrigger>
       </SimpleTooltip>
       <DropdownMenuContent
@@ -109,7 +112,7 @@ export function AutoContinueMenu({ projectId, tab }: AutoContinueMenuProps): Rea
         {pending ? (
           <>
             <DropdownMenuSeparator />
-            <p className="px-2 py-1.5 text-xs text-foreground">
+            <p className="px-2.5 py-1.5 text-xs text-foreground">
               {autoContinuePendingLine(pending)}
             </p>
             <DropdownMenuItem

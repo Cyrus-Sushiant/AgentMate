@@ -39,8 +39,10 @@
 /* Light theme mirrors the dark design language: a flat neutral canvas, gray
    boxes one step darker than it, and the same green accent. The accent and the
    status colours are deepened until small text in them reads at 4.5:1 (WCAG AA)
-   on the gray cards, and white text on them does too. */
-:root {
+   on the gray cards, and white text on them does too. `.theme-light` re-declares them, so a
+   light preview inside a dark window (the Settings theme picker) still draws in light. */
+:root,
+.theme-light {
   --background: 0 0% 96%;
   --foreground: 0 0% 9%;
   --card: 0 0% 91%;
@@ -396,12 +398,13 @@ button.search-pill:hover {
 
 /* The search panel: frosted glass lifted off the page. The tint is heavy enough that results stay
    readable over a busy page, and the blur turns whatever is behind into soft colour. A thin light
-   edge along the top catches the light the way the window's glass does. */
-.search-panel {
-  overflow: hidden;
+   edge along the top catches the light the way the window's glass does.
+   Every other floating surface (menus, popovers, the combobox list) is the same glass with
+   smaller corners, see .overlay-surface. Both stay outside a layer so the global border-color
+   rule can't repaint the edge, and leftover border or background utilities on a caller lose. */
+.search-panel,
+.overlay-surface {
   border: 1px solid hsl(var(--foreground) / 0.1);
-  border-radius: calc(var(--radius) + 8px);
-  background-color: hsl(var(--popover) / 0.72);
   backdrop-filter: blur(28px) saturate(160%);
   box-shadow:
     inset 0 1px 0 0 hsl(0 0% 100% / 0.5),
@@ -409,12 +412,51 @@ button.search-pill:hover {
     0 24px 64px -16px hsl(0 0% 0% / 0.35);
 }
 
-.dark .search-panel {
-  background-color: hsl(var(--popover) / 0.66);
+.dark .search-panel,
+.dark .overlay-surface {
   box-shadow:
     inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
     0 2px 6px hsl(0 0% 0% / 0.2),
     0 24px 64px -16px hsl(0 0% 0% / 0.6);
+}
+
+.search-panel {
+  overflow: hidden;
+  border-radius: calc(var(--radius) + 8px);
+}
+
+/* Menus are smaller than the search panel, so their corners are too. With the p-1 the menu
+   primitives use, the rounded-lg rows inside sit concentric with this edge. A narrow menu over
+   a busy card let the text behind it show through at the panel's tint, so menus are a little
+   more opaque. */
+.overlay-surface {
+  border-radius: calc(var(--radius) + 4px);
+}
+
+/* One tint for everything that opens over the page, the search panel and every menu, so text
+   behind any of them is muted the same amount. A thinner tint let busy pages read through. */
+.search-panel,
+.overlay-surface {
+  background-color: hsl(var(--popover) / 0.84);
+}
+
+.dark .search-panel,
+.dark .overlay-surface {
+  background-color: hsl(var(--popover) / 0.8);
+}
+
+/* Menus, popovers and tooltips open with a short fade, zoom and slide toward the trigger
+   (ui/overlay.ts). With reduced motion only the fade is kept: clearing the plugin's scale and
+   offset variables falls back to no movement at all. */
+@media (prefers-reduced-motion: reduce) {
+  .overlay-motion {
+    --tw-enter-scale: initial;
+    --tw-enter-translate-x: initial;
+    --tw-enter-translate-y: initial;
+    --tw-exit-scale: initial;
+    --tw-exit-translate-x: initial;
+    --tw-exit-translate-y: initial;
+  }
 }
 
 /* Placeholder surface for content that is still loading (see ui/skeleton.tsx):
@@ -529,12 +571,17 @@ button.search-pill:hover {
 
 /* Frosted-glass surface for the Token Usage widgets: a translucent card with
    a heavy backdrop blur so it reads as glass both inside the app and floating
-   over the desktop. */
+   over the desktop. These rules sit outside any layer, so they beat Tailwind's
+   ring utilities. Each glass box-shadow therefore starts with the ring
+   variables those utilities set, which lets ring-* on a glass card still show. */
 .glass {
   background: hsl(var(--card) / 0.55);
   backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid hsl(var(--foreground) / 0.08);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.55),
     0 4px 16px -6px hsl(0 0% 0% / 0.12);
 }
@@ -543,6 +590,9 @@ button.search-pill:hover {
   background: hsl(var(--card) / 0.5);
   border-color: hsl(var(--foreground) / 0.1);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
     0 8px 32px -8px hsl(0 0% 0% / 0.35);
 }
@@ -554,6 +604,9 @@ button.search-pill:hover {
   backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid hsl(var(--foreground) / 0.08);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.5),
     0 8px 32px -8px hsl(0 0% 0% / 0.35);
 }
@@ -562,6 +615,9 @@ button.search-pill:hover {
   background: hsl(var(--card) / 0.95);
   border-color: hsl(var(--foreground) / 0.1);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.07),
     0 8px 32px -8px hsl(0 0% 0% / 0.35);
 }
@@ -577,6 +633,9 @@ button.search-pill:hover {
   backdrop-filter: blur(var(--widget-blur)) saturate(160%);
   border: 1px solid hsl(var(--foreground) / 0.12);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.45),
     0 10px 32px -12px hsl(0 0% 0% / 0.35);
 }
@@ -584,6 +643,9 @@ button.search-pill:hover {
 .dark .widget-glass {
   border-color: hsl(var(--foreground) / 0.14);
   box-shadow:
+    var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000),
     inset 0 1px 0 0 hsl(0 0% 100% / 0.08),
     0 12px 36px -10px hsl(0 0% 0% / 0.5);
 }
@@ -1331,17 +1393,19 @@ button.search-pill:hover {
 .pet-menu {
   pointer-events: auto;
   width: 216px;
-  padding: 0.4rem;
-  border-radius: 0.7rem;
+  padding: 0.25rem;
+  /* The same corners and rows as the app's menus (ui/overlay.ts). It keeps the widget glass,
+     since it floats in the pet's own transparent window rather than over the app. */
+  border-radius: calc(var(--radius) + 4px);
   color: hsl(var(--card-foreground));
   animation: pet-menu-in 0.12s ease-out;
 }
 .pet-menu-title {
   margin: 0;
-  padding: 0.25rem 0.45rem 0.35rem;
+  padding: 0.375rem 0.625rem 0.25rem;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: hsl(var(--muted-foreground));
 }
@@ -1350,34 +1414,35 @@ button.search-pill:hover {
   width: 100%;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.45rem;
-  border-radius: 0.4rem;
-  font-size: 12.5px;
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius);
+  font-size: 13px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
   color: inherit;
+  transition: background-color 150ms ease;
 }
 .pet-menu-item:hover {
-  background: hsl(var(--accent) / 0.7);
+  background: hsl(var(--foreground) / 0.07);
 }
 .pet-menu-item.is-danger {
   color: hsl(var(--destructive));
 }
 .pet-menu-item.is-danger:hover {
-  background: hsl(var(--destructive) / 0.15);
+  background: hsl(var(--destructive) / 0.1);
 }
 .pet-menu-sep {
-  margin: 0.3rem 0.2rem;
+  margin: 0.25rem 0.625rem;
   height: 1px;
-  background: hsl(var(--foreground) / 0.1);
+  background: hsl(var(--foreground) / 0.08);
 }
 .pet-menu-label {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   margin: 0 0 0.3rem;
-  padding: 0 0.45rem;
+  padding: 0 0.625rem;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -1788,7 +1853,10 @@ button.search-pill:hover {
   margin: 0;
 }
 
-.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
+.context-view.monaco-menu-container
+  .monaco-menu
+  .monaco-action-bar.vertical
+  .action-label:not(.separator),
 .context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .keybinding {
   padding: 0 8px;
 }
@@ -1800,20 +1868,14 @@ button.search-pill:hover {
   color: hsl(var(--muted-foreground));
 }
 
-.context-view.monaco-menu-container .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+.context-view.monaco-menu-container
+  .monaco-menu
+  .monaco-action-bar.vertical
+  .action-label.separator {
   margin: 4px -4px !important;
 }
 
-/* ── Help page ─────────────────────────────────────────────────────────────
-   Small caps labels match the sidebar's group headings, so the Help page's
-   categories read as the same names the menu uses. */
-.help-eyebrow {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: hsl(var(--muted-foreground) / 0.8);
-}
+/* ── Help page ───────────────────────────────────────────────────────────── */
 
 /* A key name in an article, drawn as a keycap with a pressed-in bottom edge. */
 .help-kbd {
@@ -1831,11 +1893,6 @@ button.search-pill:hover {
   font-weight: 500;
   line-height: 1.6;
   color: hsl(var(--foreground) / 0.85);
-}
-
-/* Headings stop short of the top edge when a link scrolls to them. */
-.help-heading {
-  scroll-margin-top: 1.25rem;
 }
 
 /* Numbered steps: the number sits in a small ring beside each step, so a task reads as a
@@ -1869,41 +1926,6 @@ button.search-pill:hover {
 .help-prose li > ol {
   margin-top: 0.4rem;
   margin-bottom: 0.4rem;
-}
-
-/* The Help home's opening panel: a faint wash of the theme colour from one corner, so the
-   page has a front door without competing with the map of topics below it. */
-.help-hero {
-  border: 1px solid hsl(var(--foreground) / 0.07);
-  background:
-    radial-gradient(120% 140% at 100% 0%, hsl(var(--primary) / 0.13), transparent 55%),
-    radial-gradient(90% 120% at 0% 100%, hsl(var(--primary) / 0.05), transparent 60%),
-    hsl(var(--card) / 0.55);
-}
-
-.help-guide-card {
-  border: 1px solid hsl(var(--foreground) / 0.08);
-  background: hsl(var(--background) / 0.55);
-  backdrop-filter: blur(16px);
-}
-
-.help-guide-card:hover {
-  border-color: hsl(var(--primary) / 0.4);
-}
-
-.help-guide-mark {
-  background: linear-gradient(140deg, hsl(var(--primary) / 0.22), hsl(var(--primary) / 0.06));
-  color: hsl(var(--primary));
-  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
-}
-
-.help-pager {
-  border: 1px solid hsl(var(--foreground) / 0.08);
-  transition: border-color 150ms;
-}
-
-.help-pager:hover {
-  border-color: hsl(var(--primary) / 0.4);
 }
 
 /* A citation in a guide answer, [2], drawn as a small numbered pill that links to the passage. */

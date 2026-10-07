@@ -5,7 +5,6 @@ import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { Bolt, Spinner, Trash2 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cloudflareFailureText } from '@/lib/cloudflare/feedback';
+import { CardBody, CloudflareCard } from './fields';
 
 /** A full purge, behind typing the domain's name (the ResetVaultDialog pattern). */
 function PurgeEverythingDialog({
@@ -87,7 +87,7 @@ function PurgeEverythingDialog({
           </p>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="soft" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
@@ -136,17 +136,12 @@ export function PurgeCard({ zone }: { zone: CloudflareZone }): React.JSX.Element
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bolt className="h-4 w-4 text-primary" /> Cache
-        </CardTitle>
-        <CardDescription>
-          Cloudflare keeps copies of your files close to visitors. Purge them when a change does not
-          show up.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CloudflareCard
+      icon={<Bolt />}
+      title="Cache"
+      description="Cloudflare keeps copies of your files close to visitors. Purge them when a change does not show up."
+    >
+      <CardBody className="space-y-3">
         <div className="space-y-1.5">
           <Label htmlFor={fieldId}>URLs to purge</Label>
           <Textarea
@@ -170,21 +165,16 @@ export function PurgeCard({ zone }: { zone: CloudflareZone }): React.JSX.Element
             {problem}
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Button size="sm" disabled={busy || urls.trim() === ''} onClick={() => void purgeUrls()}>
             {busy && <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />} Purge these URLs
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setConfirming(true)}
-          >
+          <Button size="sm" variant="danger" onClick={() => setConfirming(true)}>
             <Trash2 className="h-3.5 w-3.5" /> Purge everything
           </Button>
         </div>
-      </CardContent>
+      </CardBody>
       <PurgeEverythingDialog zone={zone} open={confirming} onOpenChange={setConfirming} />
-    </Card>
+    </CloudflareCard>
   );
 }

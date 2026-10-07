@@ -27,6 +27,7 @@ import {
   Undo,
 } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -276,7 +277,7 @@ export function RunRecommendationPanel({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+            className="shrink-0 gap-1.5 px-2"
             onClick={state.cancel}
           >
             <StopCircle className="h-3 w-3" /> Stop
@@ -302,31 +303,35 @@ export function RunRecommendationPanel({
               </span>
             </div>
             <SimpleTooltip label={canAnalyze ? 'Size the prompt again' : 'Nothing to size'}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 disabled={!canAnalyze}
                 onClick={() => state.analyze()}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+                className="disabled:opacity-40"
               >
                 <RefreshCw className="h-3 w-3" />
                 <span className="sr-only">Size the prompt again</span>
-              </button>
+              </Button>
             </SimpleTooltip>
           </div>
         ) : null}
         {collapsibleKey && (
           <SimpleTooltip label={collapsed ? 'Show details' : 'Hide details'}>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-expanded={!collapsed}
               onClick={toggleCollapsed}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="shrink-0"
             >
               <ChevronDown
                 className={cn('h-3 w-3 transition-transform', !collapsed && 'rotate-180')}
               />
               <span className="sr-only">{collapsed ? 'Show details' : 'Hide details'}</span>
-            </button>
+            </Button>
           </SimpleTooltip>
         )}
       </div>
@@ -379,8 +384,8 @@ function RunEmpty({ state }: { state: RunRecommendationState }): React.JSX.Eleme
       </p>
       <Button
         size="sm"
-        variant="outline"
-        className="h-7 gap-1.5 px-2.5 text-xs"
+        variant="soft"
+        className="gap-1.5 px-2.5"
         disabled={!state.canAnalyze}
         onClick={() => state.analyze()}
       >
@@ -626,14 +631,16 @@ function RunResult({
               {command}
             </code>
             <SimpleTooltip label={copied ? 'Copied' : 'Copy command'}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => void copyCommand()}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="shrink-0"
               >
                 {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
                 <span className="sr-only">Copy command</span>
-              </button>
+              </Button>
             </SimpleTooltip>
           </div>
         )}
@@ -724,7 +731,11 @@ export function RunRecommendationChip({
           align="end"
           sideOffset={6}
           collisionPadding={12}
-          className="z-50 w-[min(27rem,calc(100vw-2rem))] rounded-xl border border-border bg-popover/90 p-3 text-popover-foreground shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+          className={cn(
+            OVERLAY_SURFACE,
+            OVERLAY_MOTION,
+            'z-50 w-[min(27rem,calc(100vw-2rem))] p-3 origin-[var(--radix-popover-content-transform-origin)]',
+          )}
         >
           <RunRecommendationPanel state={state} />
         </PopoverPrimitive.Content>

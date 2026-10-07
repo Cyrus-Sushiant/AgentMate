@@ -115,7 +115,7 @@ function ProbeRow({
         <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
       {!probe.found && onFix && (
-        <Button variant="outline" size="sm" onClick={onFix}>
+        <Button variant="soft" size="sm" onClick={onFix}>
           <ExternalLink className="h-3.5 w-3.5" /> {fixLabel}
         </Button>
       )}
@@ -152,7 +152,7 @@ function CommandBlock({
             </Button>
           </SimpleTooltip>
           {onRun && (
-            <Button variant="outline" size="sm" onClick={onRun}>
+            <Button variant="soft" size="sm" onClick={onRun}>
               <TerminalSquare className="h-3.5 w-3.5" /> {runLabel ?? 'Run'}
             </Button>
           )}

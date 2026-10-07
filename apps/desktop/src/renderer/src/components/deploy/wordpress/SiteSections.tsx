@@ -1,11 +1,11 @@
-import { Blocks, History, Key } from '@/components/icons';
-import { cn } from '@/lib/utils';
+import { Blocks, History, Key, LayoutDashboard } from '@/components/icons';
+import { SectionStrip } from '../deployKit';
 
 /** The parts of a WordPress site's page under Deploy. */
 export type SiteSection = 'overview' | 'items' | 'deploys' | 'access';
 
 const SECTIONS: ReadonlyArray<{ value: SiteSection; label: string; icon?: typeof Blocks }> = [
-  { value: 'overview', label: 'Overview' },
+  { value: 'overview', label: 'Overview', icon: LayoutDashboard },
   { value: 'items', label: 'Themes and plugins', icon: Blocks },
   { value: 'deploys', label: 'Deploys', icon: History },
   { value: 'access', label: 'Access', icon: Key },
@@ -25,31 +25,12 @@ export function SiteSections({
   onChange: (section: SiteSection) => void;
 }): React.JSX.Element {
   return (
-    <nav
-      aria-label="Site sections"
-      className="flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0_hsl(var(--border))] [scrollbar-width:thin]"
-    >
-      {SECTIONS.map((section) => {
-        const Icon = section.icon;
-        const current = section.value === value;
-        return (
-          <button
-            key={section.value}
-            type="button"
-            aria-current={current ? 'page' : undefined}
-            onClick={() => onChange(section.value)}
-            className={cn(
-              'flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-              current
-                ? 'border-primary font-medium text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {Icon && <Icon className="h-3.5 w-3.5" />}
-            {section.label}
-          </button>
-        );
-      })}
-    </nav>
+    <SectionStrip
+      id="site-sections"
+      label="Site sections"
+      items={SECTIONS}
+      value={value}
+      onChange={onChange}
+    />
   );
 }

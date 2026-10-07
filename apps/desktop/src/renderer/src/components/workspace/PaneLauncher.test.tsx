@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Project, WorktreeInfo } from '@agentmat/core';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { asWorkspaceProject } from '@/lib/workspace/scope';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -56,5 +56,63 @@ describe('PaneLauncher browser', () => {
     await user.click(screen.getByRole('button', { name: /Browser/ }));
     const tabs = Object.values(useWorkspaceStore.getState().workspaces.p1?.tabs ?? {});
     expect(tabs).toEqual([expect.objectContaining({ kind: 'browser', url: '' })]);
+  });
+});
+
+describe('PaneLauncher agent cards', () => {
+  const claude = {
+    id: 'claude-code',
+    installed: true,
+    version: '1.0.0',
+    executablePath: '/usr/local/bin/claude',
+    lastCheckedAt: '2026-01-01T10:00:00.000Z',
+  };
+  const codex = { ...claude, id: 'codex-cli', executablePath: '/usr/local/bin/codex' };
+  const withAgent = { ...project, cliId: 'claude-code' } as Project;
+
+  it('marks only the project default with a Default chip', async () => {
+    renderWithProviders(<PaneLauncher project={withAgent} groupId="g1" hero focused />, {
+      bridge: { 'cli.detectAll': [claude, codex], platform: 'win32' },
+    });
+    const claudeCard = await screen.findByRole('button', { name: /Claude Code CLI/ });
+    const codexCard = screen.getByRole('button', { name: /Codex CLI/ });
+    expect(within(claudeCard).getByText('Default')).toBeInTheDocument();
+    expect(within(codexCard).queryByText('Default')).toBeNull();
+    // The digit is a key hint, not part of the card's name.
+    expect(claudeCard).toHaveAttribute('aria-keyshortcuts', '1');
+    expect(codexCard).toHaveAttribute('aria-keyshortcuts', '2');
+  });
+
+  it('links each missing agent to the CLI manager and says it is not installed', async () => {
+    const { user } = renderWithProviders(
+      <PaneLauncher project={withAgent} groupId="g1" hero focused={false} />,
+      { bridge: { 'cli.detectAll': [claude], platform: 'win32' } },
+    );
+    const gemini = await screen.findByRole('link', { name: 'Install Gemini CLI' });
+    expect(gemini).toHaveAttribute('href', '/cli-manager');
+    // Fourteen are missing: eight show as icons and the rest fold into one link.
+    expect(screen.getAllByRole('link', { name: /^Install / })).toHaveLength(8);
+    expect(screen.getByRole('link', { name: '6 more agents to install' })).toHaveAttribute(
+      'href',
+      '/cli-manager',
+    );
+    await user.hover(gemini);
+    expect(
+      (
+        await screen.findAllByText(
+          "Gemini CLI isn't installed. Install it from the AI CLI Manager.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('leaves the not-installed row out of a split pane', async () => {
+    renderWithProviders(
+      <PaneLauncher project={withAgent} groupId="g1" hero={false} focused={false} />,
+      { bridge: { 'cli.detectAll': [claude], platform: 'win32' } },
+    );
+    await screen.findByRole('button', { name: /Claude Code CLI/ });
+    expect(screen.queryByRole('link', { name: /^Install / })).toBeNull();
+    expect(screen.getByText('Default')).toBeInTheDocument();
   });
 });

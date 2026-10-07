@@ -179,7 +179,7 @@ export function SkillSecurityDialog({
           {running ? (
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               onClick={() => {
                 if (requestId) void window.agentmat.skills.cancelAudit(requestId);
               }}

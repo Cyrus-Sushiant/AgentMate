@@ -55,10 +55,10 @@ export function SshAgentStatusBar({
   return (
     <div
       className={cn(
-        'flex min-h-9 shrink-0 items-center gap-2 border-b border-white/5 px-3 py-1.5 text-xs',
+        'flex min-h-9 shrink-0 items-center gap-2 px-3 py-1.5 text-xs shadow-[inset_0_-1px_0_hsl(var(--border)/0.6)]',
         state.phase === 'error' && !paused && 'bg-destructive/10',
         (paused || state.phase === 'needs-input' || state.phase === 'needs-password') &&
-          'bg-amber-500/10',
+          'bg-warning/10',
         !done &&
           state.phase !== 'needs-input' &&
           state.phase !== 'needs-password' &&
@@ -68,10 +68,10 @@ export function SshAgentStatusBar({
     >
       {state.phase === 'error' ? (
         <TriangleAlert
-          className={cn('h-3.5 w-3.5 shrink-0', paused ? 'text-amber-400' : 'text-destructive')}
+          className={cn('h-3.5 w-3.5 shrink-0', paused ? 'text-warning' : 'text-destructive')}
         />
       ) : state.phase === 'needs-password' ? (
-        <Key className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+        <Key className="h-3.5 w-3.5 shrink-0 text-warning" />
       ) : state.phase === 'finished' ? (
         <CircleCheck className="h-3.5 w-3.5 shrink-0 text-primary" />
       ) : (
@@ -82,14 +82,19 @@ export function SshAgentStatusBar({
         {state.phase === 'thinking' && `Step ${state.step}: thinking…`}
         {state.phase === 'proposed' && (
           <>
-            Run <code className="rounded bg-black/30 px-1 py-0.5 text-[11px]">{state.command}</code>
+            Run{' '}
+            <code className="rounded bg-foreground/[0.08] px-1 py-0.5 font-mono text-[11px]">
+              {state.command}
+            </code>
             ? {state.message}
           </>
         )}
         {state.phase === 'running' && (
           <>
             Running{' '}
-            <code className="rounded bg-black/30 px-1 py-0.5 text-[11px]">{state.command}</code>
+            <code className="rounded bg-foreground/[0.08] px-1 py-0.5 font-mono text-[11px]">
+              {state.command}
+            </code>
           </>
         )}
         {(state.phase === 'needs-input' || state.phase === 'needs-password') && state.message}
@@ -191,13 +196,13 @@ export function SshAgentStatusBar({
 
       {done && (
         <Button
-          size="sm"
+          size="icon-xs"
           variant="ghost"
           onClick={() => clear(sessionId)}
           aria-label="Dismiss"
-          className="h-6 w-6 shrink-0 p-0"
+          className="shrink-0"
         >
-          <X className="h-3 w-3" />
+          <X />
         </Button>
       )}
     </div>

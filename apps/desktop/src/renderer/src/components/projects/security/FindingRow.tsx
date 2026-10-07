@@ -88,8 +88,7 @@ export function FindingRow({ finding }: { finding: SecurityFinding }): React.JSX
           <SimpleTooltip label="Copy this finding for an agent">
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="icon-sm"
               aria-label="Copy finding"
               onClick={() => void copyFinding()}
             >
@@ -156,7 +155,7 @@ export function FindingRow({ finding }: { finding: SecurityFinding }): React.JSX
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 gap-1 px-1.5 text-xs"
+                className="h-6 gap-1 px-1.5"
                 onClick={() =>
                   finding.helpUri && void window.agentmat.shell.openExternal(finding.helpUri)
                 }

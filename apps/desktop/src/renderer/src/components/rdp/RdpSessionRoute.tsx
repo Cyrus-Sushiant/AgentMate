@@ -76,9 +76,8 @@ function ToolbarButton({
   return (
     <SimpleTooltip label={label} side="bottom" wrapTrigger={disabled}>
       <Button
-        size="sm"
-        variant={active ? 'secondary' : 'ghost'}
-        className="h-8 gap-1.5 px-2.5"
+        variant={active ? 'soft' : 'ghost'}
+        className="gap-1.5 px-2.5"
         disabled={disabled}
         onClick={onClick}
         // Keep keyboard focus on the remote screen.
@@ -286,7 +285,7 @@ export default function RdpSessionRoute(): React.JSX.Element {
     <div className="absolute right-3 top-full z-30 mt-2 w-96 rounded-lg border border-border bg-popover p-3 shadow-xl [-webkit-app-region:no-drag]">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium">File transfers</span>
-        <Button size="sm" variant="ghost" className="h-7" onClick={session.clearFinishedTransfers}>
+        <Button size="sm" variant="ghost" onClick={session.clearFinishedTransfers}>
           Clear finished
         </Button>
       </div>
@@ -364,23 +363,17 @@ export default function RdpSessionRoute(): React.JSX.Element {
         >
           <span className="min-w-0 flex-1 truncate">{session.notice.message}</span>
           {session.notice.action && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs"
-              onClick={session.notice.action.run}
-            >
+            <Button size="xs" variant="ghost" onClick={session.notice.action.run}>
               {session.notice.action.label}
             </Button>
           )}
           <Button
-            size="icon"
+            size="icon-xs"
             variant="ghost"
-            className="h-6 w-6"
             aria-label="Dismiss"
             onClick={session.dismissNotice}
           >
-            <X className="h-3 w-3" />
+            <X />
           </Button>
         </div>
       )}
@@ -438,6 +431,16 @@ export default function RdpSessionRoute(): React.JSX.Element {
                       ? phase.message
                       : phase.reason || 'The remote session ended.'}
                 </p>
+                {phase.kind === 'failed' && phase.detail && (
+                  <details className="pt-1">
+                    <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                      Technical details
+                    </summary>
+                    <p className="mt-2 select-text break-words rounded-lg bg-foreground/[0.05] p-2 text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
+                      {phase.detail}
+                    </p>
+                  </details>
+                )}
               </div>
               {phase.kind !== 'connecting' && (
                 <div className="flex gap-2">

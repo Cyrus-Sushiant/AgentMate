@@ -52,7 +52,7 @@ export function ServersVaultControls({
 
   if (!vault.unlocked) {
     return (
-      <Button size="sm" variant="outline" onClick={() => onRequestDialog('unlock')}>
+      <Button size="sm" variant="soft" onClick={() => onRequestDialog('unlock')}>
         <Lock className="h-3.5 w-3.5" /> Unlock vault
       </Button>
     );

@@ -206,9 +206,14 @@ describe('DeployPage states', () => {
       },
     });
 
-    expect(await screen.findByText('Not answering', { selector: 'div' })).toBeTruthy();
+    const rail = await screen.findByRole('navigation', { name: 'Servers' });
+    // The health card's status chip says it as well as the rail.
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Not answering').filter((element) => !rail.contains(element)),
+      ).toHaveLength(1),
+    );
     expect(screen.getByText(/did not answer GET \/api\/v1\/health/)).toBeTruthy();
-    const rail = screen.getByRole('navigation', { name: 'Servers' });
     expect(within(rail).getByText('Not answering')).toBeTruthy();
   });
 

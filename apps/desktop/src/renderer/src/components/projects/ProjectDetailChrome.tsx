@@ -37,7 +37,7 @@ import {
 import {
   EmptyState,
   GLASS_CARD,
-  PILL_SOFT,
+  SectionCard as KitSectionCard,
   SECTION_HEADING,
   SECTION_WELL,
 } from '@/components/pageKit';
@@ -138,8 +138,6 @@ export function ProjectEmptyState({
 /** The glass card the project page is built from. */
 export const PROJECT_CARD = GLASS_CARD;
 export { SECTION_HEADING, SECTION_WELL };
-/** A secondary action: the search box's faint pill, so only the primary action has weight. */
-export const PILL_GHOST = PILL_SOFT;
 
 /**
  * The empty state on the project page, the kit's glowing state. On its own it is a glass card;
@@ -171,8 +169,8 @@ export function SectionEmptyState({
 }
 
 /**
- * One section of the project page as a glass card: an icon tile, a title and what it is for on
- * the left, its actions on the right, and the content under a hairline.
+ * One section of the project page: the kit's section card, clipped to its corners. It takes the
+ * icon as a component and titles the card as an h2, since each card is a section of the page.
  */
 export function SectionCard({
   icon: Icon,
@@ -192,25 +190,17 @@ export function SectionCard({
   bodyClassName?: string;
 }): React.JSX.Element {
   return (
-    <section className={cn(PROJECT_CARD, 'overflow-hidden', className)}>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 p-4">
-        <div className="flex min-w-[min(100%,16rem)] flex-1 items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
-            <Icon className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 space-y-0.5 pt-0.5">
-            <h2 className="text-sm font-semibold leading-tight">{title}</h2>
-            {description ? (
-              <div className="text-xs leading-relaxed text-muted-foreground">{description}</div>
-            ) : null}
-          </div>
-        </div>
-        {actions ? (
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">{actions}</div>
-        ) : null}
-      </div>
-      {children ? <div className={cn('px-4 pb-4', bodyClassName)}>{children}</div> : null}
-    </section>
+    <KitSectionCard
+      icon={<Icon />}
+      title={title}
+      description={description}
+      actions={actions}
+      headingLevel={2}
+      className={cn('overflow-hidden', className)}
+      bodyClassName={bodyClassName}
+    >
+      {children}
+    </KitSectionCard>
   );
 }
 
@@ -396,26 +386,21 @@ export function ProjectDetailHeader({
 
         <div className="flex shrink-0 items-center gap-1.5">
           {hasRunCommand ? (
-            <Button size="sm" className="h-8 rounded-full px-4" onClick={onRun}>
+            <Button onClick={onRun}>
               <Run /> Run
             </Button>
           ) : null}
           <SimpleTooltip label="Run agents side by side and review their changes">
-            <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onOpenWorkspace}>
+            <Button variant="soft" onClick={onOpenWorkspace}>
               <Workspace /> Open workspace
             </Button>
           </SimpleTooltip>
-          <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={onPrompt}>
+          <Button variant="soft" onClick={onPrompt}>
             <MessageSquare /> Prompt
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="More project actions"
-                className="search-pill h-8 w-8 rounded-full text-foreground/85 hover:text-foreground"
-              >
+              <Button variant="soft" size="icon" aria-label="More project actions">
                 <EllipsisVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -446,10 +431,7 @@ export function ProjectDetailHeader({
                   </>
                 )}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onSelect={onDelete}
-              >
+              <DropdownMenuItem tone="danger" onSelect={onDelete}>
                 <Trash2 className="h-4 w-4" /> Remove project
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -706,9 +688,7 @@ export function ProjectNotesCard({
         actions={
           <>
             <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_GHOST}
+              variant="soft"
               onClick={() => {
                 savedValue.current = null;
                 setDraft(notes);
@@ -718,12 +698,7 @@ export function ProjectNotesCard({
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              className="h-8 rounded-full px-4"
-              onClick={handleSave}
-              disabled={saving}
-            >
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : 'Save notes'}
             </Button>
           </>
@@ -751,12 +726,7 @@ export function ProjectNotesCard({
           title="No notes yet"
           description="Keep a scratchpad on this project for context you do not want in the standing prompt."
           action={
-            <Button
-              variant="ghost"
-              size="sm"
-              className={PILL_GHOST}
-              onClick={() => setEditing(true)}
-            >
+            <Button variant="soft" onClick={() => setEditing(true)}>
               <Pencil /> Add notes
             </Button>
           }
@@ -771,7 +741,7 @@ export function ProjectNotesCard({
       title="Notes"
       description={description}
       actions={
-        <Button variant="ghost" size="sm" className={PILL_GHOST} onClick={() => setEditing(true)}>
+        <Button variant="soft" onClick={() => setEditing(true)}>
           <Pencil /> Edit notes
         </Button>
       }

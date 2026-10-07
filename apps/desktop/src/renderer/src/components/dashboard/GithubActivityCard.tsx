@@ -17,7 +17,7 @@ import {
   Tag,
   X,
 } from '@/components/icons';
-import { CARD_PILL_SOFT, Chip, TILE_ACTION, TileHeader } from '@/components/pageKit';
+import { Chip, TileHeader } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -420,8 +420,8 @@ export function GithubActivityCard({
                 <SimpleTooltip label={medalLabel}>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={cn(TILE_ACTION, 'relative')}
+                    size="icon-sm"
+                    className="relative"
                     onClick={() => setNotificationsOpen(true)}
                     aria-label={medalLabel}
                   >
@@ -436,8 +436,7 @@ export function GithubActivityCard({
                 <SimpleTooltip label="Refresh GitHub activity">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className={TILE_ACTION}
+                    size="icon-sm"
                     onClick={() => void refreshAll()}
                     disabled={refreshing}
                   >
@@ -447,7 +446,7 @@ export function GithubActivityCard({
                 {dragHandle}
                 {onRemove && (
                   <SimpleTooltip label="Remove from dashboard">
-                    <Button variant="ghost" size="icon" className={TILE_ACTION} onClick={onRemove}>
+                    <Button variant="ghost" size="icon-sm" onClick={onRemove}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </SimpleTooltip>
@@ -587,9 +586,8 @@ export function GithubActivityCard({
           >
             {unreadCount > 0 && (
               <Button
-                variant="ghost"
+                variant="soft"
                 size="sm"
-                className={CARD_PILL_SOFT}
                 disabled={markAll.isPending}
                 onClick={() => markAll.mutate()}
               >
@@ -602,9 +600,8 @@ export function GithubActivityCard({
               </Button>
             )}
             <Button
-              variant="ghost"
+              variant="soft"
               size="sm"
-              className={CARD_PILL_SOFT}
               onClick={() => {
                 void window.agentmat.shell.openExternal(GH_NOTIFICATIONS_URL);
               }}

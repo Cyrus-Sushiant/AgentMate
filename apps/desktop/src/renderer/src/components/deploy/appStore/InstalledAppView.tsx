@@ -3,14 +3,26 @@ import type { DeployRevisionResult } from '@shared/deployAppStoreTypes';
 import type { DeployServer } from '@shared/deployTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ArrowLeft, CircleCheck, CircleX, Globe, Minus, Spinner } from '@/components/icons';
+import {
+  ArrowLeft,
+  CircleCheck,
+  CircleX,
+  Globe,
+  Minus,
+  Spinner,
+  Store,
+  TriangleAlert,
+} from '@/components/icons';
+import { GLASS_CARD } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UpdateOffer } from '@/lib/deploy/appStore/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { DeployTimeline } from '../apps/DeployTimeline';
 import { type AppsAccess, stackIsBusy } from '../apps/hooks';
+import { DeployCard, Notice } from '../deployKit';
 import { useProofStepUp } from '../overview/useProofStepUp';
 import { useInstalledApp } from './hooks';
 import { PostInstallCard } from './PostInstallCard';
@@ -46,13 +58,7 @@ const STEP_WORD: Record<ExposeStepState, string> = {
 
 function ExposeSteps({ domain, steps }: { domain: string; steps: ExposeStep[] }) {
   return (
-    <section
-      aria-label="Domain steps"
-      className="glass space-y-2 rounded-xl border border-border p-4"
-    >
-      <h4 className="flex items-center gap-2 text-sm font-semibold">
-        <Globe className="h-3.5 w-3.5 text-muted-foreground" /> {domain}
-      </h4>
+    <DeployCard aria-label="Domain steps" icon={<Globe />} title={domain}>
       <ol className="space-y-1 text-sm">
         {steps.map((step) => {
           const Icon = STEP_ICON[step.state];
@@ -78,7 +84,7 @@ function ExposeSteps({ domain, steps }: { domain: string; steps: ExposeStep[] })
           );
         })}
       </ol>
-    </section>
+    </DeployCard>
   );
 }
 
@@ -115,13 +121,17 @@ export function InstalledAppView({
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.deployApps(serverId) });
 
   if (app.loading && !details) {
-    return <Skeleton className="h-64 w-full rounded-xl" aria-busy="true" />;
+    return (
+      <div className={cn(GLASS_CARD, 'p-4')} aria-busy="true">
+        <Skeleton className="h-56 w-full rounded-lg" />
+      </div>
+    );
   }
   if (!details) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <Notice role="alert" tone="destructive" icon={TriangleAlert}>
         The app did not load{app.detailsError ? `: ${coreErrorMessage(app.detailsError)}` : '.'}
-      </p>
+      </Notice>
     );
   }
 
@@ -202,13 +212,18 @@ export function InstalledAppView({
     newest?.jobId && (following || busy || newest.state !== 'live') ? newest : undefined;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-3.5 w-3.5" /> App Store
+    <div className="flex flex-col gap-2">
+      <div className={cn(GLASS_CARD, 'flex flex-wrap items-center gap-3 px-4 py-3')}>
+        <Button size="sm" variant="soft" onClick={onBack}>
+          <ArrowLeft /> App Store
         </Button>
-        <h3 className="text-base font-semibold">{details.stack.name}</h3>
-        <Button size="sm" variant="outline" className="ml-auto" onClick={onOpenInApps}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+            <Store className="h-4 w-4" />
+          </div>
+          <h3 className="truncate text-sm font-semibold">{details.stack.name}</h3>
+        </div>
+        <Button size="sm" variant="soft" className="ml-auto" onClick={onOpenInApps}>
           Open in Apps
         </Button>
       </div>
@@ -222,9 +237,9 @@ export function InstalledAppView({
       )}
       {expose && <ExposeSteps domain={expose.domain} steps={expose.steps} />}
       {problem && (
-        <p role="alert" className="text-sm text-destructive">
+        <Notice role="alert" tone="destructive" icon={TriangleAlert}>
           {problem}
-        </p>
+        </Notice>
       )}
       {app.install ? (
         <PostInstallCard
@@ -241,9 +256,11 @@ export function InstalledAppView({
           onRollback={() => void rollback()}
         />
       ) : app.problem ? (
-        <p className="text-sm text-muted-foreground">{app.problem}</p>
+        <Notice>{app.problem}</Notice>
       ) : (
-        <Skeleton className="h-40 w-full rounded-xl" aria-busy="true" />
+        <div className={cn(GLASS_CARD, 'p-4')} aria-busy="true">
+          <Skeleton className="h-32 w-full rounded-lg" />
+        </div>
       )}
       {stepUp.dialog}
     </div>

@@ -530,7 +530,7 @@ export function DiffrayReviewWizard({
           title="diffray is not installed yet"
           description="Install the CLI from Agent Tools, then come back here to review this project's changes with specialized agents."
           action={
-            <Button className="rounded-full px-5" onClick={goToTools}>
+            <Button onClick={goToTools}>
               <Wrench /> Open Agent Tools
             </Button>
           }
@@ -561,7 +561,7 @@ export function DiffrayReviewWizard({
           title="This folder is not a git repository"
           description="diffray reviews git diffs. Initialize a repository on the Git tab first."
           action={
-            <Button className="rounded-full px-5" onClick={goToGit}>
+            <Button onClick={goToGit}>
               <GitBranch /> Open Git
             </Button>
           }

@@ -16,7 +16,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
-import { cn } from '@/lib/utils';
 
 const ROW_H = 40;
 const LANE_W = 14;
@@ -279,14 +278,15 @@ export function GitBranchHistoryDialog({
                             {row.commit.date ? ` · ${timeAgo(row.commit.date)}` : ''}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-foreground/8 hover:text-foreground"
-                          onClick={() => void copyHash(row.commit.hash)}
-                          title="Copy full hash"
-                        >
-                          {row.commit.shortHash}
-                        </button>
+                        <SimpleTooltip label="Copy full hash">
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-foreground/8 hover:text-foreground"
+                            onClick={() => void copyHash(row.commit.hash)}
+                          >
+                            {row.commit.shortHash}
+                          </button>
+                        </SimpleTooltip>
                       </div>
                     </div>
                   ))}
@@ -297,7 +297,7 @@ export function GitBranchHistoryDialog({
         )}
 
         {historyQuery.isFetching && !historyQuery.isLoading ? (
-          <p className={cn('flex items-center gap-2 text-xs text-muted-foreground')}>
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Spinner className="h-3 w-3 animate-spin" /> Refreshing…
           </p>
         ) : null}

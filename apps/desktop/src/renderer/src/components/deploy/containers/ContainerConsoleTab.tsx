@@ -1,6 +1,7 @@
 import type { ContainerSummary } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useState } from 'react';
 import { Lock, TerminalSquare } from '@/components/icons';
+import { EmptyState } from '@/components/pageKit';
 import { TerminalPane } from '@/components/terminal/TerminalPane';
 import { Button } from '@/components/ui/button';
 import type { TerminalSessionMeta } from '@/stores/terminalStore';
@@ -25,17 +26,22 @@ export function ContainerConsoleTab({
 
   if (!canOpen) {
     return (
-      <p className="flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
-        <Lock className="h-4 w-4 shrink-0" /> Consoles are for Admins: a shell in a container can
-        read and change everything in it.
-      </p>
+      <EmptyState
+        size="sm"
+        icon={Lock}
+        title="Consoles are for Admins"
+        description="A shell in a container can read and change everything in it."
+      />
     );
   }
   if (container.state !== 'running') {
     return (
-      <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-        {container.name} is not running. Start it to open a console.
-      </p>
+      <EmptyState
+        size="sm"
+        icon={TerminalSquare}
+        title="Not running"
+        description={`${container.name} is not running. Start it to open a console.`}
+      />
     );
   }
 
@@ -51,15 +57,17 @@ export function ContainerConsoleTab({
 
   if (!session) {
     return (
-      <div className="flex flex-col items-start gap-3 rounded-lg border border-border bg-secondary/20 p-4">
-        <p className="text-sm text-muted-foreground">
-          Opens bash (or sh) in {container.name} as its own user. Opening and closing it are
-          recorded in the server's audit trail; what you type is not.
-        </p>
-        <Button size="sm" className="gap-1.5" onClick={open}>
-          <TerminalSquare className="h-3.5 w-3.5" /> Open a console
-        </Button>
-      </div>
+      <EmptyState
+        size="sm"
+        icon={TerminalSquare}
+        title={`A shell in ${container.name}`}
+        description={`Opens bash (or sh) in ${container.name} as its own user. Opening and closing it are recorded in the server's audit trail; what you type is not.`}
+        action={
+          <Button size="sm" onClick={open}>
+            <TerminalSquare className="h-3.5 w-3.5" /> Open a console
+          </Button>
+        }
+      />
     );
   }
 
@@ -69,18 +77,18 @@ export function ContainerConsoleTab({
         <span role="status">{ended ? 'The shell has ended.' : `Console in ${container.name}`}</span>
         <div className="flex gap-2">
           {ended ? (
-            <Button size="sm" variant="outline" onClick={open}>
+            <Button size="sm" variant="soft" onClick={open}>
               Open a new one
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => setSession(null)}>
+            <Button size="sm" variant="soft" onClick={() => setSession(null)}>
               Close the console
             </Button>
           )}
         </div>
       </div>
       <div
-        className="relative min-h-72 flex-1 overflow-hidden rounded-lg border border-border bg-[var(--terminal-bg,#111)]"
+        className="relative min-h-72 flex-1 overflow-hidden rounded-xl bg-[var(--terminal-bg,#111)] ring-1 ring-inset ring-foreground/[0.08]"
         aria-label={`Console in ${container.name}`}
         role="group"
       >

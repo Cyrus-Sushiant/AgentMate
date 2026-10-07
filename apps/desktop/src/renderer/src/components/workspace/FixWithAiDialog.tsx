@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Copy, Spinner, TerminalSquare, Wand2 } from '@/components/icons';
+import { FOOTER_HAIRLINE, Problem, SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
 import {
   RunRecommendationPanel,
   useRunRecommendation,
@@ -26,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { launchPromptTab, projectCliId } from '@/lib/workspace/launch';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -130,7 +132,7 @@ export function FixWithAiDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85vh] w-[min(58rem,calc(100vw-2rem))] max-w-none flex-col gap-0 p-0">
-        <DialogHeader className="border-b border-border/70 px-5 py-4">
+        <DialogHeader className="px-5 py-4 shadow-[inset_0_-1px_0_hsl(var(--foreground)/0.08)]">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Wand2 className="h-4 w-4 text-primary" />
             {title}
@@ -140,9 +142,9 @@ export function FixWithAiDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 py-4 lg:flex-row">
           <div className="flex min-h-0 flex-1 flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">Prompt</p>
+            <p className={SECTION_HEADING}>Prompt</p>
             {loading ? (
-              <div className="space-y-2 rounded-lg border border-border/70 p-3">
+              <div className={cn(SECTION_WELL, 'space-y-2')}>
                 <p className="text-xs text-muted-foreground">
                   {source.loadingLabel ?? 'Getting the failure ready…'}
                 </p>
@@ -155,18 +157,7 @@ export function FixWithAiDialog({
                 ))}
               </div>
             ) : source.error && edited === null ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-                {source.error}
-                {source.retry ? (
-                  <button
-                    type="button"
-                    onClick={source.retry}
-                    className="ml-2 font-semibold underline-offset-2 hover:underline"
-                  >
-                    Try again
-                  </button>
-                ) : null}
-              </div>
+              <Problem message={source.error} onRetry={source.retry} />
             ) : (
               <Textarea
                 value={prompt}
@@ -178,12 +169,17 @@ export function FixWithAiDialog({
             )}
           </div>
           {/* The sizing is a suggestion: the model and effort stay editable right up to Run. */}
-          <div className="min-h-0 shrink-0 overflow-y-auto rounded-lg border border-border/70 bg-background/40 p-3 lg:w-[21rem]">
+          <div className={cn(SECTION_WELL, 'min-h-0 shrink-0 overflow-y-auto lg:w-[21rem]')}>
             <RunRecommendationPanel state={recommendation} />
           </div>
         </div>
 
-        <DialogFooter className="flex-row items-center gap-2 border-t border-border/70 px-5 py-3 sm:justify-between">
+        <DialogFooter
+          className={cn(
+            FOOTER_HAIRLINE,
+            'flex-row items-center gap-2 px-5 py-3 sm:justify-between',
+          )}
+        >
           <Button
             variant="ghost"
             size="sm"
@@ -200,7 +196,7 @@ export function FixWithAiDialog({
           <div className="flex items-center gap-2">
             {suggestion && cliId && suggestion.cliId !== cliId ? (
               <Button
-                variant="outline"
+                variant="soft"
                 size="sm"
                 disabled={!prompt}
                 onClick={() => openFix({ cliId })}

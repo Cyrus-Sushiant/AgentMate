@@ -5,15 +5,17 @@ import type { DeployServer } from '@shared/deployTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
-import { CircleCheck, CircleInfo, Key, Server, Spinner, Trash2 } from '@/components/icons';
+import { CircleCheck, Key, Server, Spinner, Trash2 } from '@/components/icons';
+import { Chip, EmptyState, FOOTER_HAIRLINE } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { relative } from '@/lib/deploy/sites/certificates';
 import { queryKeys } from '@/lib/queryKeys';
+import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
+import { CardBody, CloudflareCard } from '../fields';
 import { GuidedFix } from './GuidedFix';
 
 /**
@@ -83,7 +85,7 @@ function ServerRow({ server, zone }: { server: DeployServer; zone: CloudflareZon
 
   const cannotMint = cloudflareErrorPermission(error) === 'apiTokens';
   return (
-    <li className="space-y-2 px-3 py-3">
+    <li className="space-y-2 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
           <Server className="h-4 w-4 shrink-0 text-muted-foreground" /> {server.nickname}
@@ -93,22 +95,22 @@ function ServerRow({ server, zone }: { server: DeployServer; zone: CloudflareZon
         ) : tokens.error ? (
           <span className="text-xs text-muted-foreground">{coreErrorMessage(tokens.error)}</span>
         ) : held ? (
-          <span className="flex items-center gap-1 text-xs text-success">
-            <CircleCheck className="h-3 w-3" /> Holds a DNS token
+          <Chip tone="success">
+            <CircleCheck /> Holds a DNS token
             {held.lastUsedAtUnixMs
               ? `, last used ${relative(held.lastUsedAtUnixMs, Date.now())}`
               : ', not used yet'}
-          </span>
+          </Chip>
         ) : (
-          <span className="text-xs text-muted-foreground">No DNS token for {zone.name}</span>
+          <Chip>No DNS token for {zone.name}</Chip>
         )}
       </div>
       {held?.lastError && <p className="text-xs text-warning">{held.lastError}</p>}
       {tokens.isSuccess && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Button
             size="sm"
-            variant={held ? 'outline' : 'default'}
+            variant={held ? 'soft' : 'default'}
             disabled={busy !== null}
             onClick={() =>
               void run(
@@ -132,7 +134,7 @@ function ServerRow({ server, zone }: { server: DeployServer; zone: CloudflareZon
           </Button>
           <Button
             size="sm"
-            variant="outline"
+            variant="soft"
             disabled={busy !== null}
             onClick={() => setPasting((open) => !open)}
           >
@@ -141,7 +143,7 @@ function ServerRow({ server, zone }: { server: DeployServer; zone: CloudflareZon
           {held && (
             <Button
               size="sm"
-              variant="ghost"
+              variant="danger"
               disabled={busy !== null}
               onClick={() => void remove()}
             >
@@ -208,33 +210,32 @@ export function DnsTokensCard({ zone }: { zone: CloudflareZone }): React.JSX.Ele
   });
   const withCore = (servers.data ?? []).filter((server) => server.core);
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="text-base">DNS tokens on your servers</CardTitle>
-        <CardDescription>
-          A server with a DNS token for {zone.name} can get wildcard certificates and certificates
-          for names behind the proxy (DNS-01). Each token edits this zone's DNS and nothing else.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {servers.isPending ? (
-          <Skeleton className="h-16 w-full" />
-        ) : withCore.length === 0 ? (
-          <p className="flex items-start gap-2 text-sm text-muted-foreground">
-            <CircleInfo className="mt-0.5 h-4 w-4 shrink-0" /> Install the server core on a server
-            in Deploy first.
-          </p>
-        ) : (
-          <ul
-            aria-label="Servers"
-            className="divide-y divide-border/60 rounded-lg border border-border/70"
-          >
-            {withCore.map((server) => (
-              <ServerRow key={server.id} server={server} zone={zone} />
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <CloudflareCard
+      icon={<Key />}
+      title="DNS tokens on your servers"
+      description={`A server with a DNS token for ${zone.name} can get wildcard certificates and certificates for names behind the proxy (DNS-01). Each token edits this zone's DNS and nothing else.`}
+    >
+      {servers.isPending ? (
+        <div className={cn(FOOTER_HAIRLINE, 'space-y-2 px-4 py-3')} aria-busy="true">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-7 w-56 rounded-full" />
+        </div>
+      ) : withCore.length === 0 ? (
+        <CardBody>
+          <EmptyState
+            size="sm"
+            icon={Server}
+            title="No server core yet"
+            description="Install the server core on a server in Deploy first."
+          />
+        </CardBody>
+      ) : (
+        <ul aria-label="Servers" className={cn(FOOTER_HAIRLINE, 'settings-rows')}>
+          {withCore.map((server) => (
+            <ServerRow key={server.id} server={server} zone={zone} />
+          ))}
+        </ul>
+      )}
+    </CloudflareCard>
   );
 }

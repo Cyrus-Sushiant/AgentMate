@@ -15,6 +15,7 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
@@ -34,14 +35,6 @@ import type { PromptHistoryEntry } from '../../../shared/apiTypes';
 
 /** The glass card each entry sits on, rounded like the Settings and API Client cards. */
 const CARD = 'glass rounded-[calc(var(--radius)+2px)]';
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
-
-/** A quiet pill for the secondary actions on a card. */
-const GHOST_PILL =
-  'h-7 gap-1.5 rounded-full px-2.5 text-xs font-medium text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground';
 
 type ChipTone = 'primary' | 'success' | 'neutral';
 
@@ -342,11 +335,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
               ? historyQuery.error.message
               : 'An unexpected error occurred.'
           }
-          action={
-            <Button className="rounded-full px-5" onClick={() => void historyQuery.refetch()}>
-              Try again
-            </Button>
-          }
+          action={<Button onClick={() => void historyQuery.refetch()}>Try again</Button>}
         />
       ) : entries.length === 0 ? (
         <StatusPanel
@@ -393,7 +382,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={GHOST_PILL}
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => setSelectedEntry(entry)}
                     >
                       <Eye /> View details
@@ -401,7 +390,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={GHOST_PILL}
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => void handleCopy(entry.content)}
                     >
                       <Copy /> Copy
@@ -409,7 +398,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={cn(GHOST_PILL, 'hover:bg-destructive/10 hover:text-destructive')}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => {
                         void confirmDialog({
                           title: 'Delete this prompt history entry?',
@@ -457,11 +446,7 @@ export default function PromptHistoryPage(): React.JSX.Element {
               </DialogHeader>
               <SelectedEntryBody entry={selectedEntry} />
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="rounded-full px-4"
-                  onClick={() => void handleCopy(selectedEntry.content)}
-                >
+                <Button onClick={() => void handleCopy(selectedEntry.content)}>
                   <Copy /> Copy
                 </Button>
               </div>

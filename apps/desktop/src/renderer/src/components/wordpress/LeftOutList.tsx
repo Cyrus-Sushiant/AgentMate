@@ -125,7 +125,7 @@ function ReasonGroup({
         ))}
       </ul>
       {entries.length > shown.length ? (
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowAll(true)}>
+        <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
           Show {entries.length - shown.length} more
         </Button>
       ) : null}

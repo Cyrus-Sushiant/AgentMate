@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Lock, Spinner } from '@/components/icons';
-import { PILL_SOFT } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
-import { cn } from '@/lib/utils';
 
 export interface BackupEnvironmentsPasswordDialogProps {
   open: boolean;
@@ -86,20 +84,11 @@ export function BackupEnvironmentsPasswordDialog({
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            variant="ghost"
-            className={cn(PILL_SOFT, 'h-9 text-sm')}
-            disabled={busy !== null}
-            onClick={() => void submit(false)}
-          >
+          <Button variant="soft" disabled={busy !== null} onClick={() => void submit(false)}>
             {busy === 'skip' && <Spinner className="h-4 w-4 animate-spin" />}
             Restore without them
           </Button>
-          <Button
-            className="rounded-full px-5"
-            disabled={!password || busy !== null}
-            onClick={() => void submit(true)}
-          >
+          <Button disabled={!password || busy !== null} onClick={() => void submit(true)}>
             {busy === 'restore' && <Spinner className="h-4 w-4 animate-spin" />}
             Restore
           </Button>

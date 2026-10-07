@@ -1,6 +1,7 @@
 import type { BodyMode, DraftBody, RawLanguage } from '@agentmat/core';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { ChevronDown, Wand2 } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,13 +89,15 @@ export function BodyEditor({ body, onChange }: BodyEditorProps): React.JSX.Eleme
               </DropdownMenuContent>
             </DropdownMenu>
             {body.language === 'json' && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => onChange({ ...body, raw: prettyBody(body.raw, 'json') })}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                className="gap-1 px-2 text-muted-foreground hover:text-foreground"
               >
                 <Wand2 className="h-3 w-3" /> Beautify
-              </button>
+              </Button>
             )}
           </div>
         )}

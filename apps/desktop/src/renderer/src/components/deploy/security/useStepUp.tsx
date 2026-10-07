@@ -196,16 +196,18 @@ function StepUpDialog({
             </div>
           )}
           {twoFactor && (
-            <button
+            <Button
               type="button"
-              className="cursor-pointer text-xs text-primary underline-offset-4 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              variant="link"
+              size="sm"
+              className="h-auto rounded-sm p-0 text-xs"
               onClick={() => {
                 setUseCode((current) => !current);
                 setProblem(null);
               }}
             >
               {useCode ? 'Use your password' : 'Use a code from your authenticator app'}
-            </button>
+            </Button>
           )}
           {problem && (
             <p role="alert" className="text-sm text-destructive">
@@ -213,7 +215,7 @@ function StepUpDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onCancel}>
+            <Button type="button" variant="soft" onClick={onCancel}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !answer}>

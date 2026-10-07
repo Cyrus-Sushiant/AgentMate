@@ -554,7 +554,7 @@ export function SshAgentHistoryDialog({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 gap-1.5 text-xs"
+                    className="gap-1.5"
                     onClick={() => copy(runAsText(selected), 'Transcript')}
                   >
                     <Copy className="h-3 w-3" />

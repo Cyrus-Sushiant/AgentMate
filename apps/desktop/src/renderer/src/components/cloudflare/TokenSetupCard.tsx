@@ -5,11 +5,11 @@ import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, Key, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { queryKeys } from '@/lib/queryKeys';
 import { CloudflareMark } from './CloudflareMark';
+import { CardBody, CloudflareCard } from './fields';
 import { PermissionList } from './PermissionList';
 
 function Step({
@@ -25,7 +25,7 @@ function Step({
     <li className="flex gap-3">
       <span
         aria-hidden="true"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/20"
       >
         {number}
       </span>
@@ -82,18 +82,12 @@ export function TokenSetupCard({
   }
 
   return (
-    <Card className="glass">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CloudflareMark className="h-4 w-4" /> Connect Cloudflare
-        </CardTitle>
-        <CardDescription>
-          AgentMate manages your domains with an API token that can only do what is listed below.
-          The token stays on this computer, sealed like your server passwords, and is never shown
-          again.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <CloudflareCard
+      icon={<CloudflareMark />}
+      title="Connect Cloudflare"
+      description="AgentMate manages your domains with an API token that can only do what is listed below. The token stays on this computer, sealed like your server passwords, and is never shown again."
+    >
+      <CardBody>
         <ol className="space-y-6">
           <Step number={1} title="Create a token on Cloudflare">
             <p className="text-sm text-muted-foreground">
@@ -104,7 +98,7 @@ export function TokenSetupCard({
             <PermissionList />
             <Button
               type="button"
-              variant="outline"
+              variant="soft"
               size="sm"
               onClick={() => void window.agentmat.shell.openExternal(tokenTemplateUrl())}
             >
@@ -130,7 +124,7 @@ export function TokenSetupCard({
                   {problem}
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Button type="submit" size="sm" disabled={busy || token.trim() === ''}>
                   {busy ? (
                     <>
@@ -144,7 +138,7 @@ export function TokenSetupCard({
                   )}
                 </Button>
                 {onCancel && (
-                  <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+                  <Button type="button" variant="soft" size="sm" onClick={onCancel}>
                     Keep the current token
                   </Button>
                 )}
@@ -152,7 +146,7 @@ export function TokenSetupCard({
             </form>
           </Step>
         </ol>
-      </CardContent>
-    </Card>
+      </CardBody>
+    </CloudflareCard>
   );
 }

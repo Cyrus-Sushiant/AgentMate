@@ -2,6 +2,7 @@ import { DEFAULT_REVIEW_COMMANDS } from '@agentmat/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Plus, X } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -87,15 +88,10 @@ export function ReviewCommandsSettings(): React.JSX.Element {
           }}
           className="h-8 min-w-0 flex-1 font-mono text-xs"
         />
-        <button
-          type="button"
-          onClick={add}
-          disabled={!draft.trim()}
-          className="inline-flex h-8 items-center gap-1 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
-        >
+        <Button onClick={add} disabled={!draft.trim()} className="gap-1">
           <Plus className="h-3 w-3" />
           Add
-        </button>
+        </Button>
       </div>
       {problem ? <p className="text-xs text-destructive">{problem}</p> : null}
 

@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -52,10 +53,12 @@ export function WorkspaceScopeSwitcher({ scopeId }: { scopeId: string }): React.
             type="button"
             aria-label={`Switch workspace: ${label}`}
             className={cn(
-              'flex h-8 max-w-[15rem] items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent',
+              // A pill like the rest of the header; its edge is a ring so the global border
+              // colour can't repaint the primary tint.
+              'flex h-8 max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               current
-                ? 'border-primary/35 bg-primary/[0.07] text-foreground hover:bg-primary/[0.12]'
-                : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                ? 'bg-primary/12 text-foreground ring-primary/30 hover:bg-primary/20 data-[state=open]:bg-primary/20'
+                : 'bg-foreground/[0.05] text-muted-foreground ring-foreground/[0.07] hover:bg-foreground/[0.08] hover:text-foreground data-[state=open]:bg-foreground/[0.08]',
             )}
           >
             {current ? (
@@ -74,10 +77,8 @@ export function WorkspaceScopeSwitcher({ scopeId }: { scopeId: string }): React.
         </DropdownMenuTrigger>
       </SimpleTooltip>
       <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel className="text-[11px] font-medium text-muted-foreground">
-          Workspaces of {project.name}
-        </DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => commands.openMain(projectId)} className="gap-2">
+        <DropdownMenuLabel>Workspaces of {project.name}</DropdownMenuLabel>
+        <DropdownMenuItem onSelect={() => commands.openMain(projectId)}>
           <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1">
             <span className="block">Main checkout</span>
@@ -94,7 +95,6 @@ export function WorkspaceScopeSwitcher({ scopeId }: { scopeId: string }): React.
               key={worktree.id}
               disabled={worktree.missing}
               onSelect={() => commands.open(project, worktree)}
-              className="gap-2"
             >
               {worktree.missing ? (
                 <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
@@ -120,16 +120,12 @@ export function WorkspaceScopeSwitcher({ scopeId }: { scopeId: string }): React.
           );
         })}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => commands.create({ projectId })} className="gap-2">
+        <DropdownMenuItem onSelect={() => commands.create({ projectId })}>
           <Plus className="h-3.5 w-3.5" />
           <span className="flex-1">New worktree…</span>
-          {newShortcut ? (
-            <kbd className="rounded border border-border px-1 py-px text-[10px] text-muted-foreground">
-              {newShortcut}
-            </kbd>
-          ) : null}
+          {newShortcut ? <DropdownMenuShortcut>{newShortcut}</DropdownMenuShortcut> : null}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => revealPanelSection('worktrees')} className="gap-2">
+        <DropdownMenuItem onSelect={() => revealPanelSection('worktrees')}>
           <GitBranch className="h-3.5 w-3.5" />
           Manage worktrees
         </DropdownMenuItem>

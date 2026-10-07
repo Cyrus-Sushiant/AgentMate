@@ -53,7 +53,7 @@ export function StopRunButton({
       <Button
         variant="ghost"
         size="sm"
-        className={cn('h-8 shrink-0 gap-1 px-2 text-xs hover:text-destructive', className)}
+        className={cn('h-8 shrink-0 gap-1 px-2 hover:text-destructive', className)}
         disabled={busy}
         aria-label="Stop run"
         onClick={() => void stopRun()}

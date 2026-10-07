@@ -1,6 +1,7 @@
 import { type Project, parseScopeId, type WorktreeInfo } from '@agentmat/core';
 import { useQuery } from '@tanstack/react-query';
-import { EllipsisVertical, FolderTree, GitBranch, Plus, TriangleAlert } from '@/components/icons';
+import { EllipsisVertical, FolderTree, GitBranch, Plus } from '@/components/icons';
+import { Chip, type ChipTone, EmptyState, Notice } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,10 +21,13 @@ import { useWorktreeCommands, type WorktreeCommands } from './useWorktreeCommand
 import { WorktreeMenuItems } from './WorktreeMenuItems';
 
 const BADGE_TONE = {
-  changes: 'bg-warning/15 text-warning',
-  ahead: 'bg-primary/12 text-primary',
-  behind: 'bg-foreground/[0.07] text-muted-foreground',
-} as const;
+  changes: 'warning',
+  ahead: 'primary',
+  behind: 'neutral',
+} as const satisfies Record<string, ChipTone>;
+
+/** A chip sized for the two-line worktree row. */
+const ROW_CHIP = 'h-4 px-1.5 text-[10px]';
 
 function PathText({ path }: { path: string }): React.JSX.Element {
   // rtl keeps the end of a long path, the part that tells worktrees apart, in view.
@@ -50,16 +54,22 @@ function WorktreeRow({
   return (
     <li
       className={cn(
-        'group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-accent/60',
-        current && 'bg-primary/[0.06]',
+        'group relative flex items-center gap-1 rounded-lg pr-1 transition-colors',
+        current ? 'bg-primary/12' : 'hover:bg-foreground/[0.06]',
       )}
     >
+      {current ? (
+        <span
+          aria-hidden
+          className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]"
+        />
+      ) : null}
       <button
         type="button"
         aria-label={`Open ${label}`}
         disabled={current || worktree.missing}
         onClick={() => commands.open(project, worktree)}
-        className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
+        className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-lg px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default"
       >
         <GitBranch
           className={cn(
@@ -73,41 +83,38 @@ function WorktreeRow({
             <span
               className={cn(
                 'truncate text-xs',
+                current ? 'font-medium text-primary' : 'text-foreground/85',
                 worktree.missing && 'text-muted-foreground line-through',
               )}
             >
               {label}
             </span>
             {current ? (
-              <span className="shrink-0 rounded-full bg-primary/15 px-1.5 text-[9px] font-semibold leading-4 text-primary">
+              <Chip tone="primary" className={ROW_CHIP}>
                 This workspace
-              </span>
+              </Chip>
             ) : null}
             {worktree.missing ? (
-              <span className="shrink-0 rounded-full bg-warning/15 px-1.5 text-[9px] font-semibold leading-4 text-warning">
+              <Chip tone="warning" className={ROW_CHIP}>
                 Folder missing
-              </span>
+              </Chip>
             ) : null}
             {worktree.locked ? (
               <SimpleTooltip label={worktree.lockReason ?? 'Locked with git worktree lock'}>
-                <span className="shrink-0 rounded-full bg-foreground/[0.07] px-1.5 text-[9px] font-semibold leading-4 text-muted-foreground">
-                  Locked
-                </span>
+                <Chip className={ROW_CHIP}>Locked</Chip>
               </SimpleTooltip>
             ) : null}
           </span>
           {/* Badges share the second line with the path, so the branch name keeps its room. */}
-          <span className="flex min-w-0 items-center gap-1">
+          <span className="mt-0.5 flex min-w-0 items-center gap-1">
             {badges.map((badge) => (
-              <span
+              <Chip
                 key={badge.kind}
-                className={cn(
-                  'shrink-0 rounded px-1 text-[9px] font-semibold leading-4 tabular-nums',
-                  BADGE_TONE[badge.kind],
-                )}
+                tone={BADGE_TONE[badge.kind]}
+                className={cn(ROW_CHIP, 'tabular-nums')}
               >
                 {badge.text}
-              </span>
+              </Chip>
             ))}
             <span className="min-w-0 flex-1">
               <PathText path={worktree.path} />
@@ -123,13 +130,15 @@ function WorktreeRow({
       <DropdownMenu modal={false}>
         <SimpleTooltip label="More actions">
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               aria-label={`More actions for ${label}`}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+              className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
             >
-              <EllipsisVertical className="h-3 w-3" />
-            </button>
+              <EllipsisVertical />
+            </Button>
           </DropdownMenuTrigger>
         </SimpleTooltip>
         <DropdownMenuContent align="end" className="min-w-[13rem]">
@@ -165,9 +174,9 @@ export function WorktreesSection({ project }: { project: Project }): React.JSX.E
 
   if (query.isPending || !parent) {
     return (
-      <div className="space-y-1.5 px-2.5 py-2" aria-label="Loading worktrees">
-        <Skeleton className="h-9 rounded-md" />
-        <Skeleton className="h-9 w-4/5 rounded-md" />
+      <div className="space-y-1 px-1.5 py-1.5" aria-label="Loading worktrees">
+        <Skeleton className="h-10 rounded-lg" />
+        <Skeleton className="h-10 w-4/5 rounded-lg" />
       </div>
     );
   }
@@ -182,7 +191,7 @@ export function WorktreesSection({ project }: { project: Project }): React.JSX.E
           type="button"
           aria-label="Open the main checkout"
           onClick={() => commands.openMain(projectId)}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs outline-none transition-colors hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           <FolderTree className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1">
@@ -192,23 +201,26 @@ export function WorktreesSection({ project }: { project: Project }): React.JSX.E
         </button>
       ) : null}
       {worktrees.length === 0 ? (
-        <div className="px-2 py-3 text-center">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Work on several branches at once. Each worktree gets its own folder, terminals and
-            agents, so parallel tasks never touch each other's files.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-2.5 h-7 gap-1.5 px-2.5 text-[11px]"
-            onClick={() => commands.create({ projectId })}
-          >
-            <Plus className="h-3 w-3" />
-            New worktree
-          </Button>
-        </div>
+        <EmptyState
+          size="sm"
+          icon={FolderTree}
+          title="No worktrees yet"
+          description={
+            <span className="block text-xs">
+              Work on several branches at once. Each worktree gets its own folder, terminals and
+              agents, so parallel tasks never touch each other's files.
+            </span>
+          }
+          action={
+            <Button size="xs" variant="soft" onClick={() => commands.create({ projectId })}>
+              <Plus />
+              New worktree
+            </Button>
+          }
+          className="gap-2.5 px-3 py-4"
+        />
       ) : (
-        <ul className="space-y-0.5">
+        <ul className="space-y-px">
           {worktrees.map((worktree) => (
             <WorktreeRow
               key={worktree.id}
@@ -221,21 +233,25 @@ export function WorktreesSection({ project }: { project: Project }): React.JSX.E
         </ul>
       )}
       {missing > 0 ? (
-        <div className="mx-1 mt-2 flex items-center gap-2 rounded-md border border-warning/30 bg-warning/10 px-2 py-1.5 text-[11px] text-warning">
-          <TriangleAlert className="h-3 w-3 shrink-0" />
-          <span className="flex-1">
-            {missing === 1
-              ? 'One worktree’s folder is gone.'
-              : `${missing} worktree folders are gone.`}
-          </span>
-          <button
-            type="button"
-            onClick={() => commands.prune(projectId)}
-            className="rounded px-1.5 py-0.5 font-semibold hover:bg-warning/15"
-          >
-            Clean up
-          </button>
-        </div>
+        <Notice
+          tone="warning"
+          size="sm"
+          className="mx-1 mt-2 items-center text-[11px]"
+          action={
+            <Button
+              type="button"
+              variant="soft"
+              size="xs"
+              onClick={() => commands.prune(projectId)}
+            >
+              Clean up
+            </Button>
+          }
+        >
+          {missing === 1
+            ? 'One worktree’s folder is gone.'
+            : `${missing} worktree folders are gone.`}
+        </Notice>
       ) : null}
     </div>
   );

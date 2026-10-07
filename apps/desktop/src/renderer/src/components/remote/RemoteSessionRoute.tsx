@@ -104,7 +104,7 @@ export default function RemoteSessionRoute(): React.JSX.Element {
         <div className="flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Button
             size="sm"
-            variant="secondary"
+            variant="soft"
             disabled={!connected}
             onClick={() => void window.agentmat.remote.sendClipboard()}
           >
@@ -112,7 +112,7 @@ export default function RemoteSessionRoute(): React.JSX.Element {
           </Button>
           <Button
             size="sm"
-            variant="secondary"
+            variant="soft"
             disabled={!connected}
             onClick={() => void window.agentmat.remote.sendFile()}
           >

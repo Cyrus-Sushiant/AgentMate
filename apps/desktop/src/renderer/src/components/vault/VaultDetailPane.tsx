@@ -16,6 +16,7 @@ import {
   Trash2,
   TriangleAlert,
 } from '@/components/icons';
+import { SECTION_HEADING } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -45,23 +46,12 @@ function IconAction({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 rounded-full text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-        aria-label={label}
-        onClick={onClick}
-      >
+      <Button type="button" variant="ghost" size="icon" aria-label={label} onClick={onClick}>
         {children}
       </Button>
     </SimpleTooltip>
   );
 }
-
-/** The same small uppercase heading the main menu puts over its groups. */
-const SECTION_HEADING =
-  'select-none px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60';
 
 /** A group of rows inside the detail card: a faint inset well, hairlines between its rows. */
 const ROWS_BOX =
@@ -284,7 +274,7 @@ export function VaultDetailPane({
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 h-8 w-8 rounded-full @3xl/vault:hidden"
+          className="-ml-2 @3xl/vault:hidden"
           aria-label="Back to the list"
           onClick={onBack}
         >
@@ -314,7 +304,7 @@ export function VaultDetailPane({
           <IconAction label="Delete" onClick={() => void actions.remove(entry)}>
             <Trash2 className="h-3.5 w-3.5" />
           </IconAction>
-          <Button size="sm" className="ml-1.5 rounded-full px-4" onClick={onEdit}>
+          <Button className="ml-1.5" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
             Edit
           </Button>
@@ -324,14 +314,16 @@ export function VaultDetailPane({
       <div className="rail-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
         {rows.length > 0 && (
           <div className="space-y-2">
-            <h3 className={SECTION_HEADING}>Details</h3>
+            <h3 className={cn(SECTION_HEADING, 'px-1')}>Details</h3>
             <div className={ROWS_BOX}>{rows}</div>
           </div>
         )}
 
         {entry.hasNotes && (
           <div className="space-y-2">
-            <h3 className={SECTION_HEADING}>{entry.type === 'note' ? 'Note' : 'Notes'}</h3>
+            <h3 className={cn(SECTION_HEADING, 'px-1')}>
+              {entry.type === 'note' ? 'Note' : 'Notes'}
+            </h3>
             <div className={ROWS_BOX}>
               <div className="flex items-center gap-3 px-4 py-2.5">
                 <p className="min-w-0 flex-1 text-sm">
@@ -345,9 +337,9 @@ export function VaultDetailPane({
                 </p>
                 <div className="flex shrink-0 items-center gap-0.5 self-start">
                   <Button
-                    variant="ghost"
+                    variant="soft"
                     size="sm"
-                    className="search-pill h-7 gap-1.5 rounded-full px-2.5 text-xs text-foreground/85 hover:text-foreground"
+                    className="gap-1.5 px-2.5"
                     aria-label={notesShown === undefined ? 'Show notes' : 'Hide notes'}
                     onClick={() => void toggleReveal('notes')}
                   >
@@ -372,7 +364,7 @@ export function VaultDetailPane({
 
         {entry.tags.length > 0 && (
           <div className="space-y-2">
-            <h3 className={cn(SECTION_HEADING, 'flex items-center gap-1.5')}>
+            <h3 className={cn(SECTION_HEADING, 'flex items-center gap-1.5 px-1')}>
               <Tag className="h-2.5 w-2.5" />
               Tags
             </h3>

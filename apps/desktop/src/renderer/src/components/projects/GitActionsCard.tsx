@@ -313,7 +313,7 @@ function WorkflowRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            className="shrink-0 hover:text-destructive"
             disabled={stopping || !repo}
             onClick={() => onStop(run)}
             aria-label={`Stop ${workflow.name}`}
@@ -326,7 +326,7 @@ function WorkflowRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="shrink-0"
             onClick={() => setRunOpen(true)}
             aria-label={`Run ${workflow.name}`}
           >
@@ -361,7 +361,7 @@ function WorkflowRow({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="shrink-0"
             onClick={() => void window.agentmat.shell.openExternal(run.htmlUrl)}
             aria-label="Open run on GitHub"
           >

@@ -3,12 +3,13 @@ import type {
   SiteInfo,
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Download, RefreshCw, Robot, Search } from '@/components/icons';
+import { ArrowDown, ArrowUp, Download, RefreshCw, Robot } from '@/components/icons';
+import { SearchPill } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useVirtualRows } from '@/hooks/useVirtualRows';
 import { useChartColors } from '@/lib/chartColors';
 import { clockTime, highlight } from '@/lib/deploy/containers/logs';
@@ -145,39 +146,34 @@ export function LogViewer({
           />
           Follow
         </label>
-        <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => setRun((n) => n + 1)}>
-          <RefreshCw className="h-3.5 w-3.5" /> Read again
+        <Button variant="soft" onClick={() => setRun((n) => n + 1)}>
+          <RefreshCw /> Read again
         </Button>
         <Button
-          size="sm"
-          variant="ghost"
-          className="gap-1.5"
+          variant="soft"
           disabled={shown.length === 0}
           onClick={() => download(`${label.replace(/[^\w.-]+/g, '-')}.log`, entriesAsText(shown))}
         >
-          <Download className="h-3.5 w-3.5" /> Download
+          <Download /> Download
         </Button>
         {onAskAi && source && (
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onAskAi(source)}>
-            <Robot className="h-3.5 w-3.5" /> Ask the AI
+          <Button onClick={() => onAskAi(source)}>
+            <Robot /> Ask the AI
           </Button>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-48 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') goTo(event.shiftKey ? current - 1 : current + 1);
-            }}
-            placeholder="Search the log"
-            aria-label="Search the log"
-            className="h-8 pl-8"
-          />
-        </div>
+        <SearchPill
+          value={query}
+          onValueChange={setQuery}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') goTo(event.shiftKey ? current - 1 : current + 1);
+          }}
+          placeholder="Search the log"
+          label="Search the log"
+          className="min-w-48 flex-1"
+        />
         {query && (
           <span className="text-xs tabular-nums text-muted-foreground" role="status">
             {matches.length === 0 ? 'No matches' : `${current + 1} of ${matches.length}`}
@@ -185,24 +181,26 @@ export function LogViewer({
         )}
         {query && matches.length > 1 && (
           <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label="Previous match"
-              onClick={() => goTo(current - 1)}
-            >
-              <ArrowUp className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              aria-label="Next match"
-              onClick={() => goTo(current + 1)}
-            >
-              <ArrowDown className="h-3.5 w-3.5" />
-            </Button>
+            <SimpleTooltip label="Previous match">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Previous match"
+                onClick={() => goTo(current - 1)}
+              >
+                <ArrowUp />
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip label="Next match">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Next match"
+                onClick={() => goTo(current + 1)}
+              >
+                <ArrowDown />
+              </Button>
+            </SimpleTooltip>
           </>
         )}
       </div>
@@ -220,7 +218,7 @@ export function LogViewer({
           }
           virtual.onScroll();
         }}
-        className="min-h-72 flex-1 overflow-auto rounded-lg border border-border bg-background/70 py-1 font-mono text-[12px]"
+        className="min-h-72 flex-1 overflow-auto rounded-xl bg-background/60 py-1 font-mono text-[12px] ring-1 ring-inset ring-foreground/[0.08]"
         role="log"
         aria-label={`Log: ${label}`}
         aria-busy={!live.ready}

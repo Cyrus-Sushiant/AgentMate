@@ -4,6 +4,8 @@ import type { TextSearchOptions, WorkspaceGitState } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, EyeOff, Search, X } from '@/components/icons';
+import { FOOTER_HAIRLINE } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -134,12 +136,12 @@ export function WorkspaceSearchDialog({ project }: { project: Project }): React.
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/20 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           onOpenAutoFocus={(event) => event.preventDefault()}
           className={cn(
-            'fixed left-1/2 top-[7vh] z-50 flex h-[min(700px,84vh)] w-[min(940px,94vw)] -translate-x-1/2 flex-col overflow-hidden rounded-xl',
-            'border border-border/60 bg-popover/80 text-popover-foreground shadow-2xl shadow-black/25 backdrop-blur-2xl backdrop-saturate-150',
+            // The command palette's frosted panel, which brings its own edge, tint and corners.
+            'search-panel fixed left-1/2 top-[7vh] z-50 flex h-[min(700px,84vh)] w-[min(940px,94vw)] -translate-x-1/2 flex-col text-popover-foreground',
             'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
             'data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]',
           )}
@@ -445,7 +447,7 @@ function SearchPanel({
 
   return (
     <>
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border/50 px-2">
+      <div className="flex h-11 shrink-0 items-center gap-1 px-2">
         <div
           role="tablist"
           aria-label="What to search"
@@ -459,21 +461,29 @@ function SearchPanel({
               aria-selected={parsed.mode === one}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => setQuery(withMode(raw, one))}
+              // Pills like the kit's PillTabs, kept as real tabs so the mode stays a tablist.
               className={cn(
-                'relative flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs',
+                'relative flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 parsed.mode === one
-                  ? 'bg-foreground/[0.08] font-medium text-foreground'
-                  : 'text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground',
+                  ? 'bg-primary/12 text-primary ring-1 ring-inset ring-primary/20'
+                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
               )}
             >
               {MODE_LABEL[one]}
               {one !== 'all' ? (
-                <span className="font-mono text-[10px] text-muted-foreground/80">
+                <span className="font-mono text-[10px] font-normal opacity-60">
                   {MODE_PREFIX[one]}
                 </span>
               ) : null}
               {counts[one] !== undefined ? (
-                <span className="rounded-full bg-foreground/[0.08] px-1.5 text-[10px] tabular-nums text-muted-foreground">
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 text-[10px] tabular-nums',
+                    parsed.mode === one
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-foreground/[0.08] text-muted-foreground',
+                  )}
+                >
                   {counts[one]}
                 </span>
               ) : null}
@@ -481,72 +491,70 @@ function SearchPanel({
           ))}
         </div>
         <SimpleTooltip label={preview.visible ? 'Hide preview' : 'Show preview'}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={preview.visible ? 'Hide preview' : 'Show preview'}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setPreview({ visible: !preview.visible })}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           >
             {preview.visible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-          </button>
+          </Button>
         </SimpleTooltip>
         <SimpleTooltip label="Close (Esc)">
-          <button
-            type="button"
-            aria-label="Close search"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-          >
+          <Button variant="ghost" size="icon-sm" aria-label="Close search" onClick={onClose}>
             <X className="h-3 w-3" />
-          </button>
+          </Button>
         </SimpleTooltip>
       </div>
 
-      <div className="relative flex shrink-0 items-center gap-2 px-3">
-        <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <input
-          ref={inputRef}
-          type="text"
-          role="combobox"
-          aria-expanded
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={activeRow ? optionId(activeIndex) : undefined}
-          aria-label="Search files, types, members and text"
-          placeholder="Search, or start with f: t: m: x: to narrow it"
-          spellCheck={false}
-          autoComplete="off"
-          value={raw}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={onKeyDown}
-          className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
-        />
-        <div className="flex shrink-0 items-center gap-0.5">
-          {OPTION_TOGGLES.map((toggle) => (
-            <SimpleTooltip
-              key={toggle.option}
-              label={`${toggle.label} (Alt+${toggle.key.slice(3)})`}
-            >
-              <button
-                type="button"
-                aria-label={toggle.label}
-                aria-pressed={options[toggle.option]}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => setOption(toggle.option, !options[toggle.option])}
-                className={cn(
-                  'flex h-6 min-w-6 items-center justify-center rounded px-1 font-mono text-[11px] transition-colors',
-                  options[toggle.option]
-                    ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
-                    : 'text-muted-foreground hover:bg-foreground/10 hover:text-foreground',
-                )}
+      {/* The palette's search pill. The progress line runs along the hairline under it. */}
+      <div className="relative shrink-0 px-2 pb-2">
+        <div className="search-pill flex h-9 items-center gap-2 rounded-full pl-3.5 pr-1.5">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeRow ? optionId(activeIndex) : undefined}
+            aria-label="Search files, types, members and text"
+            placeholder="Search, or start with f: t: m: x: to narrow it"
+            spellCheck={false}
+            autoComplete="off"
+            value={raw}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+          />
+          <div className="flex shrink-0 items-center gap-0.5">
+            {OPTION_TOGGLES.map((toggle) => (
+              <SimpleTooltip
+                key={toggle.option}
+                label={`${toggle.label} (Alt+${toggle.key.slice(3)})`}
               >
-                {toggle.glyph}
-              </button>
-            </SimpleTooltip>
-          ))}
+                <button
+                  type="button"
+                  aria-label={toggle.label}
+                  aria-pressed={options[toggle.option]}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setOption(toggle.option, !options[toggle.option])}
+                  className={cn(
+                    'flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-full px-1.5 font-mono text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    options[toggle.option]
+                      ? 'bg-primary/15 text-primary ring-1 ring-inset ring-primary/35'
+                      : 'text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground',
+                  )}
+                >
+                  {toggle.glyph}
+                </button>
+              </SimpleTooltip>
+            ))}
+          </div>
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden bg-border/50">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px overflow-hidden bg-foreground/[0.08]">
           {text.running || (loading && !showSkeleton) ? (
             <div className="search-progress absolute inset-0" />
           ) : null}
@@ -562,7 +570,10 @@ function SearchPanel({
           aria-label="Results"
           aria-busy={loading}
           style={{ flex: preview.visible ? `${1 - preview.ratio} 1 0` : '1 1 0' }}
-          className={cn('min-h-0 overflow-y-auto py-1 transition-opacity', stale && 'opacity-60')}
+          className={cn(
+            'rail-scroll min-h-0 overflow-y-auto py-1.5 transition-opacity',
+            stale && 'opacity-60',
+          )}
         >
           {showSkeleton ? (
             <div className="space-y-2 px-3 py-2">
@@ -575,7 +586,7 @@ function SearchPanel({
               ))}
             </div>
           ) : rows.length === 1 && rows[0].kind === 'hint' ? (
-            <div className="flex h-full items-center justify-center px-6 text-center text-xs text-muted-foreground">
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
               {rows[0].text}
             </div>
           ) : (
@@ -618,7 +629,7 @@ function SearchPanel({
               onSizeChange={(size) => {
                 if (bodyHeight > 0) setPreview({ ratio: size / bodyHeight });
               }}
-              className="border-t border-border/50"
+              className={FOOTER_HAIRLINE}
             />
             <div style={{ flex: `${preview.ratio} 1 0` }} className="flex min-h-0 flex-col">
               <SearchPreview target={previewTarget} />
@@ -686,7 +697,12 @@ function SearchFooter({
       status += ' · some declarations are left out';
   }
   return (
-    <div className="flex h-7 shrink-0 items-center gap-3 border-t border-border/50 px-3 text-[10.5px] text-muted-foreground">
+    <div
+      className={cn(
+        FOOTER_HAIRLINE,
+        'flex h-8 shrink-0 items-center gap-3 px-3.5 text-[10.5px] text-muted-foreground',
+      )}
+    >
       <span>
         <Key>↑↓</Key> move
       </span>
@@ -716,7 +732,7 @@ function count(value: number, one: string, many = `${one}s`): string {
 
 function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <kbd className="mr-1 rounded border border-border/70 bg-foreground/[0.04] px-1 font-sans text-[10px]">
+    <kbd className="mr-1 rounded-full bg-foreground/[0.07] px-1.5 py-0.5 font-sans text-[10px] font-medium">
       {children}
     </kbd>
   );

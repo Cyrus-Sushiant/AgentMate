@@ -5,8 +5,10 @@ import type {
 } from '@shared/deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 import { useState } from 'react';
 import { Eye, EyeOff, Lock, Spinner } from '@/components/icons';
+import { SECTION_HEADING, SECTION_WELL } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import type { ProofStepUp } from '../overview/useProofStepUp';
 
 /**
@@ -56,25 +58,14 @@ export function ContainerInspectTab({
     <div className="space-y-5">
       <section aria-label="Environment variables" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Environment variables</h3>
+          <h3 className={SECTION_HEADING}>Environment variables</h3>
           {details.envKeys.length > 0 &&
             (revealed ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="gap-1.5"
-                onClick={() => onRevealed(null)}
-              >
+              <Button size="sm" variant="soft" onClick={() => onRevealed(null)}>
                 <EyeOff className="h-3.5 w-3.5" /> Hide values
               </Button>
             ) : canReveal ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => void reveal()}
-                disabled={busy}
-              >
+              <Button size="sm" variant="soft" onClick={() => void reveal()} disabled={busy}>
                 {busy ? (
                   <Spinner className="h-3.5 w-3.5 motion-safe:animate-spin" />
                 ) : (
@@ -103,10 +94,7 @@ export function ContainerInspectTab({
             This container has no environment variables.
           </p>
         ) : (
-          <ul
-            className="divide-y divide-border rounded-lg border border-border"
-            aria-label="Variables"
-          >
+          <ul className={cn(SECTION_WELL, 'settings-rows p-0')} aria-label="Variables">
             {details.envKeys.map((key) => (
               <li
                 key={key}
@@ -123,11 +111,11 @@ export function ContainerInspectTab({
       </section>
 
       <section aria-label="Labels" className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">Labels</h3>
+        <h3 className={SECTION_HEADING}>Labels</h3>
         {details.labels.length === 0 ? (
           <p className="text-sm text-muted-foreground">No labels.</p>
         ) : (
-          <ul className="divide-y divide-border rounded-lg border border-border">
+          <ul className={cn(SECTION_WELL, 'settings-rows p-0')}>
             {details.labels.map((label) => (
               <li
                 key={label.name}

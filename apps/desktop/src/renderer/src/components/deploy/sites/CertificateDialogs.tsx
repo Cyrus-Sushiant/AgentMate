@@ -137,7 +137,7 @@ export function IssueDialog({
         </div>
         <FieldError message={problem ?? undefined} />
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+          <Button type="button" variant="soft" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button type="button" disabled={busy || !accepted} onClick={() => void issue()}>
@@ -244,7 +244,7 @@ export function UploadDialog({
           <FieldError key={problem} message={problem} />
         ))}
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+          <Button type="button" variant="soft" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button

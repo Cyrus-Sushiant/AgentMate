@@ -93,9 +93,6 @@ export interface ProjectPromptBuildDialogProps {
   launchProject?: Project | null;
 }
 
-const chromeBtnClass =
-  'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground opacity-80 transition-colors hover:bg-accent hover:text-foreground hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40';
-
 export function ProjectPromptBuildDialog({
   open,
   onOpenChange,
@@ -355,31 +352,31 @@ export function ProjectPromptBuildDialog({
       >
         {!isMaximized && (
           <SimpleTooltip label="Keep this on the desktop">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => void handlePinToDesktop()}
               disabled={isPinning}
-              className={cn(chromeBtnClass, 'absolute right-[5.25rem] top-3 z-10')}
+              className="absolute right-[5.25rem] top-3 z-10"
             >
-              <Pin className="h-3.5 w-3.5" />
+              <Pin />
               <span className="sr-only">Add to desktop</span>
-            </button>
+            </Button>
           </SimpleTooltip>
         )}
 
         <SimpleTooltip label={isMaximized ? 'Restore size' : 'Maximize'}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setIsMaximized((v) => !v)}
-            className={cn(chromeBtnClass, 'absolute right-12 top-3 z-10')}
+            className="absolute right-12 top-3 z-10"
           >
-            {isMaximized ? (
-              <WindowRestore className="h-3.5 w-3.5" />
-            ) : (
-              <WindowMaximize className="h-3.5 w-3.5" />
-            )}
+            {isMaximized ? <WindowRestore /> : <WindowMaximize />}
             <span className="sr-only">{isMaximized ? 'Restore size' : 'Maximize'}</span>
-          </button>
+          </Button>
         </SimpleTooltip>
 
         <DialogHeader className="border-b border-border/70 px-5 py-4 pr-28 text-left">
@@ -447,7 +444,7 @@ export function ProjectPromptBuildDialog({
                         type="button"
                         variant={voice.status === 'recording' ? 'destructive' : 'ghost'}
                         size="sm"
-                        className="h-7 gap-1.5 px-2 text-xs"
+                        className="gap-1.5 px-2.5"
                         onClick={voice.toggle}
                         disabled={voiceBusy}
                         aria-label={voiceLabel}
@@ -550,7 +547,7 @@ export function ProjectPromptBuildDialog({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 gap-1.5 px-2 text-xs"
+                    className="gap-1.5 px-2.5"
                     disabled={!generated || isBusy}
                     onClick={() => void onCopy()}
                   >
@@ -576,9 +573,9 @@ export function ProjectPromptBuildDialog({
                     </p>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="soft"
                       size="sm"
-                      className="mt-1 h-7 px-3 text-xs"
+                      className="mt-1"
                       onClick={handleCancel}
                     >
                       Cancel
@@ -661,7 +658,7 @@ export function ProjectPromptBuildDialog({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    className="w-9 rounded-l-none border-l border-primary-foreground/20 px-0"
+                    className="w-8 rounded-l-none border-l border-primary-foreground/20 px-0"
                     disabled={!generated || isBusy || launching}
                     aria-label="More ways to run this prompt"
                   >
@@ -729,7 +726,7 @@ export function ProjectPromptBuildDialog({
                   {!suggestion && runRecommendation.canAnalyze ? (
                     <>
                       <DropdownMenuSeparator />
-                      <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+                      <p className="px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground">
                         Size the prompt with the chip above to get a suggested model and effort.
                       </p>
                     </>

@@ -29,7 +29,7 @@ function StepIcon({ status }: { status: AssistantStep['status'] }) {
 export function StepItem({ step }: { step: AssistantStep }): React.JSX.Element {
   return (
     <li
-      className="space-y-1.5 rounded-lg border border-border bg-background/60 p-2.5"
+      className="space-y-1.5 rounded-xl bg-foreground/[0.03] p-2.5 ring-1 ring-inset ring-foreground/[0.07]"
       aria-label={`Step ${step.step}: ${step.command}`}
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -39,7 +39,7 @@ export function StepItem({ step }: { step: AssistantStep }): React.JSX.Element {
           {STATUS[step.status]}
         </span>
       </div>
-      <code className="block whitespace-pre-wrap break-all rounded bg-muted/60 px-2 py-1 font-mono text-[12px] text-foreground">
+      <code className="block whitespace-pre-wrap break-all rounded-md bg-foreground/[0.05] px-2 py-1 font-mono text-[12px] text-foreground">
         {step.command}
       </code>
       {step.note && step.status === 'proposed' && (
@@ -47,7 +47,7 @@ export function StepItem({ step }: { step: AssistantStep }): React.JSX.Element {
       )}
       {step.lines.length > 0 && (
         <pre
-          className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-background px-2 py-1 font-mono text-[11px] leading-4 text-foreground"
+          className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-background/70 px-2 py-1 font-mono text-[11px] leading-4 text-foreground"
           aria-label={`Output of step ${step.step}`}
         >
           {step.lines.map((line) => line.text).join('\n')}
@@ -97,7 +97,7 @@ export function AssistantTimeline({
         <div
           role="group"
           aria-label="Approve the command"
-          className="space-y-2 rounded-lg border border-warning/50 bg-warning/10 p-3"
+          className="space-y-2 rounded-xl bg-warning/10 p-3 ring-1 ring-inset ring-warning/30"
         >
           <p className="text-sm text-foreground">
             {progress?.message ?? 'The AI wants to run this command on the server.'}
@@ -106,10 +106,10 @@ export function AssistantTimeline({
             {progress?.command}
           </code>
           <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" onClick={onApprove}>
-              <Play className="h-3.5 w-3.5" /> Run it
+            <Button size="sm" onClick={onApprove}>
+              <Play /> Run it
             </Button>
-            <Button size="sm" variant="outline" onClick={onSkip}>
+            <Button size="sm" variant="soft" onClick={onSkip}>
               Skip
             </Button>
           </div>
@@ -118,7 +118,7 @@ export function AssistantTimeline({
 
       {phase === 'needs-input' && (
         <form
-          className="space-y-2 rounded-lg border border-border p-3"
+          className="space-y-2 rounded-xl bg-foreground/[0.03] p-3 ring-1 ring-inset ring-foreground/[0.07]"
           onSubmit={(event) => {
             event.preventDefault();
             onAnswer(answer);
@@ -143,7 +143,7 @@ export function AssistantTimeline({
       {phase === 'error' && (
         <div
           role="alert"
-          className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3"
+          className="space-y-2 rounded-xl bg-destructive/10 p-3 ring-1 ring-inset ring-destructive/30"
         >
           <p className="flex items-start gap-2 text-sm text-foreground">
             <CircleX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
@@ -154,7 +154,7 @@ export function AssistantTimeline({
               <Button size="sm" onClick={onResume}>
                 Continue
               </Button>
-              <Button size="sm" variant="outline" onClick={onStop}>
+              <Button size="sm" variant="soft" onClick={onStop}>
                 Stop
               </Button>
             </div>
@@ -166,8 +166,10 @@ export function AssistantTimeline({
         <p
           role="status"
           className={cn(
-            'flex items-start gap-2 rounded-lg border p-3 text-sm',
-            phase === 'finished' ? 'border-success/40 bg-success/10' : 'border-border',
+            'flex items-start gap-2 rounded-xl p-3 text-sm ring-1 ring-inset',
+            phase === 'finished'
+              ? 'bg-success/8 ring-success/25'
+              : 'bg-foreground/[0.03] ring-foreground/[0.07]',
           )}
         >
           {phase === 'finished' ? (

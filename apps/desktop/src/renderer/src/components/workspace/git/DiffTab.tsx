@@ -23,15 +23,19 @@ import {
   SplitView,
   Undo,
 } from '@/components/icons';
+import { Chip, EmptyState } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
-import { changeStatusMeta, splitGitPath } from '@/lib/git';
+import { splitGitPath } from '@/lib/git';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { DIFF_CHANGE_EVENT } from '@/lib/workspace/commands';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { useWorkspaceStore, type WorkspaceDiffTab } from '@/stores/workspaceStore';
 import { ImageDiffView } from './ImageDiffView';
+import { HAIRLINE_BELOW } from './PanelTabs';
+import { StatusLetter } from './StatusLetter';
 import { openChangedFile, useAiResolving, useGitActions } from './useWorkspaceGit';
 
 function ToolbarButton({
@@ -47,18 +51,21 @@ function ToolbarButton({
 }): React.JSX.Element {
   return (
     <SimpleTooltip label={label}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         aria-label={label}
         aria-pressed={active}
         onClick={onClick}
+        // Narrower than a text pill, since most of these hold only an icon.
         className={cn(
-          'flex h-6 min-w-6 items-center justify-center gap-1 rounded-md px-1 text-[11px] text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          active && 'bg-foreground/10 text-foreground',
+          'min-w-6 px-1 font-normal text-muted-foreground hover:bg-foreground/[0.06]',
+          active && 'bg-primary/12 text-primary hover:bg-primary/20 hover:text-primary',
         )}
       >
         {children}
-      </button>
+      </Button>
     </SimpleTooltip>
   );
 }
@@ -144,7 +151,7 @@ export default function DiffTab({
   const stagedToo = state?.staged.some((e) => e.path === tab.path) ?? false;
   const unstagedToo = state?.unstaged.some((e) => e.path === tab.path) ?? false;
   const { dir, name } = splitGitPath(tab.path);
-  const meta = entry ? changeStatusMeta(entry.status) : null;
+
   const gone = !tab.commit && state !== undefined && entry === null;
   const aiResolving = useAiResolving(project.id, tab.path) && tab.side === 'conflict';
 
@@ -264,7 +271,7 @@ export default function DiffTab({
   return (
     // A container, so the toolbar can drop its extras when the pane is narrow.
     <div ref={containerRef} className="@container flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 px-3">
+      <div className={cn('flex h-9 shrink-0 items-center gap-2 pl-3 pr-2', HAIRLINE_BELOW)}>
         <File className="h-3 w-3 shrink-0 text-muted-foreground" />
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="min-w-[3rem] shrink truncate text-xs font-medium">{name}</span>
@@ -273,14 +280,13 @@ export default function DiffTab({
               <bdi>{dir.replace(/\/$/, '')}</bdi>
             </span>
           ) : null}
-          <span className="hidden shrink-0 rounded bg-foreground/[0.06] px-1.5 text-[10px] text-muted-foreground @lg:inline">
+          <Chip
+            tone={tab.side === 'conflict' ? 'destructive' : 'neutral'}
+            className="hidden h-[18px] px-2 text-[10px] @lg:inline-flex"
+          >
             {tab.commit ? `Commit ${tab.commit.slice(0, 7)}` : SIDE_LABEL[tab.side]}
-          </span>
-          {meta ? (
-            <span className={cn('shrink-0 font-mono text-[11px] font-semibold', meta.className)}>
-              {meta.letter}
-            </span>
-          ) : null}
+          </Chip>
+          {entry ? <StatusLetter status={entry.status} className="self-center" /> : null}
           {entry && !entry.binary && (entry.additions || entry.deletions) ? (
             <span className="hidden shrink-0 font-mono text-[10px] tabular-nums @md:inline">
               <span className="text-success">+{entry.additions ?? 0}</span>{' '}
@@ -297,19 +303,16 @@ export default function DiffTab({
             </span>
           ) : null}
           {editable ? (
-            <button
+            <Button
               type="button"
+              size="xs"
               onClick={() => void save()}
               disabled={!dirty || saving}
-              className="mr-1 inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:bg-foreground/[0.08] disabled:text-muted-foreground"
+              className="mr-1"
             >
-              {saving ? (
-                <Spinner className="h-2.5 w-2.5 animate-spin" />
-              ) : (
-                <Save className="h-2.5 w-2.5" />
-              )}
+              {saving ? <Spinner className="animate-spin" /> : <Save />}
               Save
-            </button>
+            </Button>
           ) : null}
           <ToolbarButton
             label={prevChangeLabel ? `Previous change (${prevChangeLabel})` : 'Previous change'}
@@ -324,7 +327,7 @@ export default function DiffTab({
             <ArrowDown className="h-2.5 w-2.5" />
           </ToolbarButton>
           <span className="hidden items-center gap-0.5 @lg:flex">
-            <span className="mx-1 h-4 w-px bg-border" />
+            <span className="mx-1 h-4 w-px bg-foreground/10" />
             <ToolbarButton
               label={sideBySide ? 'Show inline' : 'Show side by side'}
               active={sideBySide}
@@ -360,7 +363,7 @@ export default function DiffTab({
           </span>
           {entry && (tab.side === 'unstaged' || tab.side === 'untracked') ? (
             <>
-              <span className="mx-1 h-4 w-px bg-border" />
+              <span className="mx-1 h-4 w-px bg-foreground/10" />
               <ToolbarButton
                 label={tab.side === 'untracked' ? 'Delete file' : 'Discard changes'}
                 onClick={() =>
@@ -379,51 +382,60 @@ export default function DiffTab({
                   : 'Have your AI CLI merge both sides. Nothing is staged.'
               }
             >
-              <button
+              <Button
                 type="button"
+                variant="soft"
+                size="xs"
                 onClick={() => void actions.resolveWithAi(tab.path)}
                 aria-label={aiResolving ? 'Stop resolving with AI' : 'Resolve with AI'}
-                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-medium transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                className="ml-1 hover:text-primary"
               >
                 {aiResolving ? (
-                  <Spinner className="h-2.5 w-2.5 animate-spin text-primary motion-reduce:animate-none" />
+                  <Spinner className="animate-spin text-primary motion-reduce:animate-none" />
                 ) : (
-                  <Sparkles className="h-2.5 w-2.5" />
+                  <Sparkles />
                 )}
                 {/* A narrow pane keeps just the icon. */}
                 <span className="hidden @md:inline">
                   {aiResolving ? 'Stop' : 'Resolve with AI'}
                 </span>
-              </button>
+              </Button>
             </SimpleTooltip>
           ) : null}
           {entry ? (
             tab.side === 'staged' ? (
-              <button
+              <Button
                 type="button"
+                variant="soft"
+                size="xs"
                 onClick={() => void actions.unstage([tab.path])}
-                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-medium transition-colors hover:bg-foreground/[0.06]"
+                className="ml-1"
               >
-                <Minus className="h-2.5 w-2.5" /> Unstage
-              </button>
+                <Minus /> Unstage
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
+                size="xs"
                 onClick={() => void actions.stage([tab.path])}
                 // Staging while the AI is still writing the file would take a half edit.
                 disabled={aiResolving}
-                className="ml-1 inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:pointer-events-none disabled:opacity-50"
+                className="ml-1"
               >
-                <Plus className="h-2.5 w-2.5" />{' '}
-                {tab.side === 'conflict' ? 'Mark resolved' : 'Stage'}
-              </button>
+                <Plus /> {tab.side === 'conflict' ? 'Mark resolved' : 'Stage'}
+              </Button>
             )
           ) : null}
         </div>
       </div>
 
       {gone ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-foreground/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground">
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-2 bg-foreground/[0.03] px-3 py-1.5 text-[11px] text-muted-foreground',
+            HAIRLINE_BELOW,
+          )}
+        >
           <span className="flex-1">
             {tab.side === 'staged'
               ? 'Nothing about this file is staged anymore.'
@@ -456,7 +468,7 @@ export default function DiffTab({
             {Array.from({ length: 10 }, (_, i) => (
               <Skeleton
                 key={i}
-                className="h-3.5 rounded"
+                className="h-3.5 rounded-full"
                 style={{ width: `${40 + ((i * 37) % 55)}%` }}
               />
             ))}
@@ -464,15 +476,15 @@ export default function DiffTab({
         ) : (diff.data.binary || diff.data.tooLarge) && isImagePath(tab.path) ? (
           <ImageDiffView project={project} tab={tab} />
         ) : diff.data.binary || diff.data.tooLarge ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
-            <File className="h-5 w-5 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              {diff.data.binary ? 'Binary file' : 'This file is too large to diff here'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Open it in your editor to see what changed.
-            </p>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={File}
+            title={diff.data.binary ? 'Binary file' : 'This file is too large to diff here'}
+            description={
+              <span className="block text-xs">Open it in your editor to see what changed.</span>
+            }
+            className="h-full"
+          />
         ) : (
           <MonacoDiffEditor
             ref={editorRef}

@@ -281,8 +281,8 @@ export function ChangeDiff({
         {onClose ? (
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
+            size="icon-sm"
+            className="shrink-0"
             aria-label="Close the comparison"
             onClick={onClose}
           >

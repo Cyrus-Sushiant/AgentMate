@@ -3,11 +3,11 @@ import { useId } from 'react';
 import { toast } from 'sonner';
 import { Copy, Key, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import type { InstallDraft } from '@/lib/deploy/appStore/draft';
-import { cn } from '@/lib/utils';
 import { FieldError, TextField, ToggleRow } from '../sites/fields';
 
 /** The parts of the install sheet: the app's settings, its passwords and its domain. */
@@ -91,30 +91,28 @@ function SecretRow({
           spellCheck={false}
           autoComplete="off"
           aria-invalid={problem ? true : undefined}
-          className={cn('h-8 font-mono text-xs', problem && 'border-destructive')}
+          className="h-8 font-mono text-xs"
         />
         <SimpleTooltip label={`Copy ${spec.label.toLowerCase()}`}>
           <Button
             type="button"
-            size="icon"
+            size="icon-sm"
             variant="ghost"
-            className="h-8 w-8 shrink-0"
             aria-label={`Copy ${spec.label}`}
             onClick={() => void copy(value, spec.label)}
           >
-            <Copy className="h-3.5 w-3.5" />
+            <Copy />
           </Button>
         </SimpleTooltip>
         <SimpleTooltip label="Make a new one">
           <Button
             type="button"
-            size="icon"
+            size="icon-sm"
             variant="ghost"
-            className="h-8 w-8 shrink-0"
             aria-label={`Make a new ${spec.label}`}
             onClick={onRegenerate}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw />
           </Button>
         </SimpleTooltip>
       </div>
@@ -178,6 +176,7 @@ export function ExposeFields({
   canAdmin: boolean;
   onChange: (next: Partial<InstallDraft>) => void;
 }): React.JSX.Element {
+  const certificateId = useId();
   const reason = !web
     ? (template.exposureNote ?? 'This app has no web interface to put on a domain.')
     : !canAdmin
@@ -207,18 +206,21 @@ export function ExposeFields({
             error={problems.domain}
             mono
           />
-          <label className="flex items-start gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id={certificateId}
               checked={draft.certificate}
-              onChange={(event) => onChange({ certificate: event.target.checked })}
-              className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--primary))]"
+              onCheckedChange={(checked) => onChange({ certificate: checked === true })}
+              className="mt-px"
             />
-            <span>
+            <Label
+              htmlFor={certificateId}
+              className="cursor-pointer text-xs font-normal leading-snug text-muted-foreground"
+            >
               Get a free certificate from Let's Encrypt for HTTPS. Asking for one accepts Let's
               Encrypt's terms of service.
-            </span>
-          </label>
+            </Label>
+          </div>
         </div>
       )}
     </section>

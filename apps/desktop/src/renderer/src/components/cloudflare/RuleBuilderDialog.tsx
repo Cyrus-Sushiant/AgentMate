@@ -128,10 +128,11 @@ export function RuleBuilderDialog({
                 <label
                   key={option.kind}
                   className={cn(
-                    'flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2 transition-colors focus-within:ring-2 focus-within:ring-ring',
+                    // Ring edges, because the global border colour would repaint a tinted border.
+                    'flex cursor-pointer flex-col gap-1 rounded-xl px-3 py-2 ring-1 ring-inset transition-colors focus-within:ring-2 focus-within:ring-ring',
                     kind === option.kind
-                      ? 'border-primary/50 bg-primary/10'
-                      : 'border-border/70 bg-secondary/20 hover:bg-accent',
+                      ? 'bg-primary/10 ring-primary/40'
+                      : 'bg-foreground/[0.03] ring-foreground/[0.08] hover:bg-foreground/[0.06]',
                   )}
                 >
                   <span className="flex items-center gap-2 text-sm font-medium">
@@ -226,7 +227,7 @@ export function RuleBuilderDialog({
               />
             </Field>
 
-            <div className="space-y-1.5 rounded-lg border border-border/70 bg-secondary/20 p-3">
+            <div className="space-y-1.5 rounded-xl bg-foreground/[0.03] p-3 ring-1 ring-inset ring-foreground/[0.08]">
               <p className="text-xs font-medium text-muted-foreground">What Cloudflare will run</p>
               {built.ok ? (
                 <>
@@ -262,7 +263,7 @@ export function RuleBuilderDialog({
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="soft" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={!built.ok || text.trim() === '' || busy}>

@@ -214,7 +214,7 @@ export function BlueprintReviewStep({
                 </Button>
                 <PopoverTrigger asChild>
                   <Button
-                    className="w-9 rounded-l-none border-l border-primary-foreground/20 px-0"
+                    className="w-8 rounded-l-none border-l border-primary-foreground/20 px-0"
                     disabled={busy || filled.length === 0}
                     aria-label="Choose the model and effort for generating"
                   >
@@ -254,17 +254,18 @@ export function BlueprintReviewStep({
           </Button>
         ) : (
           <SimpleTooltip label="Change the model and effort">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setPickerOpen(true)}
               disabled={filled.length === 0}
-              className="inline-flex h-8 max-w-[18rem] items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              className="max-w-[18rem] gap-1.5 text-muted-foreground"
             >
               {generator.choice?.cliId ? (
                 <CliLogo cliId={generator.choice.cliId} className="h-3.5 w-3.5 shrink-0" />
               ) : null}
               <span className="truncate">{generator.label}</span>
-            </button>
+            </Button>
           </SimpleTooltip>
         )}
 

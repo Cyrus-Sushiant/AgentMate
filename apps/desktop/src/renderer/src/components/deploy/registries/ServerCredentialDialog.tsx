@@ -11,6 +11,7 @@ import type {
 import type { DeployServer } from '@shared/deployTypes';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
+import { NativeSelect } from '@/components/cloudflare/fields';
 import { Server, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -115,11 +116,10 @@ export function ServerCredentialDialog({
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor={ids.from}>Credential</Label>
-            <select
+            <NativeSelect
               id={ids.from}
               value={chosen}
               onChange={(event) => setFrom(event.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {usable.map((credential) => (
                 <option key={credential.id} value={credential.id}>
@@ -127,7 +127,7 @@ export function ServerCredentialDialog({
                 </option>
               ))}
               <option value="typed">Type one in</option>
-            </select>
+            </NativeSelect>
           </div>
           {chosen === 'typed' && (
             <>
@@ -162,7 +162,7 @@ export function ServerCredentialDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="ghost" disabled={busy} onClick={close}>
+            <Button type="button" variant="soft" disabled={busy} onClick={close}>
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>

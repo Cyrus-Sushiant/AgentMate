@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Compress, ImageIcon, ZoomIn, ZoomOut } from '@/components/icons';
+import { EmptyState } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
+import { OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -150,13 +153,13 @@ export function ImageView({
         onDoubleClick={toggleActualSize}
       >
         {broken ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
-            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-            <p className="text-sm font-medium">This image could not be shown</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              The file may be damaged, or saved in a format the viewer does not read.
-            </p>
-          </div>
+          <EmptyState
+            size="sm"
+            icon={ImageIcon}
+            title="This image could not be shown"
+            description="The file may be damaged, or saved in a format the viewer does not read."
+            className="h-full"
+          />
         ) : (
           <img
             src={src}
@@ -184,51 +187,65 @@ export function ImageView({
       </div>
       {natural && !broken ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border/60 bg-background/90 p-0.5 shadow-sm backdrop-blur">
+          {/* The app's frosted overlay, like a menu. The !-radius beats its own corners. */}
+          <div
+            className={cn(
+              OVERLAY_SURFACE,
+              'pointer-events-auto flex items-center gap-0.5 rounded-full! p-0.5',
+            )}
+          >
             <SimpleTooltip label="Zoom out">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 aria-label="Zoom out"
                 onClick={() => zoomBy(-1)}
                 disabled={scale <= MIN_ZOOM}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                className="[&_svg]:size-2.5"
               >
-                <ZoomOut className="h-2.5 w-2.5" />
-              </button>
+                <ZoomOut />
+              </Button>
             </SimpleTooltip>
             <SimpleTooltip label={zoom === null ? 'Show at actual size' : 'Fit to the pane'}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={toggleActualSize}
-                className="min-w-[3.25rem] rounded-full px-1.5 text-[11px] font-medium tabular-nums text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                className="min-w-[3.25rem] px-1.5 tabular-nums text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
               >
                 {Math.round(scale * 100)}%
-              </button>
+              </Button>
             </SimpleTooltip>
             <SimpleTooltip label="Zoom in">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 aria-label="Zoom in"
                 onClick={() => zoomBy(1)}
                 disabled={scale >= MAX_ZOOM}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                className="[&_svg]:size-2.5"
               >
-                <ZoomIn className="h-2.5 w-2.5" />
-              </button>
+                <ZoomIn />
+              </Button>
             </SimpleTooltip>
             <SimpleTooltip label="Fit to the pane">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 aria-label="Fit to the pane"
                 onClick={() => {
                   setZoom(null);
                   setPan({ x: 0, y: 0 });
                 }}
                 disabled={zoom === null}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                className="[&_svg]:size-2.5"
               >
-                <Compress className="h-2.5 w-2.5" />
-              </button>
+                <Compress />
+              </Button>
             </SimpleTooltip>
           </div>
         </div>

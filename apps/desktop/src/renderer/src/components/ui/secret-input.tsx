@@ -1,5 +1,6 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode, useState } from 'react';
 import { Eye, EyeOff } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -39,14 +40,15 @@ export const SecretInput = forwardRef<
       {/* Inset by the field's edge plus a hair, so the round buttons sit inside its round end. */}
       <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
         {trailing}
-        <button
+        <Button
           type="button"
-          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          variant="ghost"
+          size="icon-sm"
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? 'Hide value' : 'Show value'}
         >
-          {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-        </button>
+          {visible ? <EyeOff /> : <Eye />}
+        </Button>
       </div>
     </div>
   );

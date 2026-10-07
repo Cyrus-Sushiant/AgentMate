@@ -3,6 +3,7 @@ import type { GrammarIssue } from '@shared/grammar';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Ban, Check, Plus, RefreshCw, Spinner } from '@/components/icons';
+import { MENU_ITEM, MENU_SEPARATOR, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import {
   checkScopeAt,
   isEditableTextField,
@@ -473,13 +474,13 @@ export function WritingMenuHost(): React.JSX.Element | null {
         event.stopPropagation();
       }}
       className={cn(
-        'fixed z-[60] max-w-[320px] overflow-hidden rounded-lg border border-border bg-popover/85 p-1',
-        'pointer-events-auto text-popover-foreground shadow-2xl backdrop-blur-2xl',
-        'animate-in fade-in-0 zoom-in-95',
+        OVERLAY_SURFACE,
+        'fixed z-[60] max-w-[320px] overflow-hidden p-1 pointer-events-auto',
+        'overlay-motion origin-top-left animate-in fade-in-0 zoom-in-95',
         !position && 'invisible',
       )}
     >
-      <div className="space-y-1 px-2 py-1.5">
+      <div className="space-y-1 px-2.5 py-1.5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {style ? <span className={cn('h-1.5 w-1.5 rounded-full', style.dot)} /> : null}
           <span className="truncate">{heading}</span>
@@ -501,15 +502,15 @@ export function WritingMenuHost(): React.JSX.Element | null {
         ) : null}
       </div>
 
-      <div className="-mx-1 my-1 h-px bg-border" />
+      <div className={MENU_SEPARATOR} />
 
       {menu.checking ? (
-        <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-muted-foreground">
           <Spinner className="h-3.5 w-3.5 animate-spin" />
           Checking writing…
         </div>
       ) : items.length === 0 ? (
-        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+        <div className="px-2.5 py-1.5 text-[13px] text-muted-foreground">
           {issue || menu.word ? 'No suggestions' : 'No writing issues here'}
         </div>
       ) : (
@@ -524,9 +525,10 @@ export function WritingMenuHost(): React.JSX.Element | null {
               onClick={() => runItem(index)}
               onMouseEnter={() => setActiveIndex(index)}
               className={cn(
-                'flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors',
+                MENU_ITEM,
+                'w-full text-left',
                 item.tone === 'primary' ? textProps.className : 'text-muted-foreground',
-                index === activeIndex && 'bg-primary/12 text-foreground',
+                index === activeIndex && 'bg-foreground/[0.07] text-foreground',
               )}
             >
               {item.icon ? <item.icon className="h-3.5 w-3.5 shrink-0" /> : null}

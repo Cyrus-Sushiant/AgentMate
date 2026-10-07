@@ -1,11 +1,13 @@
 import type { PrReviewComment, PrReviewThread } from '@agentmat/core';
 import { useState } from 'react';
 import { Check, MessageSquare, Send, Spinner, Undo } from '@/components/icons';
+import { Chip, SECTION_WELL } from '@/components/pageKit';
+import { Button } from '@/components/ui/button';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
-import { isSubmitKey, PR_GHOST_BUTTON } from './PrCard';
+import { isSubmitKey } from './PrCard';
 
 function Comment({ comment }: { comment: PrReviewComment }): React.JSX.Element {
   return (
@@ -53,7 +55,8 @@ export function ReviewThread({
   return (
     <li
       className={cn(
-        'mx-2 space-y-1.5 rounded-md border border-border/60 bg-background/40 px-2.5 py-2',
+        SECTION_WELL,
+        'mx-2 space-y-1.5 px-2.5 py-2',
         thread.isResolved && 'opacity-70',
       )}
     >
@@ -63,9 +66,7 @@ export function ReviewThread({
             {where}
           </span>
         </SimpleTooltip>
-        {thread.isOutdated ? (
-          <span className="shrink-0 text-[10px] text-muted-foreground">outdated</span>
-        ) : null}
+        {thread.isOutdated ? <Chip className="h-4 px-1.5 text-[10px]">outdated</Chip> : null}
       </div>
 
       {earlier.length > 0 && !showEarlier ? (
@@ -107,43 +108,49 @@ export function ReviewThread({
             )}
           />
           <div className="flex justify-end gap-1">
-            <button type="button" onClick={() => setReplying(false)} className={PR_GHOST_BUTTON}>
-              Cancel
-            </button>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => setReplying(false)}
+              className="text-muted-foreground"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="xs"
               onClick={() => void send()}
               disabled={!reply.trim() || sending}
-              className="inline-flex h-6 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"
             >
-              {sending ? (
-                <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" />
-              ) : (
-                <Send className="h-2.5 w-2.5" />
-              )}
+              {sending ? <Spinner className="animate-spin motion-reduce:animate-none" /> : <Send />}
               Send
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div className="flex gap-1">
-          <button type="button" onClick={() => setReplying(true)} className={PR_GHOST_BUTTON}>
-            <MessageSquare className="h-2.5 w-2.5" />
-            Reply
-          </button>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setReplying(true)}
+            className="text-muted-foreground"
+          >
+            <MessageSquare />
+            Reply
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
             aria-label={`${thread.isResolved ? 'Unresolve' : 'Resolve'} ${where}`}
             onClick={() => onResolve(!thread.isResolved)}
-            className={PR_GHOST_BUTTON}
+            className="text-muted-foreground"
           >
-            {thread.isResolved ? (
-              <Undo className="h-2.5 w-2.5" />
-            ) : (
-              <Check className="h-2.5 w-2.5" />
-            )}
+            {thread.isResolved ? <Undo /> : <Check />}
             {thread.isResolved ? 'Unresolve' : 'Resolve'}
-          </button>
+          </Button>
         </div>
       )}
     </li>
