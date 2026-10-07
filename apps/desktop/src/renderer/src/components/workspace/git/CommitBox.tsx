@@ -208,34 +208,35 @@ export function CommitBox({
       {/* The message and its actions are one composed field, like the commit composer on the
           Project detail Git tab: write at the top, suggest and commit from the bottom row. */}
       <div className="search-pill flex flex-col rounded-[1.25rem] transition-colors">
-        <textarea
-          ref={textareaRef}
-          value={message}
-          rows={1}
-          spellCheck
-          disabled={busy !== null}
-          aria-label="Commit message"
-          placeholder={commitLabel ? `Message (${commitLabel} to commit)` : 'Commit message'}
-          onChange={(event) => setMessage(event.target.value)}
-          onKeyDown={(event) => {
-            const id = commandForEvent(
-              event.nativeEvent,
-              useShortcutStore.getState().overrides,
-              true,
-              'commit',
-            );
-            if (!id) return;
-            // Stops the Workspace shortcuts from also acting on the same keys.
-            event.preventDefault();
-            void commit(id === 'commit.commitAndPush');
-          }}
-          style={{ lineHeight: `${LINE_HEIGHT}px`, minHeight: LINE_HEIGHT + CHROME_HEIGHT }}
-          className={cn(
-            'block w-full resize-none overflow-hidden rounded-t-[1.25rem] bg-transparent px-3.5 pb-1.5 pt-2.5 text-[13px] outline-none placeholder:text-muted-foreground/70 [scrollbar-width:none] disabled:opacity-60 [&::-webkit-scrollbar]:hidden',
-            // Only the textarea shimmers, so the sweep never sits over the Stop button.
-            generating && 'shimmer',
-          )}
-        />
+        {/* Only this half sweeps, so the light never passes over the Stop button. It is the
+            sweep alone: a filled shimmer here tinted the top half differently from the row below,
+            splitting the pill into two backgrounds. A textarea can't draw the sweep itself. */}
+        <div className={cn('rounded-t-[1.25rem]', generating && 'shimmer-sweep')}>
+          <textarea
+            ref={textareaRef}
+            value={message}
+            rows={1}
+            spellCheck
+            disabled={busy !== null}
+            aria-label="Commit message"
+            placeholder={commitLabel ? `Message (${commitLabel} to commit)` : 'Commit message'}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => {
+              const id = commandForEvent(
+                event.nativeEvent,
+                useShortcutStore.getState().overrides,
+                true,
+                'commit',
+              );
+              if (!id) return;
+              // Stops the Workspace shortcuts from also acting on the same keys.
+              event.preventDefault();
+              void commit(id === 'commit.commitAndPush');
+            }}
+            style={{ lineHeight: `${LINE_HEIGHT}px`, minHeight: LINE_HEIGHT + CHROME_HEIGHT }}
+            className="block w-full resize-none overflow-hidden rounded-t-[1.25rem] bg-transparent px-3.5 pb-1.5 pt-2.5 text-[13px] outline-none placeholder:text-muted-foreground/70 [scrollbar-width:none] disabled:opacity-60 [&::-webkit-scrollbar]:hidden"
+          />
+        </div>
         <div className="flex items-center gap-1.5 p-1.5 pt-0">
           <SimpleTooltip
             label={generating ? 'Stop writing, click to cancel' : 'Write a message with AI'}
