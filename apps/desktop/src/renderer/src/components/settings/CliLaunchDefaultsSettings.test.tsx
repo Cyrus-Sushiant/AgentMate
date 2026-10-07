@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCliStore } from '@/stores/cliStore';
 import { CliLaunchDefaultsSettings } from './CliLaunchDefaultsSettings';
+import { CliOrderSettings } from './CliOrderSettings';
 
 /**
  * The Launch defaults section with the real CLI store. It shows only what terminals start with:
@@ -103,5 +104,26 @@ describe('CliLaunchDefaultsSettings', () => {
     const panel = await openClaudeRow();
     const preview = panel.querySelector('code.font-mono');
     expect(preview?.textContent).toBe('claude --model opus --permission-mode auto');
+  });
+
+  it('never holds the full-page loading overlay while the CLI sweep runs', async () => {
+    // A sweep that takes tens of seconds, as it does on a machine with few CLIs installed.
+    // Both sections of the Agents tab share the query, and the last one to mount sets its meta.
+    window.agentmat.cli.detectAll = () => new Promise(() => undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <CliLaunchDefaultsSettings />
+          <CliOrderSettings />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(client.isFetching()).toBeGreaterThan(0));
+    // The same rule useStartupLoading applies to decide whether the page is blanked.
+    const blanking = client.isFetching({
+      predicate: (query) => !query.meta?.silentLoading && query.state.data === undefined,
+    });
+    expect(blanking).toBe(0);
   });
 });

@@ -56,7 +56,10 @@ afterEach(() => {
 describe('VaultPaletteGroup', () => {
   it('lists entries while unlocked and opens the chosen one on the Vault page', async () => {
     renderGroup();
-    const option = await screen.findByRole('option', { name: /GitHub/ });
+    // The entries query only starts once the status query has said "unlocked", so the entry
+    // lands two fetches after the first render. Under a full parallel run that can pass the
+    // default one second.
+    const option = await screen.findByRole('option', { name: /GitHub/ }, { timeout: 5_000 });
     fireEvent.click(option);
     expect(onDone).toHaveBeenCalled();
     expect(location).toEqual({ pathname: '/vault', state: { entryId: 'gh' } });

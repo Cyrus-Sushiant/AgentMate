@@ -328,5 +328,5 @@ describe.skipIf(!git)('git() while another process holds the index lock', () => 
     await expect(runGit(repo.dir, ['add', '-A'])).rejects.toMatchObject({
       stderr: expect.stringMatching(/index\.lock'?: File exists/),
     });
-  }, 10000);
+  });
 });

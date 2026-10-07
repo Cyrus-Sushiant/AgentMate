@@ -40,6 +40,10 @@ export const SearchPill = forwardRef<HTMLInputElement, SearchPillProps>(function
     <div
       className={cn(
         'search-pill flex h-8 min-w-0 items-center gap-2 rounded-full pl-3 pr-1 transition-colors',
+        // The edge alone is too quiet to find the caret by, so keyboard focus in the box also
+        // gets the soft ring a form field draws (see .field-surface). The input has no outline of
+        // its own, so the ring goes on the pill around it.
+        'has-[input:focus-visible]:shadow-[0_0_0_3px_hsl(var(--ring)/0.22)]',
         className,
       )}
     >

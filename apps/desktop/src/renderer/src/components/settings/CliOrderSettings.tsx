@@ -20,6 +20,8 @@ export function CliOrderSettings(): React.JSX.Element {
     queryKey: queryKeys.cliStatus,
     queryFn: () => window.agentmat.cli.detectAll(),
     staleTime: 5 * 60_000,
+    // Same query as Launch defaults. The last observer to mount sets its meta, so both must opt out.
+    meta: { silentLoading: true },
   });
   const installed = new Set((status.data ?? []).filter((c) => c.installed).map((c) => c.id));
   const clis = orderedClis(cliOrder);

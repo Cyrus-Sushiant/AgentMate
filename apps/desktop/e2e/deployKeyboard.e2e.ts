@@ -60,10 +60,16 @@ function focusState(page: Page) {
       !!column?.contains(active) &&
       !nav.contains(active) &&
       !!(nav.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING);
-    const style = getComputedStyle(active);
-    const ring =
-      (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
-      style.boxShadow !== 'none';
+    const drawsRing = (node: Element) => {
+      const style = getComputedStyle(node);
+      return (
+        (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+        style.boxShadow !== 'none'
+      );
+    };
+    // A search box has no outline of its own, it draws the ring on the pill around the input.
+    const pill = active.matches('input') ? active.closest('.search-pill') : null;
+    const ring = drawsRing(active) || (!!pill && drawsRing(pill));
     return { where: nav.contains(active) ? 'strip' : inSection ? 'section' : 'elsewhere', ring };
   });
 }

@@ -38,6 +38,9 @@ export function CliLaunchDefaultsSettings(): React.JSX.Element {
     queryKey: queryKeys.cliStatus,
     queryFn: () => window.agentmat.cli.detectAll(),
     staleTime: 5 * 60_000,
+    // A full sweep can run for tens of seconds, and this list is usable without it. Without the
+    // flag it joins the cold start and blanks the page for as long as the sweep takes.
+    meta: { silentLoading: true },
   });
   const installed = new Set((status.data ?? []).filter((c) => c.installed).map((c) => c.id));
   const launchable: LaunchableCli[] = orderedClis(cliOrder).flatMap((cli) => {
