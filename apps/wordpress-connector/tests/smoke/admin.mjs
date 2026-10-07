@@ -1,6 +1,7 @@
 /**
  * A logged-in wp-admin session for the smoke test: cookies kept by hand, redirects not followed.
  */
+import { request } from './http.mjs';
 
 /** Signs in through wp-login.php. */
 export async function login(base, user, password) {
@@ -14,7 +15,7 @@ export async function login(base, user, password) {
   };
   const cookie = () => [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
   const send = async (path, init = {}) => {
-    const response = await fetch(base + path, {
+    const response = await request(base + path, {
       ...init,
       headers: { ...(init.headers ?? {}), cookie: cookie() },
       redirect: 'manual',

@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { forms, login } from './admin.mjs';
 import { putOp, SiteClient, sha } from './client.mjs';
 import { connectorZip, startWordPressFixture } from './fixture.mjs';
+import { request } from './http.mjs';
 
 const port = Number(process.env.AGENTMATE_WPC_PORT || 18990);
 let failures = 0;
@@ -66,7 +67,7 @@ async function readText(client, item, path) {
 }
 
 async function homeStatus(url) {
-  const response = await fetch(`${url}/?agentmate_smoke=${Date.now()}`, { redirect: 'manual' });
+  const response = await request(`${url}/?agentmate_smoke=${Date.now()}`, { redirect: 'manual' });
   return response.status;
 }
 

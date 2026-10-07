@@ -13,6 +13,7 @@ import {
   verify,
 } from 'node:crypto';
 import { gunzipSync, gzipSync } from 'node:zlib';
+import { request } from './http.mjs';
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64url');
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -114,7 +115,7 @@ export class SiteClient {
     }
     const auth = ['v1', connection ?? '-', timestamp, nonce, signature].join('.');
     const form = multipart(auth, gzipped);
-    const response = await fetch(this.url(route, via), {
+    const response = await request(this.url(route, via), {
       method: 'POST',
       body: form.body,
       headers: { 'content-type': form.contentType },
