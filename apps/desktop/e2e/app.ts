@@ -12,7 +12,12 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, join } from 'node:path';
-import { type ElectronApplication, _electron as electron, type Page } from '@playwright/test';
+import {
+  type ElectronApplication,
+  _electron as electron,
+  type Page,
+  test,
+} from '@playwright/test';
 import { E2E_OUT_DIR, MAIN_LOG_DIR } from './paths';
 
 export interface LaunchedApp {
@@ -160,8 +165,7 @@ export async function launchApp(seed: {
     mainLog: () =>
       mainLogFile && existsSync(mainLogFile) ? readFileSync(mainLogFile, 'utf-8') : '',
     close: async () => {
-      await closeApp(app);
-      killLeftovers(root);
+      await closeApp(app, root);
       keepHostLog(userDataDir, root);
       try {
         rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
@@ -181,8 +185,20 @@ export async function launchApp(seed: {
  * started (the detached terminal host, a CLI version probe) can inherit those pipes and keep them
  * open long after the app itself is gone. So once the app has exited, our ends of those pipes are
  * let go, which is what lets close() (and the worker's teardown after it) finish.
+ *
+ * Letting go of the pipes is not enough on Windows: the terminal host also inherits the socket
+ * Playwright's DevTools connection runs over, and close() waits for that to drop too. An idle host
+ * only exits on its own after IDLE_EXIT_MS (15 seconds, hostEntry.ts), so every close sat out the
+ * whole wait below. Given the test's temp folder, whatever is still running under it is stopped
+ * as soon as the app has exited, and close() resolves right away.
+ *
+ * close() on a running app screenshots every window first, in case the test turns out to have
+ * failed, and that costs seconds per close. It is also the only failure screenshot an Electron
+ * window gets, since Playwright's own end-of-test capture never sees these windows. So a test that
+ * has failed still goes through close(), and one that hasn't quits the app from its main process
+ * and calls close() only once the app is gone.
  */
-export async function closeApp(app: ElectronApplication): Promise<void> {
+export async function closeApp(app: ElectronApplication, root?: string): Promise<void> {
   // The child process is taken before closing: afterwards Playwright has dropped its own
   // handle and app.process() throws. A test that restarts the app has already stopped this
   // one itself, so the handle can be gone before close() is ever reached.
@@ -192,21 +208,38 @@ export async function closeApp(app: ElectronApplication): Promise<void> {
   } catch {
     child = null;
   }
-  const exited =
-    child && child.exitCode === null && child.signalCode === null
-      ? new Promise<void>((resolve) => child?.once('exit', () => resolve()))
-      : Promise.resolve();
-  const closed = app.close().catch(() => undefined);
+  const running = Boolean(child && child.exitCode === null && child.signalCode === null);
+  const exited = running
+    ? new Promise<void>((resolve) => child?.once('exit', () => resolve()))
+    : Promise.resolve();
+  const failed = testHasFailed();
+  const closing = !running || failed ? app.close().catch(() => undefined) : null;
+  // Not awaited: the reply can be lost when the app goes down straight after it.
+  if (!closing) {
+    void app.evaluate(({ app: electronApp }) => electronApp.quit()).catch(() => undefined);
+  }
   await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 15_000))]);
   // Anything that ignored the close is killed outright, so nothing holds the temp folder open.
   if (child && child.exitCode === null && child.signalCode === null) {
     child.kill();
     await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
   }
+  if (root) killLeftovers(root);
   // Every pipe, not just stdout/stderr: Playwright opens two more, and the process only counts
   // as closed once all of them have ended.
   for (const stream of child?.stdio ?? []) stream?.destroy();
+  const closed = closing ?? app.close().catch(() => undefined);
   await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+}
+
+/** Whether the running test has already failed. False outside a test. */
+function testHasFailed(): boolean {
+  try {
+    const info = test.info();
+    return info.errors.length > 0 || info.status !== info.expectedStatus;
+  } catch {
+    return false;
+  }
 }
 
 /** The terminal host's own log, which otherwise goes with the profile it lives in. */

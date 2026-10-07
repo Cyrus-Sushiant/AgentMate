@@ -32,7 +32,7 @@ const CTRL_K = MAC ? '⌘K' : 'Ctrl+K';
 const CTRL_SHIFT_J = MAC ? '⌘⇧J' : 'Ctrl+Shift+J';
 
 test.afterEach(async () => {
-  if (relaunched) await closeApp(relaunched);
+  if (relaunched) await closeApp(relaunched, launched?.root);
   relaunched = undefined;
   await launched?.close();
   launched = undefined;

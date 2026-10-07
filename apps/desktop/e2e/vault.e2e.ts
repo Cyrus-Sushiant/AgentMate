@@ -30,7 +30,7 @@ function useTimers(value: string): void {
 }
 
 test.afterEach(async () => {
-  if (relaunched) await closeApp(relaunched);
+  if (relaunched) await closeApp(relaunched, launched?.root);
   relaunched = undefined;
   await launched?.close();
   launched = undefined;
