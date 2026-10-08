@@ -1,7 +1,7 @@
 import { X509Certificate } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { connect as netConnect, createServer } from 'node:net';
-import { connect as tlsConnect, type ConnectionOptions, type TLSSocket } from 'node:tls';
+import { createServer, connect as netConnect } from 'node:net';
+import { type ConnectionOptions, type TLSSocket, connect as tlsConnect } from 'node:tls';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   buildProbeConnectionRequest,

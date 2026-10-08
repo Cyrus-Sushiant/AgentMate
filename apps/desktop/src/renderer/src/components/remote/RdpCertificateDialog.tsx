@@ -6,9 +6,9 @@ import type {
 } from '@shared/apiTypes';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { RdpFailureBody } from '@/components/rdp/RdpFailureCard';
 import { RefreshCw, Spinner, Trash2 } from '@/components/icons';
 import { Notice } from '@/components/pageKit';
+import { RdpFailureBody } from '@/components/rdp/RdpFailureCard';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

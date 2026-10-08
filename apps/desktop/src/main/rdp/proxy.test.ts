@@ -1,9 +1,9 @@
 import { X509Certificate } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { connect as netConnect } from 'node:net';
-import { type ConnectionOptions, connect as tlsConnect, type TLSSocket } from 'node:tls';
-import { WebSocket } from 'ws';
+import { type ConnectionOptions, type TLSSocket, connect as tlsConnect } from 'node:tls';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { WebSocket } from 'ws';
 import type { RdpFailureInfo } from '../../shared/apiTypes';
 import { buildProbeConnectionRequest, type HandshakeDeps } from './handshake';
 import { RdpProxy, type RdpProxyHooks, type RdpProxyTarget } from './proxy';

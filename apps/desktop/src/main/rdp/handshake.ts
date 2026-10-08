@@ -2,8 +2,8 @@ import { isIP, connect as netConnect, type Socket } from 'node:net';
 import {
   type ConnectionOptions,
   type DetailedPeerCertificate,
-  connect as tlsConnect,
   type TLSSocket,
+  connect as tlsConnect,
 } from 'node:tls';
 import type { RdpCertificateInfo, RdpFailureInfo, RdpProxyErrorCode } from '../../shared/apiTypes';
 import { tpktRemaining } from './rdcleanpath';
