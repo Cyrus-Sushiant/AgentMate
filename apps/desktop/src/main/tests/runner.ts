@@ -37,6 +37,11 @@ import { type CancelToken, cancelSpawn, spawnStreaming } from '../process/spawnS
  * result back to the discovered test it belongs to.
  */
 
+/**
+ * How long a run may go without printing before it is stopped. It is not a limit on the whole run:
+ * a big suite that keeps reporting results is working, and a fixed cap stopped this repo's own
+ * end-to-end suite, which takes about 40 minutes, with most of its tests already passed.
+ */
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_OUTPUT_CHARS = 200_000;
 /** cmd.exe refuses lines past 8191 characters; leave room for the shim's own expansion. */
@@ -90,6 +95,7 @@ export class OutputTail {
 export interface TestRunManagerDeps {
   emit: (event: TestRunEvent) => void;
   spawn?: typeof spawnStreaming;
+  /** How long a run may print nothing before it is stopped. */
   timeoutMs?: number;
   /** How long output and results are held so a burst goes out as one event each. */
   outputFlushMs?: number;
@@ -356,6 +362,7 @@ export class TestRunManager {
             cwd: join(input.folderPath, plan.cwd),
             env: { ...testEnv(), PYTHONUNBUFFERED: '1', ...plan.env },
             timeoutMs: this.deps.timeoutMs,
+            idle: true,
             token: run.token,
             onLine: (line) => {
               const shown = parser?.display ? parser.display(line) : line;
@@ -392,7 +399,7 @@ export class TestRunManager {
               'timedOut',
               project,
               command,
-              `The ${label} run took longer than ${Math.round(this.deps.timeoutMs / 60_000) || 1} minutes and was stopped.`,
+              `The ${label} run printed nothing for ${Math.round(this.deps.timeoutMs / 60_000) || 1} minutes and was stopped.`,
               outcome.log,
             ),
           );

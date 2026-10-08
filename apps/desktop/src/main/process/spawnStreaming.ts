@@ -102,7 +102,13 @@ export interface SpawnStreamingOptions {
   args: string[];
   cwd: string;
   env?: NodeJS.ProcessEnv;
+  /** How long the command may run in all, or with `idle`, how long it may go without output. */
   timeoutMs: number;
+  /**
+   * Counts `timeoutMs` from the last output instead of from the start. A long run that keeps
+   * printing is working, and only one that has gone quiet is stuck.
+   */
+  idle?: boolean;
   token: CancelToken;
   /** Called for each output line with ANSI codes and carriage returns removed, indentation kept. */
   onLine?: (line: string) => void;
@@ -199,8 +205,18 @@ export async function spawnStreaming(
     const out = reader();
     const err = reader();
 
-    child.stdout?.on('data', (chunk: Buffer | string) => out.push(chunk));
-    child.stderr?.on('data', (chunk: Buffer | string) => err.push(chunk));
+    // refresh() restarts the same timer, so a chatty run does not allocate one per chunk.
+    const heard = (): void => {
+      if (options.idle) timer.refresh();
+    };
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      heard();
+      out.push(chunk);
+    });
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      heard();
+      err.push(chunk);
+    });
 
     const finish = (code: number | null, notFound: boolean): void => {
       if (settled) return;

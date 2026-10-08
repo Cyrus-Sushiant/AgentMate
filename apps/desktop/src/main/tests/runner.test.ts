@@ -329,7 +329,7 @@ describe('TestRunManager', () => {
     await waitFor(() => !isAlive(Number(readFileSync(pidFile, 'utf-8'))));
   }, 60_000);
 
-  it('stops a run that goes past the timeout and says so', async () => {
+  it('stops a run that goes quiet past the timeout and says so', async () => {
     process.env.FAKE_VITEST_MODE = 'slow';
     const { events, discovery, manager } = await setup({ timeoutMs: 2_000 });
     manager.start({
@@ -343,9 +343,38 @@ describe('TestRunManager', () => {
     await waitFor(() => !isAlive(grandchild));
     expect(events[events.length - 1]).toMatchObject({
       type: 'done',
-      summary: { errors: [{ kind: 'timedOut', testProjectId: 'vitest:web' }] },
+      summary: {
+        errors: [
+          {
+            kind: 'timedOut',
+            testProjectId: 'vitest:web',
+            message: expect.stringContaining('printed nothing for'),
+          },
+        ],
+      },
     });
   }, 60_000);
+
+  it('counts the timeout from the last output, so a long run that keeps reporting is not cut off', async () => {
+    const discovery = await discoverWorkspaceTests(root);
+    const asked: Array<boolean | undefined> = [];
+    const manager = new TestRunManager({
+      emit: () => undefined,
+      spawn: async (options) => {
+        asked.push(options.idle);
+        return { code: 0, log: '', timedOut: false, cancelled: false, notFound: false };
+      },
+      outputFlushMs: 10,
+    });
+    manager.start({
+      projectId: 'p1',
+      folderPath: root,
+      discovery,
+      targets: [{ testProjectId: 'vitest:web' }],
+    });
+    await manager.whenIdle('p1');
+    expect(asked).toEqual([true]);
+  });
 
   it('describes the command a single test would run with', async () => {
     const { discovery, manager } = await setup();

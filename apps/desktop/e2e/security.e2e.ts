@@ -58,12 +58,16 @@ async function openSecurity(): Promise<{ page: Page; app: LaunchedApp['app'] }> 
   return { page, app: launched.app };
 }
 
-async function stepUp(page: Page): Promise<void> {
+async function confirmStepUp(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', { name: 'Confirm it is you' });
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   await dialog.getByLabel('Password', { exact: true }).fill(DEV_PASSWORD);
   await dialog.getByRole('button', { name: 'Confirm' }).click();
-  await expect(dialog).toBeHidden();
+}
+
+async function stepUp(page: Page): Promise<void> {
+  await confirmStepUp(page);
+  await expect(page.getByRole('dialog', { name: 'Confirm it is you' })).toBeHidden();
 }
 
 test('scores the server, previews the SSH fix and keeps it over a new connection', async () => {
@@ -132,7 +136,9 @@ test('saves an encrypted backup where the dialog says', async () => {
   const asked = page.getByRole('dialog', { name: 'Confirm it is you' });
   const saved = page.getByText(`Backup saved to ${path}`);
   await expect(asked.or(saved)).toBeVisible({ timeout: 60_000 });
-  if (await asked.isVisible()) await stepUp(page);
+  // The confirmation is not waited on to close: its exit animation can outlast the few seconds the
+  // "saved" toast stays up, and the toast would be gone before it was looked for.
+  if (await asked.isVisible()) await confirmStepUp(page);
 
   await expect(saved).toBeVisible({ timeout: 60_000 });
   expect(existsSync(path)).toBe(true);

@@ -195,6 +195,45 @@ describe('spawnStreaming', () => {
     expect(result.log).toContain('hanging');
   }, 30_000);
 
+  it('lets a run that keeps printing outlast an idle timeout', async () => {
+    // Twenty lines 200 ms apart take about four seconds, longer than the three-second timeout,
+    // but it is never quiet for more than a fraction of it.
+    const path = await script(
+      'chatty.js',
+      [
+        'let n = 0;',
+        'const timer = setInterval(() => {',
+        "  console.log('tick ' + (n += 1));",
+        '  if (n === 20) clearInterval(timer);',
+        '}, 200);',
+      ].join('\n'),
+    );
+    const result = await spawnStreaming({
+      command: 'node',
+      args: [path],
+      cwd: dir,
+      timeoutMs: 3_000,
+      idle: true,
+      token: { cancelled: false, child: null },
+    });
+    expect(result).toMatchObject({ code: 0, timedOut: false });
+    expect(result.log).toContain('tick 20');
+  }, 30_000);
+
+  it('kills a run that goes quiet for longer than its idle timeout', async () => {
+    const path = await script('quiet.js', "console.log('hanging'); setInterval(() => {}, 1000);");
+    const result = await spawnStreaming({
+      command: 'node',
+      args: [path],
+      cwd: dir,
+      timeoutMs: 1_500,
+      idle: true,
+      token: { cancelled: false, child: null },
+    });
+    expect(result.timedOut).toBe(true);
+    expect(result.log).toContain('hanging');
+  }, 30_000);
+
   it('does not start anything when cancelled before the spawn', async () => {
     const onLine = vi.fn();
     const result = await spawnStreaming({
