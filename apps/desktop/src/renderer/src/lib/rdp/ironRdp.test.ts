@@ -1,3 +1,4 @@
+import type { RdpProxyErrorPayload } from '@shared/apiTypes';
 import { describe, expect, it, vi } from 'vitest';
 import { Backend, FakeSession, FakeSessionBuilder } from '../../../../test/renderer/mocks/ironRdp';
 import { cleanEngineText, describeConnectError, mountRemoteDesktop, wrapBackend } from './ironRdp';
@@ -110,6 +111,14 @@ describe('cleanEngineText', () => {
   });
 });
 
+function proxyFailure(
+  failure: Pick<RdpProxyErrorPayload, 'code' | 'message'> & { detail?: string },
+): RdpProxyErrorPayload {
+  return { sessionId: 's1', ...failure };
+}
+
+const LIBRARY_TEXT = /error:|OPENSSL_internal|boringssl|ssl_cert\.cc|third_party|crates|\.rs\b/i;
+
 describe('describeConnectError', () => {
   it('turns an engine failure into a sentence without crate paths', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -131,7 +140,11 @@ describe('describeConnectError', () => {
       ),
       null,
     );
-    expect(failure).toEqual({ message: 'The server denied the connection.' });
+    expect(failure).toMatchObject({
+      title: "Couldn't connect",
+      message: 'The server denied the connection.',
+    });
+    expect(failure.detail).toBeUndefined();
   });
 
   it('falls back to a general sentence for a stage it does not know', () => {
@@ -147,25 +160,91 @@ describe('describeConnectError', () => {
   });
 
   it('prefers what the proxy saw', () => {
-    expect(
-      describeConnectError(
-        ironError(0, CAPABILITIES_FAILURE),
-        'Connection refused by 10.0.0.5:3389',
-      ),
-    ).toEqual({
-      message: 'Connection refused by 10.0.0.5:3389',
+    const failure = describeConnectError(
+      ironError(0, CAPABILITIES_FAILURE),
+      proxyFailure({ code: 'refused', message: '10.0.0.5:3389 refused the connection.' }),
+    );
+    expect(failure).toMatchObject({
+      code: 'refused',
+      title: 'The server refused the connection',
+      message: '10.0.0.5:3389 refused the connection.',
     });
+    expect(failure.hints.length).toBeGreaterThan(0);
   });
 
   it('keeps the fixed sentences for known kinds', () => {
-    expect(describeConnectError(ironError(1, CAPABILITIES_FAILURE), null)).toEqual({
-      message: 'Sign-in failed. Check the username, password, and domain.',
+    expect(describeConnectError(ironError(1, CAPABILITIES_FAILURE), null)).toMatchObject({
+      code: 'sign-in',
+      title: 'Sign-in failed',
+      message: 'The server did not accept the username or password.',
     });
+    expect(describeConnectError(ironError(2, CAPABILITIES_FAILURE), null).code).toBe('sign-in');
+    expect(describeConnectError(ironError(3, CAPABILITIES_FAILURE), null)).toMatchObject({
+      code: 'access-denied',
+      message:
+        'The server refused this account. It may not be allowed to sign in over Remote Desktop.',
+    });
+    expect(describeConnectError(ironError(6, CAPABILITIES_FAILURE), null)).toMatchObject({
+      code: 'security-settings',
+      message: "AgentMate and the server couldn't agree on security settings.",
+    });
+  });
+
+  it('suggests what to try for the kinds a person can fix', () => {
+    expect(describeConnectError(ironError(1, ''), null).hints.join(' ')).toMatch(/password/);
+    expect(describeConnectError(ironError(6, ''), null).hints.join(' ')).toMatch(
+      /Network Level Authentication/,
+    );
   });
 
   it('cleans engine text that arrives as a plain error', () => {
     const failure = describeConnectError(new Error(CAPABILITIES_FAILURE), null);
     expect(failure.message).not.toMatch(/crates|\.rs/);
     expect(failure.detail).not.toMatch(/crates|\.rs/);
+  });
+
+  describe('when the secure connection to the server fails', () => {
+    // What the proxy reports for a server reinstalled with Windows' own certificate, once the
+    // library text is split off (see main/rdp/handshake.ts).
+    const keyUsage = proxyFailure({
+      code: 'tls-key-usage',
+      message:
+        "The certificate 176.9.22.106:3389 presented can't be used to set up an encrypted connection.",
+      detail: 'KEY_USAGE_BIT_INCORRECT (SSL routines)',
+    });
+
+    it.each([
+      ['an RDCleanPath error', ironError(4, '')],
+      ['a proxy connect error', ironError(5, '')],
+      ['an error of no known kind', ironError(0, '[Tls @ crates/x/src/lib.rs:1] reason: failed')],
+      ['a plain error from the socket', new Error('WebSocket connection closed')],
+    ])('shows the proxy failure, not the engine, for %s', (_name, error) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const failure = describeConnectError(error, keyUsage);
+
+      expect(failure).toMatchObject({
+        code: 'tls-key-usage',
+        title: "The server's certificate can't be used",
+        message:
+          "The certificate 176.9.22.106:3389 presented can't be used to set up an encrypted connection.",
+        detail: 'KEY_USAGE_BIT_INCORRECT (SSL routines)',
+      });
+      expect(failure.hints.length).toBeGreaterThan(0);
+    });
+
+    it('keeps library text and source locations out of everything but the details', () => {
+      const failure = describeConnectError(ironError(4, ''), keyUsage);
+      expect([failure.title, failure.message, ...failure.hints].join(' ')).not.toMatch(
+        /KEY_USAGE|SSL routines|error:|boringssl|\.cc/i,
+      );
+      expect(failure.detail).not.toMatch(LIBRARY_TEXT);
+    });
+
+    it('still says something when the proxy never said what went wrong', () => {
+      expect(describeConnectError(ironError(4, ''), null)).toMatchObject({
+        code: 'other',
+        message: 'Could not reach the server.',
+      });
+    });
   });
 });

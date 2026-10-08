@@ -2,13 +2,15 @@ import type { RdpSavedServer } from '@shared/apiTypes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Link, Monitor, Pencil, Plus, Trash2 } from '@/components/icons';
+import { Link, Monitor, Pencil, Plus, Shield, Trash2 } from '@/components/icons';
 import { EmptyState, FOOTER_HAIRLINE } from '@/components/pageKit';
+import { ipcErrorMessage } from '@/components/projects/environments/ipcError';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { timeAgo } from '@/lib/time';
 import { confirmDialog } from '@/stores/confirmStore';
+import { RdpCertificateDialog } from './RdpCertificateDialog';
 import { RdpServerFormDialog } from './RdpServerFormDialog';
 import { REMOTE_CARD, RemoteCardHeader, ServerRowsSkeleton } from './remoteCard';
 import { ServersVaultControls } from './ServersVaultControls';
@@ -23,11 +25,13 @@ function SavedRdpServerRow({
   server,
   onConnect,
   onEdit,
+  onCertificate,
   onRemoved,
 }: {
   server: RdpSavedServer;
   onConnect: (server: RdpSavedServer) => Promise<void>;
   onEdit: (server: RdpSavedServer) => void;
+  onCertificate: (server: RdpSavedServer) => void;
   onRemoved: () => void;
 }): React.JSX.Element {
   const [connecting, setConnecting] = useState(false);
@@ -98,6 +102,23 @@ function SavedRdpServerRow({
             <Pencil className="h-3.5 w-3.5" />
           </Button>
         </SimpleTooltip>
+        <SimpleTooltip
+          label={
+            server.certFingerprint
+              ? "View the saved certificate, get the server's current one, or forget it"
+              : "Get the server's certificate"
+          }
+        >
+          <Button
+            size="icon"
+            variant="ghost"
+            className="shrink-0"
+            aria-label={`Certificate for ${server.nickname}`}
+            onClick={() => onCertificate(server)}
+          >
+            <Shield className="h-3.5 w-3.5" />
+          </Button>
+        </SimpleTooltip>
         <SimpleTooltip label="Remove this server">
           <Button
             size="icon"
@@ -125,12 +146,15 @@ export function RdpServersPanel(): React.JSX.Element {
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockMode, setUnlockMode] = useState<'unlock' | 'set'>('unlock');
   const [pendingConnect, setPendingConnect] = useState<RdpSavedServer | null>(null);
+  const [certificateServerId, setCertificateServerId] = useState<string | null>(null);
 
   const serversQuery = useQuery({
     queryKey: queryKeys.rdpServers,
     queryFn: () => window.agentmat.rdp.listServers(),
   });
   const servers = serversQuery.data ?? [];
+  // Looked up by id so the dialog shows the saved certificate as it is after a change.
+  const certificateServer = servers.find((server) => server.id === certificateServerId) ?? null;
 
   async function refreshServers(): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: queryKeys.rdpServers });
@@ -149,7 +173,7 @@ export function RdpServersPanel(): React.JSX.Element {
     try {
       await window.agentmat.rdp.openSession(server.id);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not open the session.');
+      toast.error(ipcErrorMessage(error, 'Could not open the session.'));
     }
   }
 
@@ -218,6 +242,7 @@ export function RdpServersPanel(): React.JSX.Element {
                   server={server}
                   onConnect={handleConnect}
                   onEdit={openEdit}
+                  onCertificate={(target) => setCertificateServerId(target.id)}
                   onRemoved={() => void refreshServers()}
                 />
               ))}
@@ -231,6 +256,12 @@ export function RdpServersPanel(): React.JSX.Element {
         onOpenChange={setFormOpen}
         initial={editing}
         onSaved={() => void refreshServers()}
+      />
+      <RdpCertificateDialog
+        key={certificateServer?.id ?? 'none'}
+        server={certificateServer}
+        onOpenChange={(open) => !open && setCertificateServerId(null)}
+        onChanged={() => void refreshServers()}
       />
       <SshVaultUnlockDialog
         open={unlockOpen}

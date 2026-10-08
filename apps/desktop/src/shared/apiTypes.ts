@@ -2117,9 +2117,23 @@ export interface RdpSavedServer {
   hasSecret: boolean;
   /** SHA-256 of the server's TLS certificate, recorded on the first successful connect. */
   certFingerprint?: string;
+  /** Who the saved certificate was issued to and until when, for showing next to the pin. */
+  certDetails?: RdpCertificateDetails;
   options: RdpServerOptions;
   createdAt: number;
   lastConnectedAt: number | null;
+}
+
+/** What a person needs to recognise a certificate. The fingerprint is what gets compared. */
+export interface RdpCertificateDetails {
+  subject: string;
+  issuer: string;
+  validTo: string;
+}
+
+/** A server's TLS certificate as it presented itself. */
+export interface RdpCertificateInfo extends RdpCertificateDetails {
+  fingerprint: string;
 }
 
 /** Input to `rdp:saveServer`. Leave `secret` out on an edit to keep the stored password. */
@@ -2275,11 +2289,51 @@ export interface RdpCertificatePrompt {
   validTo: string;
 }
 
-/** A reason the proxy gave up, sent to the session window before the socket closes. */
-export interface RdpProxyErrorPayload {
-  sessionId: string;
+/**
+ * What went wrong on the way to a server, so the window can pick fitting advice without reading
+ * sentences. `tls-key-usage` is a certificate Windows made for Remote Desktop that the secure
+ * connection library only accepts for the older RSA key exchange, which the server then refused.
+ */
+export type RdpProxyErrorCode =
+  | 'host-not-found'
+  | 'refused'
+  | 'timeout'
+  | 'unreachable'
+  | 'closed'
+  | 'not-rdp'
+  | 'tls-failed'
+  | 'tls-key-usage'
+  | 'certificate-changed'
+  | 'other';
+
+/** A reason the proxy gave up. `message` is one plain sentence; `detail` is for support. */
+export interface RdpFailureInfo {
+  code: RdpProxyErrorCode;
+  /** Never carries text from the socket or TLS library. */
   message: string;
+  /** The library's own reason with its source locations removed, for the technical details. */
+  detail?: string;
 }
+
+/** A reason the proxy gave up, sent to the session window before the socket closes. */
+export interface RdpProxyErrorPayload extends RdpFailureInfo {
+  sessionId: string;
+}
+
+/** How a server's current certificate compares to the one saved for it. */
+export type RdpCertificateStatus = 'new' | 'same' | 'changed';
+
+export interface RdpCertificateCheck {
+  certificate: RdpCertificateInfo;
+  status: RdpCertificateStatus;
+  /** The saved certificate, when there is one. Its details are missing on older saves. */
+  saved?: { fingerprint: string; details?: RdpCertificateDetails };
+}
+
+/** The answer to `rdp:checkCertificate`; a failure comes back as data so its text stays clean. */
+export type RdpCertificateCheckResult =
+  | { ok: true; check: RdpCertificateCheck }
+  | { ok: false; failure: RdpFailureInfo };
 
 /**
  * One file or folder copied on this computer, flattened the way the RDP clipboard channel

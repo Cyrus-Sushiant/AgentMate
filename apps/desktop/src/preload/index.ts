@@ -208,6 +208,7 @@ import type {
   RdpAgentProgress,
   RdpAgentRequest,
   RdpAgentResponse,
+  RdpCertificateCheckResult,
   RdpCertificatePrompt,
   RdpClipboardFiles,
   RdpConnectTicket,
@@ -2358,6 +2359,15 @@ const rdp = {
     ipcRenderer.invoke(IPC.rdp.getTicket, sessionId),
   respondCertificate: (sessionId: string, trust: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.rdp.respondCertificate, sessionId, trust),
+  /** Fetches the certificate a saved server presents now and compares it with the saved one. */
+  checkCertificate: (serverId: string): Promise<RdpCertificateCheckResult> =>
+    ipcRenderer.invoke(IPC.rdp.checkCertificate, serverId),
+  /** Saves the certificate the last check of this server saw, if it still has this fingerprint. */
+  trustCertificate: (serverId: string, fingerprint: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.trustCertificate, serverId, fingerprint),
+  /** Forgets the saved certificate, so the next connection saves whatever the server presents. */
+  forgetCertificate: (serverId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.rdp.forgetCertificate, serverId),
   readClipboardFiles: (
     sessionId: string,
     previousSignature: string | null,

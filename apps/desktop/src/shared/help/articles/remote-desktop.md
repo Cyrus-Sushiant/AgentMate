@@ -3,7 +3,7 @@ title: Remote Desktop
 category: Connect
 order: 20
 summary: Sign in to Windows servers and PCs over RDP in their own window, with shared clipboard, file copy, full screen, and an AI that can do tasks on the remote desktop for you.
-keywords: rdp, remote desktop, windows server, windows, mstsc, nla, clipboard, file copy, full screen, ctrl+alt+del, certificate, ask ai, session window, resolution
+keywords: rdp, remote desktop, windows server, windows, mstsc, nla, clipboard, file copy, full screen, ctrl+alt+del, certificate, reinstall, forget certificate, tls, key usage, ask ai, session window, resolution
 ---
 
 Remote Desktop lets you sign in to a Windows Server or Windows PC that has Remote Desktop (RDP) turned on. Each connection opens in its own window, like the Windows Remote Desktop Connection app. You can share the clipboard, copy files in both directions, go full screen, and even ask an AI to carry out a task on the remote desktop by looking at the screen and using the mouse and keyboard.
@@ -45,18 +45,37 @@ Click **Connect** on a server row. A new window opens and shows "Connecting to (
 
 ### If the connection fails
 
-The window shows "Couldn't connect" with the reason, and two buttons: **Close** and **Reconnect**. Common reasons:
+The window shows what went wrong in plain words, a short list under **What you can try**, and the buttons **Close** and **Reconnect**. The technical reason is folded under **Technical details**, with a copy button for a bug report. Common ones:
 
-- "Sign-in failed. Check the username, password, and domain."
-- "The server refused this account. It may not be allowed to sign in over Remote Desktop."
-- "AgentMate and the server couldn't agree on security settings. Try switching Network Level Authentication for this server."
-- "Could not reach the server." Check the address, the port and that Remote Desktop is on.
+- "Can't find the server" or "The server didn't answer". Check the address, the port and that the server is on.
+- "The server refused the connection". Check that Remote Desktop is on, the port is right (3389 unless changed) and the firewall allows it.
+- "Sign-in failed". Edit the server and check the username, password and domain.
+- "This account can't sign in". On the server, add the account to the Remote Desktop Users group.
+- "Security settings don't match". Edit the server and switch **Network Level Authentication** under **Display and sharing**.
+- "Couldn't set up a secure connection". The server's TLS settings may not match what AgentMate supports. If the server was just reinstalled, restart Remote Desktop Services on it.
+- "The server's certificate can't be used". See below.
 
 If the session ends later, the window says "Disconnected" with the reason and the same two buttons. **Reconnect** starts again with a fresh sign-in.
+
+#### The server's certificate can't be used
+
+Windows makes its own certificate for Remote Desktop, and by default it only allows an older kind of encryption (RSA key exchange). AgentMate tries the normal, stronger encryption first. If the certificate refuses it, AgentMate connects again with the older kind. You see this message only when the server turns that down as well. On the server, turn the RSA cipher suites back on in its TLS settings, or give Remote Desktop a certificate that allows digital signatures.
 
 ### Certificate changed
 
 The first time you connect, AgentMate remembers the server's certificate. If it changes, AgentMate refuses and shows "The server's certificate changed" with who it was issued to and by, its expiry, and the saved and current fingerprints. A change is normal after reinstalling the server or renewing its certificate. If neither happened, someone could be intercepting the connection. Choose **Don't connect** or **Trust and connect**.
+
+If you choose **Don't connect**, the failed screen has a **Review certificate** button that brings the question back.
+
+### Get the certificate again, or forget it
+
+You can deal with a server's certificate without opening a session. Click the shield on its row to open **Certificate for (name)**:
+
+- **Saved certificate** shows who it was issued to and by, when it expires and its fingerprint, or says nothing is saved yet.
+- **Get certificate from server** connects to the server, without signing in, and shows the certificate it presents now. If it is the saved one, it says so. If it is different, as after a reinstall, it shows the new one with **Trust this certificate**. If nothing was saved yet, it offers **Save this certificate**. Only the certificate you were just shown can be saved.
+- **Forget saved certificate** removes the saved one, after you confirm. The next connection accepts whatever certificate the server shows and saves it, without asking.
+
+Changing a server's computer name or port also forgets its saved certificate, since it belongs to the old address.
 
 ## The session window
 

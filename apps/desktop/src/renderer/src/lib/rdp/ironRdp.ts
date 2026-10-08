@@ -9,6 +9,8 @@ import {
   init,
   RdpFileTransferProvider,
 } from '@devolutions/iron-remote-desktop-rdp';
+import type { RdpProxyErrorPayload } from '@shared/apiTypes';
+import { describeFailure, describeProxyFailure, type RdpFailure } from './failure';
 
 /**
  * Thin glue around Devolutions' IronRDP web packages. This module is heavy (the WebAssembly
@@ -148,11 +150,8 @@ function isIronError(error: unknown): error is IronError {
   );
 }
 
-/** What the failure screen shows: a sentence, plus the engine's own reason for anyone digging in. */
-export interface ConnectFailure {
-  message: string;
-  detail?: string;
-}
+/** What the failure screen shows: a heading, a sentence, things to try, and the engine's own reason. */
+export type ConnectFailure = RdpFailure;
 
 /** The `[ConnectionActivation::CapabilitiesExchange @ crates/ironrdp-connector/src/lib.rs:409]` prefix. */
 const ENGINE_CONTEXT = /\[\s*([^\]@]*?)\s*(?:@[^\]]*)?\]\s*/g;
@@ -211,47 +210,52 @@ function describeEngineText(text: string): ConnectFailure {
   const reason = cleanEngineText(text);
   const detail = reason || undefined;
   if (reason && isPlainSentence(reason)) {
-    return { message: /[.!?]$/.test(reason) ? reason : `${reason}.` };
+    return describeFailure('engine', /[.!?]$/.test(reason) ? reason : `${reason}.`);
   }
   const contexts = [...text.matchAll(ENGINE_CONTEXT)].map((match) => match[1]).join(' ');
   const stage = ENGINE_STAGES.find(({ pattern }) => pattern.test(`${contexts} ${reason}`));
-  return {
-    message:
-      stage?.message ??
+  return describeFailure(
+    'engine',
+    stage?.message ??
       'The connection failed while setting up the remote session. Try reconnecting.',
-    detail,
-  };
+    { detail },
+  );
 }
 
 /**
- * What to tell the user about a failed connect. `proxyMessage` is what the local proxy reported,
+ * What to tell the user about a failed connect. `proxyFailure` is what the local proxy reported,
  * which is more specific than anything the engine can see when the failure was on the network
  * side. The engine's own text names Rust crates and source lines, so it only goes in `detail`.
  */
-export function describeConnectError(error: unknown, proxyMessage: string | null): ConnectFailure {
+export function describeConnectError(
+  error: unknown,
+  proxyFailure: RdpProxyErrorPayload | null,
+): ConnectFailure {
   if (!isIronError(error)) {
-    if (proxyMessage) return { message: proxyMessage };
+    if (proxyFailure) return describeProxyFailure(proxyFailure);
     return describeEngineText(error instanceof Error ? error.message : String(error));
   }
   switch (error.kind() as number) {
     case ErrorKind.WrongPassword:
     case ErrorKind.LogonFailure:
-      return { message: 'Sign-in failed. Check the username, password, and domain.' };
+      return describeFailure('sign-in', 'The server did not accept the username or password.');
     case ErrorKind.AccessDenied:
-      return {
-        message:
-          'The server refused this account. It may not be allowed to sign in over Remote Desktop.',
-      };
+      return describeFailure(
+        'access-denied',
+        'The server refused this account. It may not be allowed to sign in over Remote Desktop.',
+      );
     case ErrorKind.NegotiationFailure:
-      return {
-        message:
-          "AgentMate and the server couldn't agree on security settings. Try switching Network Level Authentication for this server.",
-      };
+      return describeFailure(
+        'security-settings',
+        "AgentMate and the server couldn't agree on security settings.",
+      );
     case ErrorKind.RDCleanPath:
     case ErrorKind.ProxyConnect:
-      return { message: proxyMessage ?? 'Could not reach the server.' };
+      return proxyFailure
+        ? describeProxyFailure(proxyFailure)
+        : describeFailure('other', 'Could not reach the server.');
     default: {
-      if (proxyMessage) return { message: proxyMessage };
+      if (proxyFailure) return describeProxyFailure(proxyFailure);
       const backtrace = error.backtrace();
       // biome-ignore lint/suspicious/noConsole: keeps the full engine trace for bug reports
       console.warn('[rdp] connection failed:', backtrace);

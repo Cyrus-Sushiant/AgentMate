@@ -1,6 +1,11 @@
-import type { RdpCertificatePrompt, RdpServerOptions } from '@shared/apiTypes';
+import type {
+  RdpCertificatePrompt,
+  RdpProxyErrorPayload,
+  RdpServerOptions,
+} from '@shared/apiTypes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatBytes } from '@/lib/format';
+import type { RdpFailure } from '@/lib/rdp/failure';
 import {
   clampDesktopSize,
   cleanEngineText,
@@ -22,7 +27,7 @@ export type RdpPhase =
   | { kind: 'connecting' }
   | { kind: 'connected' }
   | { kind: 'ended'; reason: string }
-  | { kind: 'failed'; message: string; detail?: string };
+  | ({ kind: 'failed' } & RdpFailure);
 
 export interface RdpTransfer {
   key: string;
@@ -73,7 +78,9 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
   const uiRef = useRef<UserInteraction | null>(null);
   const elementRef = useRef<HTMLElement | null>(null);
   const providerRef = useRef<RdpFileTransferProvider | null>(null);
-  const proxyErrorRef = useRef<string | null>(null);
+  const proxyFailureRef = useRef<RdpProxyErrorPayload | null>(null);
+  // Kept after the dialog closes, so "Review certificate" on the failure screen can reopen it.
+  const lastCertificateRef = useRef<RdpCertificatePrompt | null>(null);
   const clipboardSignatureRef = useRef<string | null>(null);
   const connectedRef = useRef(false);
   // What an AI task works through: the engine's session, the backend it came from, and the
@@ -105,10 +112,12 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
 
   useEffect(() => {
     const offCertificate = window.agentmat.rdp.onCertificatePrompt((prompt) => {
-      if (prompt.sessionId === sessionId) setCertificate(prompt);
+      if (prompt.sessionId !== sessionId) return;
+      lastCertificateRef.current = prompt;
+      setCertificate(prompt);
     });
     const offProxyError = window.agentmat.rdp.onProxyError((payload) => {
-      if (payload.sessionId === sessionId) proxyErrorRef.current = payload.message;
+      if (payload.sessionId === sessionId) proxyFailureRef.current = payload;
     });
     return () => {
       offCertificate();
@@ -288,7 +297,8 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
 
     setPhase({ kind: 'connecting' });
     setRemoteFiles([]);
-    proxyErrorRef.current = null;
+    proxyFailureRef.current = null;
+    lastCertificateRef.current = null;
     clipboardSignatureRef.current = null;
     connectedRef.current = false;
 
@@ -421,13 +431,13 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
             if (cancelled) return;
             connectedRef.current = false;
             sessionRef.current = null;
-            setPhase({ kind: 'failed', ...describeConnectError(error, proxyErrorRef.current) });
+            setPhase({ kind: 'failed', ...describeConnectError(error, proxyFailureRef.current) });
           });
       } catch (error) {
         if (cancelled) return;
         connectedRef.current = false;
         sessionRef.current = null;
-        setPhase({ kind: 'failed', ...describeConnectError(error, proxyErrorRef.current) });
+        setPhase({ kind: 'failed', ...describeConnectError(error, proxyFailureRef.current) });
       }
     })();
 
@@ -502,6 +512,10 @@ export function useRdpSession(sessionId: string, hostRef: React.RefObject<HTMLDi
     dismissNotice: () => setNotice(null),
     clearFinishedTransfers: () =>
       setTransfers((current) => current.filter((t) => t.state === 'active')),
+    /** Opens the certificate prompt again after "Don't connect" closed it. */
+    reviewCertificate: () => {
+      if (lastCertificateRef.current) setCertificate(lastCertificateRef.current);
+    },
     respondCertificate: async (trust: boolean) => {
       setCertificate(null);
       await window.agentmat.rdp.respondCertificate(sessionId, trust);

@@ -39,6 +39,7 @@ import { initRdpAgentStatus, isRdpAgentActive, useRdpAgentSession } from '@/stor
 import { RdpAgentOverlay } from './RdpAgentOverlay';
 import { RdpAgentStatusBar } from './RdpAgentStatusBar';
 import { RdpAskAiDialog } from './RdpAskAiDialog';
+import { RdpFailureCard } from './RdpFailureCard';
 import { useRdpAgentBridge } from './useRdpAgentBridge';
 import { type RdpPhase, type RdpTransfer, useRdpSession } from './useRdpSession';
 
@@ -398,61 +399,45 @@ export default function RdpSessionRoute(): React.JSX.Element {
         )}
 
         {phase.kind !== 'connected' && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
-            <div className="flex max-w-md flex-col items-center gap-4 px-6 text-center">
-              <div
-                className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-full',
-                  phase.kind === 'failed'
-                    ? 'bg-destructive/15 text-destructive'
-                    : 'bg-primary/15 text-primary',
-                )}
-              >
-                {phase.kind === 'failed' ? (
-                  <TriangleAlert className="h-5 w-5" />
-                ) : (
+          <div className="absolute inset-0 z-10 flex overflow-y-auto bg-background">
+            {phase.kind === 'failed' ? (
+              <RdpFailureCard
+                failure={phase}
+                onClose={controlProps.onClose}
+                onReconnect={session.reconnect}
+                onReviewCertificate={session.reviewCertificate}
+              />
+            ) : (
+              <div className="m-auto flex max-w-md flex-col items-center gap-4 px-6 py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
                   <Monitor
                     className={cn('h-5 w-5', phase.kind === 'connecting' && 'animate-pulse')}
                   />
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-base font-semibold">
-                  {phase.kind === 'connecting'
-                    ? `Connecting to ${session.nickname}…`
-                    : phase.kind === 'failed'
-                      ? "Couldn't connect"
-                      : 'Disconnected'}
-                </p>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {phase.kind === 'connecting'
-                    ? 'Signing in and setting up the remote session.'
-                    : phase.kind === 'failed'
-                      ? phase.message
-                      : phase.reason || 'The remote session ended.'}
-                </p>
-                {phase.kind === 'failed' && phase.detail && (
-                  <details className="pt-1">
-                    <summary className="cursor-pointer rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-                      Technical details
-                    </summary>
-                    <p className="mt-2 select-text break-words rounded-lg bg-foreground/[0.05] p-2 text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
-                      {phase.detail}
-                    </p>
-                  </details>
-                )}
-              </div>
-              {phase.kind !== 'connecting' && (
-                <div className="flex gap-2">
-                  <Button variant="ghost" onClick={controlProps.onClose}>
-                    Close
-                  </Button>
-                  <Button onClick={session.reconnect}>
-                    <RefreshCw className="h-3.5 w-3.5" /> Reconnect
-                  </Button>
                 </div>
-              )}
-            </div>
+                <div className="space-y-1.5">
+                  <p className="text-base font-semibold">
+                    {phase.kind === 'connecting'
+                      ? `Connecting to ${session.nickname}…`
+                      : 'Disconnected'}
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {phase.kind === 'connecting'
+                      ? 'Signing in and setting up the remote session.'
+                      : phase.reason || 'The remote session ended.'}
+                  </p>
+                </div>
+                {phase.kind === 'ended' && (
+                  <div className="flex gap-2">
+                    <Button variant="ghost" onClick={controlProps.onClose}>
+                      Close
+                    </Button>
+                    <Button onClick={session.reconnect}>
+                      <RefreshCw className="h-3.5 w-3.5" /> Reconnect
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain, shell, type WebContents } from 'electron';
 import type {
+  RdpCertificateCheckResult,
+  RdpCertificateInfo,
   RdpCertificatePrompt,
   RdpClipboardFiles,
   RdpConnectTicket,
@@ -23,7 +25,8 @@ import {
   prepareEntry,
   writeChunk,
 } from '../rdp/downloads';
-import { type RdpCertificateInfo, RdpProxy, type RdpProxyTarget } from '../rdp/proxy';
+import { fetchServerCertificate, toFailureInfo } from '../rdp/handshake';
+import { RdpProxy, type RdpProxyTarget } from '../rdp/proxy';
 import { formatDestination } from '../rdp/rdcleanpath';
 import { closeAllRdpWindows, openRdpWindow } from '../rdp/sessionWindows';
 import { decryptSecret, encryptSecret, getVaultStatus } from '../ssh/vault';
@@ -36,11 +39,35 @@ interface RdpSession {
   owner: WebContents;
   /** Files copied on this computer that the server may ask to paste, by entry index. */
   clipboard: ClipboardFileSet | null;
-  /** A changed certificate waiting for the user's decision. */
+  /** A changed certificate the person has not trusted yet. */
   pendingCertificate: RdpCertificateInfo | null;
 }
 
 const sessions = new Map<string, RdpSession>();
+
+/** How long a certificate fetched from a server stays available to be trusted. */
+const CHECKED_CERTIFICATE_TTL_MS = 10 * 60_000;
+
+/**
+ * The certificate the last "check" of each server saw. Trusting only accepts what is in here, so
+ * what gets saved is exactly what the person was shown, never a value the window made up.
+ */
+const checkedCertificates = new Map<string, { certificate: RdpCertificateInfo; at: number }>();
+
+/** Saves a certificate as the one to expect from a server. */
+function pinCertificate(
+  certificate: RdpCertificateInfo,
+): (server: StoredRdpServer) => StoredRdpServer {
+  return (server) => ({
+    ...server,
+    certFingerprint: certificate.fingerprint,
+    certDetails: {
+      subject: certificate.subject,
+      issuer: certificate.issuer,
+      validTo: certificate.validTo,
+    },
+  });
+}
 
 function toPublicServer(server: StoredRdpServer): RdpSavedServer {
   const { secretEnvelope: _secretEnvelope, ...rest } = server;
@@ -83,8 +110,7 @@ function send(session: RdpSession, channel: string, payload: unknown): void {
 const proxy = new RdpProxy({
   onCertificateFirstSeen: (target, cert) => {
     const session = sessions.get(target.sessionId);
-    if (session)
-      void updateServer(session.serverId, (s) => ({ ...s, certFingerprint: cert.fingerprint }));
+    if (session) void updateServer(session.serverId, pinCertificate(cert));
   },
   onCertificateMismatch: (target, cert) => {
     const session = sessions.get(target.sessionId);
@@ -103,12 +129,14 @@ const proxy = new RdpProxy({
   },
   onConnected: (target) => {
     const session = sessions.get(target.sessionId);
-    if (session)
-      void updateServer(session.serverId, (s) => ({ ...s, lastConnectedAt: Date.now() }));
+    if (!session) return;
+    // Connected, so there is no certificate left to ask about.
+    session.pendingCertificate = null;
+    void updateServer(session.serverId, (s) => ({ ...s, lastConnectedAt: Date.now() }));
   },
-  onError: (target, message) => {
+  onError: (target, failure) => {
     const session = sessions.get(target.sessionId);
-    if (session) send(session, IPC.rdp.onProxyError, { sessionId: session.sessionId, message });
+    if (session) send(session, IPC.rdp.onProxyError, { sessionId: session.sessionId, ...failure });
   },
 });
 
@@ -131,6 +159,7 @@ export function registerRdpHandlers(): void {
       // A pinned certificate only means something for the endpoint it was seen on.
       const endpointChanged =
         existing && (existing.host !== input.host || existing.port !== input.port);
+      if (existing && endpointChanged) checkedCertificates.delete(existing.id);
 
       const record: StoredRdpServer = {
         id: existing?.id ?? randomUUID(),
@@ -141,6 +170,7 @@ export function registerRdpHandlers(): void {
         domain: input.domain || undefined,
         secretEnvelope: input.secret ? await encryptSecret(input.secret) : existing?.secretEnvelope,
         certFingerprint: endpointChanged ? undefined : existing?.certFingerprint,
+        certDetails: endpointChanged ? undefined : existing?.certDetails,
         options: withRdpDefaults(input.options),
         createdAt: existing?.createdAt ?? Date.now(),
         lastConnectedAt: existing?.lastConnectedAt ?? null,
@@ -157,6 +187,7 @@ export function registerRdpHandlers(): void {
   ipcMain.handle(IPC.rdp.removeServer, async (_event, id: string): Promise<void> => {
     const servers = await store.getRdpServers();
     await store.setRdpServers(servers.filter((s) => s.id !== id));
+    checkedCertificates.delete(id);
   });
 
   ipcMain.handle(IPC.rdp.openSession, async (_event, serverId: string): Promise<string> => {
@@ -229,16 +260,82 @@ export function registerRdpHandlers(): void {
     IPC.rdp.respondCertificate,
     async (event, sessionId: string, trust: boolean): Promise<void> => {
       const session = sessionFor(event, sessionId);
+      // Kept after a "no": the failed screen can bring the question back (Review certificate),
+      // and the answer to that has to find the certificate it is about.
       const pending = session.pendingCertificate;
+      if (!trust || !pending) return;
       session.pendingCertificate = null;
-      if (trust && pending) {
-        await updateServer(session.serverId, (s) => ({
-          ...s,
-          certFingerprint: pending.fingerprint,
-        }));
-      }
+      await updateServer(session.serverId, pinCertificate(pending));
     },
   );
+
+  // Fetches what the server presents now, to compare with the saved certificate. This is the
+  // "get the certificate again" of the Windows client, without opening a session.
+  ipcMain.handle(
+    IPC.rdp.checkCertificate,
+    async (_event, serverId: string): Promise<RdpCertificateCheckResult> => {
+      const server = (await store.getRdpServers()).find((s) => s.id === serverId);
+      if (!server) throw new Error('This saved server no longer exists.');
+
+      let certificate: RdpCertificateInfo;
+      try {
+        certificate = await fetchServerCertificate(server.host, server.port);
+      } catch (error) {
+        return { ok: false, failure: toFailureInfo(error, server.host, server.port) };
+      }
+      checkedCertificates.set(serverId, { certificate, at: Date.now() });
+
+      const status = !server.certFingerprint
+        ? 'new'
+        : server.certFingerprint === certificate.fingerprint
+          ? 'same'
+          : 'changed';
+      // A certificate saved before its details were kept gets them now that it is seen again.
+      if (status === 'same' && !server.certDetails) {
+        await updateServer(serverId, pinCertificate(certificate));
+      }
+      return {
+        ok: true,
+        check: {
+          certificate,
+          status,
+          saved: server.certFingerprint
+            ? {
+                fingerprint: server.certFingerprint,
+                details: server.certDetails ?? (status === 'same' ? certificate : undefined),
+              }
+            : undefined,
+        },
+      };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.rdp.trustCertificate,
+    async (_event, serverId: string, fingerprint: string): Promise<void> => {
+      const checked = checkedCertificates.get(serverId);
+      if (
+        !checked ||
+        checked.certificate.fingerprint !== fingerprint ||
+        Date.now() - checked.at > CHECKED_CERTIFICATE_TTL_MS
+      ) {
+        throw new Error('That certificate is out of date. Get it from the server again.');
+      }
+      await updateServer(serverId, pinCertificate(checked.certificate));
+      checkedCertificates.delete(serverId);
+    },
+  );
+
+  // After this the next connection accepts whatever certificate the server presents and saves
+  // it, as if the server had never been connected to.
+  ipcMain.handle(IPC.rdp.forgetCertificate, async (_event, serverId: string): Promise<void> => {
+    checkedCertificates.delete(serverId);
+    await updateServer(serverId, (s) => ({
+      ...s,
+      certFingerprint: undefined,
+      certDetails: undefined,
+    }));
+  });
 
   ipcMain.handle(
     IPC.rdp.readClipboardFiles,

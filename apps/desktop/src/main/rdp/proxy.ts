@@ -1,14 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { isIP, connect as netConnect, type Socket } from 'node:net';
-import { type DetailedPeerCertificate, type TLSSocket, connect as tlsConnect } from 'node:tls';
+import type { TLSSocket } from 'node:tls';
 import { type RawData, type WebSocket, WebSocketServer } from 'ws';
+import type { RdpCertificateInfo, RdpFailureInfo } from '../../shared/apiTypes';
+import { type HandshakeDeps, handshake, toFailureInfo } from './handshake';
 import {
   buildRdCleanPathError,
   buildRdCleanPathResponse,
   destinationMatches,
   parseRdCleanPathRequest,
-  tpktRemaining,
 } from './rdcleanpath';
 
 /**
@@ -21,7 +21,6 @@ import {
  */
 
 const TICKET_TTL_MS = 60_000;
-const CONNECT_TIMEOUT_MS = 15_000;
 /** Stop reading from the server while this much is still queued for the renderer. */
 const HIGH_WATER_BYTES = 8 * 1024 * 1024;
 
@@ -33,20 +32,13 @@ export interface RdpProxyTarget {
   expectedFingerprint?: string;
 }
 
-export interface RdpCertificateInfo {
-  fingerprint: string;
-  subject: string;
-  issuer: string;
-  validTo: string;
-}
-
 export interface RdpProxyHooks {
   /** First connect to this server: remember its certificate. */
   onCertificateFirstSeen: (target: RdpProxyTarget, cert: RdpCertificateInfo) => void;
   /** The certificate changed. The connection is refused; the window asks whether to trust it. */
   onCertificateMismatch: (target: RdpProxyTarget, cert: RdpCertificateInfo) => void;
   onConnected: (target: RdpProxyTarget) => void;
-  onError: (target: RdpProxyTarget, message: string) => void;
+  onError: (target: RdpProxyTarget, failure: RdpFailureInfo) => void;
 }
 
 interface Ticket {
@@ -54,137 +46,10 @@ interface Ticket {
   expiresAt: number;
 }
 
-function formatName(name: Record<string, string | string[]> | undefined): string {
-  if (!name) return '';
-  return Object.entries(name)
-    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join('+') : value}`)
-    .join(', ');
-}
-
-function certChain(peer: DetailedPeerCertificate): Buffer[] {
-  const chain: Buffer[] = [];
-  const seen = new Set<string>();
-  let current: DetailedPeerCertificate | undefined = peer;
-  while (current?.raw && !seen.has(current.fingerprint256)) {
-    seen.add(current.fingerprint256);
-    chain.push(Buffer.from(current.raw));
-    current = current.issuerCertificate === current ? undefined : current.issuerCertificate;
-  }
-  return chain;
-}
-
 function toBuffer(data: RawData): Buffer {
   if (Buffer.isBuffer(data)) return data;
   if (Array.isArray(data)) return Buffer.concat(data);
   return Buffer.from(data);
-}
-
-/** Turns socket errors into something a person can act on. */
-function friendlyError(error: NodeJS.ErrnoException, host: string, port: number): string {
-  switch (error.code) {
-    case 'ENOTFOUND':
-    case 'EAI_AGAIN':
-      return `Could not find ${host}. Check the host name.`;
-    case 'ECONNREFUSED':
-      return `${host}:${port} refused the connection. Check that Remote Desktop is enabled and the port is right.`;
-    case 'ETIMEDOUT':
-      return `Connection to ${host}:${port} timed out.`;
-    case 'EHOSTUNREACH':
-    case 'ENETUNREACH':
-      return `${host} is not reachable from this network.`;
-    case 'ECONNRESET':
-      return `${host}:${port} closed the connection during setup.`;
-    default:
-      return error.message || String(error);
-  }
-}
-
-interface Handshake {
-  /** The resolved IP address actually connected to. */
-  address: string;
-  x224Response: Buffer;
-  tlsSocket: TLSSocket;
-  cert: RdpCertificateInfo;
-  chain: Buffer[];
-}
-
-function handshake(host: string, port: number, x224Request: Buffer): Promise<Handshake> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let tcp: Socket | null = null;
-    let tlsSocket: TLSSocket | null = null;
-    let received = Buffer.alloc(0);
-
-    const fail = (error: Error): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      tlsSocket?.destroy();
-      tcp?.destroy();
-      reject(error);
-    };
-
-    const timer = setTimeout(
-      () => fail(new Error(`Connection to ${host}:${port} timed out.`)),
-      CONNECT_TIMEOUT_MS,
-    );
-
-    tcp = netConnect({ host, port }, () => tcp?.write(x224Request));
-    tcp.on('error', (error: NodeJS.ErrnoException) =>
-      fail(new Error(friendlyError(error, host, port))),
-    );
-
-    const onData = (chunk: Buffer): void => {
-      received = Buffer.concat([received, chunk]);
-      let remaining: number;
-      try {
-        remaining = tpktRemaining(received);
-      } catch (error) {
-        fail(error as Error);
-        return;
-      }
-      if (remaining > 0) return;
-      // The server says nothing more until our TLS ClientHello, so TLS can take the socket over.
-      tcp?.off('data', onData);
-
-      tlsSocket = tlsConnect(
-        {
-          socket: tcp as Socket,
-          // SNI must not be an IP address.
-          servername: isIP(host) ? undefined : host,
-          // RDP servers use self-signed certificates. Trust comes from the saved fingerprint.
-          rejectUnauthorized: false,
-        },
-        () => {
-          if (settled || !tlsSocket) return;
-          const peer = tlsSocket.getPeerCertificate(true);
-          if (!peer?.raw) {
-            fail(new Error('The server did not present a certificate.'));
-            return;
-          }
-          settled = true;
-          clearTimeout(timer);
-          resolve({
-            address: tcp?.remoteAddress ?? host,
-            x224Response: received,
-            tlsSocket,
-            chain: certChain(peer),
-            cert: {
-              fingerprint: peer.fingerprint256,
-              subject: formatName(peer.subject as unknown as Record<string, string>),
-              issuer: formatName(peer.issuer as unknown as Record<string, string>),
-              validTo: peer.valid_to,
-            },
-          });
-        },
-      );
-      tlsSocket.on('error', (error: NodeJS.ErrnoException) =>
-        fail(new Error(`Secure connection to ${host}:${port} failed: ${error.message}`)),
-      );
-    };
-    tcp.on('data', onData);
-    tcp.on('close', () => fail(new Error(`${host}:${port} closed the connection during setup.`)));
-  });
 }
 
 export class RdpProxy {
@@ -194,7 +59,11 @@ export class RdpProxy {
   private readonly tickets = new Map<string, Ticket>();
   private readonly live = new Map<string, Set<() => void>>();
 
-  constructor(private readonly hooks: RdpProxyHooks) {}
+  /** `deps` stands in for the network in tests. */
+  constructor(
+    private readonly hooks: RdpProxyHooks,
+    private readonly deps?: HandshakeDeps,
+  ) {}
 
   /** A `ws://` URL that lets one connection through to `target`, within the next minute. */
   async issueUrl(target: RdpProxyTarget): Promise<string> {
@@ -267,8 +136,8 @@ export class RdpProxy {
 
   private handle(ws: WebSocket, target: RdpProxyTarget): void {
     const { host, port } = target;
-    const sendError = (message: string, httpStatus = 502): void => {
-      this.hooks.onError(target, message);
+    const sendError = (failure: RdpFailureInfo, httpStatus = 502): void => {
+      this.hooks.onError(target, failure);
       try {
         ws.send(buildRdCleanPathError(1, httpStatus));
       } catch {
@@ -282,19 +151,32 @@ export class RdpProxy {
       try {
         request = parseRdCleanPathRequest(toBuffer(data));
       } catch (error) {
-        sendError((error as Error).message, 400);
+        sendError(
+          {
+            code: 'other',
+            message: 'The session sent a request AgentMate did not understand.',
+            detail: (error as Error).message,
+          },
+          400,
+        );
         return;
       }
       if (!destinationMatches(request.destination, host, port)) {
-        sendError('The session asked for a different server than the one it was opened for.', 403);
+        sendError(
+          {
+            code: 'other',
+            message: 'The session asked for a different server than the one it was opened for.',
+          },
+          403,
+        );
         return;
       }
 
-      let result: Handshake;
+      let result: Awaited<ReturnType<typeof handshake>>;
       try {
-        result = await handshake(host, port, request.x224ConnectionRequest);
+        result = await handshake(host, port, request.x224ConnectionRequest, this.deps);
       } catch (error) {
-        sendError((error as Error).message);
+        sendError(toFailureInfo(error, host, port));
         return;
       }
 
@@ -309,6 +191,10 @@ export class RdpProxy {
       } else if (target.expectedFingerprint !== cert.fingerprint) {
         result.tlsSocket.destroy();
         this.hooks.onCertificateMismatch(target, cert);
+        this.hooks.onError(target, {
+          code: 'certificate-changed',
+          message: `${host} is presenting a different certificate than the one AgentMate saved.`,
+        });
         try {
           ws.send(buildRdCleanPathError(1, 403));
         } catch {
