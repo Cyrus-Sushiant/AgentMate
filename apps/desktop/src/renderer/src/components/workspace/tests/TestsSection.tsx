@@ -171,6 +171,19 @@ function failedTargets(results: TestResult[]): TestTarget[] {
   return [...byProject.values()];
 }
 
+/**
+ * What "Run failed" reruns: the failed tests and files, plus every test project that could not run.
+ * A project that never reported results has nothing finer to target, and one that broke part way is
+ * rerun whole so its failed tests do not run twice.
+ */
+function retryTargets(results: TestResult[], errors: TestRunError[]): TestTarget[] {
+  const broken = new Set(errors.map((error) => error.testProjectId));
+  return [
+    ...failedTargets(results.filter((result) => !broken.has(result.testProjectId))),
+    ...[...broken].map((testProjectId) => ({ testProjectId })),
+  ];
+}
+
 function absolutePath(folderPath: string, file: string): string {
   const sep = folderPath.includes('\\') ? '\\' : '/';
   return `${folderPath.replace(/[\\/]+$/, '')}${sep}${file.split('/').join(sep)}`;
@@ -650,6 +663,9 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
   ).length;
   const failures = results.filter((result) => result.status === 'failed');
   const failedTests = failures.filter((result) => result.path.length > 0);
+  // "Run failed" covers everything the failed chip counts, including projects that could not run.
+  // A missing runner gets no fix button on its card, so "Fix all" leaves it out too.
+  const fixableErrors = runErrors.filter((error) => error.kind !== 'notFound');
   const labelOf = (testProjectId: string): string =>
     discovery.data.projects.find((entry) => entry.id === testProjectId)?.label ?? testProjectId;
   const toggle = (id: string, set: React.Dispatch<React.SetStateAction<Set<string>>>): void =>
@@ -697,15 +713,17 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     const single = projectIds.length === 1 ? projectIds[0] : undefined;
     const frameworkLabel = single ? frameworkLabelOf(single) : undefined;
     const title =
-      list.length === 1
+      errors.length === 0 && list.length === 1
         ? `Fix ${list[0].path.join(' > ') || list[0].file} with AI`
-        : list.length > 1
+        : errors.length === 0
           ? `Fix ${list.length} failing tests with AI`
-          : `Fix the ${single ? labelOf(single) : ''} test run with AI`.replace('  ', ' ');
-    const jobKey = `tests-fix:${project.id}:${summary?.runId ?? 'none'}:${list.map((entry) => entry.id).join('|') || errors.map((entry) => entry.testProjectId).join('|')}`;
+          : list.length === 0 && errors.length === 1
+            ? `Fix the ${single ? labelOf(single) : ''} test run with AI`.replace('  ', ' ')
+            : `Fix ${list.length + errors.length} failures with AI`;
+    const jobKey = `tests-fix:${project.id}:${summary?.runId ?? 'none'}:${[...list.map((entry) => entry.id), ...errors.map((entry) => entry.testProjectId)].join('|')}`;
     const build = (command?: string) =>
       buildFixTestsPrompt({ failures: list, errors, frameworkLabel, command });
-    const description = [single ? labelOf(single) : null, list[0]?.file]
+    const description = [projectIds.map(labelOf).join(', '), list[0]?.file]
       .filter(Boolean)
       .join(' · ');
     setFixing({
@@ -716,16 +734,15 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
     });
 
     const target = single && list.length > 0 ? failedTargets(list)[0] : undefined;
+    // A run that could not finish carries its own command in the prompt, and one command cannot
+    // stand for several projects, so only a single project's failed tests get a rerun command.
     const commandPromise = target
       ? window.agentmat.tests.command(project.id, target).catch(() => null)
-      : Promise.resolve(errors[0]?.command ?? null);
+      : Promise.resolve(null);
     void commandPromise.then((command) =>
       setFixing((current) =>
         current && current.jobKey === jobKey
-          ? {
-              ...current,
-              source: { prompt: build(list.length > 0 ? (command ?? undefined) : undefined) },
-            }
+          ? { ...current, source: { prompt: build(command ?? undefined) } }
           : current,
       ),
     );
@@ -775,32 +792,32 @@ export function TestsSection({ project }: { project: Project }): React.JSX.Eleme
               <ElapsedClock summary={summary} />
             </span>
           </div>
-          {!running && (failures.length > 0 || hasOutput) ? (
+          {!running && (counts.failed > 0 || hasOutput) ? (
             <div
               role="group"
               aria-label="Test run actions"
               className="mt-1.5 flex flex-wrap items-center gap-1"
             >
-              {failures.length > 0 ? (
+              {counts.failed > 0 ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="xs"
                   aria-label="Run failed tests"
-                  onClick={() => void startRun(project.id, failedTargets(failures))}
+                  onClick={() => void startRun(project.id, retryTargets(failures, runErrors))}
                   className="shrink-0 text-muted-foreground"
                 >
                   <Play />
                   Run failed
                 </Button>
               ) : null}
-              {failedTests.length > 1 ? (
+              {failedTests.length + fixableErrors.length > 1 ? (
                 <Button
                   type="button"
                   variant="tint"
                   size="xs"
                   aria-label="Fix all failures with AI"
-                  onClick={() => fixResults(failedTests, [])}
+                  onClick={() => fixResults(failedTests, fixableErrors)}
                   className="shrink-0"
                 >
                   <Wand2 />

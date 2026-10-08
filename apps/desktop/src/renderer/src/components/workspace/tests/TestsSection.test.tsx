@@ -4,6 +4,7 @@ import {
   type Project,
   type TestDiscovery,
   type TestProject,
+  type TestResult,
   type TestRunEvent,
   type TestRunSnapshot,
   type TestRunSummary,
@@ -656,6 +657,120 @@ describe('TestsSection', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Passed/ }));
     expect(screen.queryByRole('group', { name: 'Go · svc could not run' })).toBeNull();
     expect(screen.queryByRole('group', { name: 'dotnet:srv could not run' })).toBeNull();
+  });
+
+  describe('when test projects could not run', () => {
+    const goError = {
+      kind: 'noResults',
+      testProjectId: 'go:svc',
+      command: 'go test -json ./...',
+      message: 'The Go run ended without reporting any results (exit code 1).',
+      log: '',
+    } as const;
+    const dotnetError = {
+      kind: 'timedOut',
+      testProjectId: 'dotnet:srv',
+      command: 'dotnet test',
+      message: 'The .NET run took longer than 30 minutes and was stopped.',
+      log: '',
+    } as const;
+    const breaks: TestResult = {
+      id: ids.breaks,
+      testProjectId: 'vitest:',
+      file: 'src/math.test.ts',
+      path: ['math', 'breaks'],
+      status: 'failed',
+      message: 'AssertionError: expected 1 to be 2',
+    };
+
+    function finishWith(errors: TestRunSummary['errors'], failed: TestResult[] = []): void {
+      startRun();
+      if (failed.length > 0) {
+        send({ type: 'results', runId: 'r1', projectId: 'p1', results: [...failed] });
+      }
+      send({
+        type: 'done',
+        runId: 'r1',
+        projectId: 'p1',
+        summary: summary({ running: false, errors }),
+      });
+    }
+
+    it('offers to run them again and to fix them all, with no failed test at all', async () => {
+      renderSection();
+      await screen.findByText('adds', { selector: '[data-test-name]' });
+      finishWith([goError, dotnetError]);
+
+      const actions = screen.getByRole('group', { name: 'Test run actions' });
+      fireEvent.click(within(actions).getByRole('button', { name: 'Run failed tests' }));
+      await waitFor(() =>
+        expect(api.run).toHaveBeenLastCalledWith('p1', [
+          { testProjectId: 'go:svc' },
+          { testProjectId: 'dotnet:srv' },
+        ]),
+      );
+
+      fireEvent.click(within(actions).getByRole('button', { name: 'Fix all failures with AI' }));
+      const prompt = (await screen.findByLabelText('Fix prompt')) as HTMLTextAreaElement;
+      expect(prompt.value).toContain('could not run to completion');
+      expect(prompt.value).toContain('Command: go test -json ./...');
+      expect(prompt.value).toContain('Command: dotnet test');
+      expect(screen.getByText('Fix 2 failures with AI')).toBeTruthy();
+      expect(screen.getByText('Go · svc, dotnet:srv')).toBeTruthy();
+    });
+
+    it('reruns the failed tests and the projects that could not run together', async () => {
+      renderSection();
+      await screen.findByText('adds', { selector: '[data-test-name]' });
+      finishWith([goError, dotnetError], [breaks]);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Run failed tests' }));
+      await waitFor(() =>
+        expect(api.run).toHaveBeenLastCalledWith('p1', [
+          {
+            testProjectId: 'vitest:',
+            tests: [{ file: 'src/math.test.ts', path: ['math', 'breaks'] }],
+          },
+          { testProjectId: 'go:svc' },
+          { testProjectId: 'dotnet:srv' },
+        ]),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Fix all failures with AI' }));
+      const prompt = (await screen.findByLabelText('Fix prompt')) as HTMLTextAreaElement;
+      expect(prompt.value).toContain('A test is failing in this repository: math > breaks');
+      expect(prompt.value).toContain('Some test runs could not finish:');
+      expect(prompt.value).toContain('Command: dotnet test');
+    });
+
+    it('reruns a project that failed tests and then broke as a whole, once', async () => {
+      renderSection();
+      await screen.findByText('adds', { selector: '[data-test-name]' });
+      finishWith([{ ...goError, testProjectId: 'vitest:' }], [breaks]);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Run failed tests' }));
+      await waitFor(() =>
+        expect(api.run).toHaveBeenLastCalledWith('p1', [{ testProjectId: 'vitest:' }]),
+      );
+    });
+
+    it('lets a single one be run again, but leaves "Fix all" to cases with several', async () => {
+      renderSection();
+      await screen.findByText('adds', { selector: '[data-test-name]' });
+      finishWith([goError]);
+
+      expect(screen.getByRole('button', { name: 'Run failed tests' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Fix all failures with AI' })).toBeNull();
+    });
+
+    it('leaves a missing runner out of "Fix all", as its card has no fix either', async () => {
+      renderSection();
+      await screen.findByText('adds', { selector: '[data-test-name]' });
+      finishWith([{ ...goError, kind: 'notFound' }, dotnetError]);
+
+      expect(screen.getByRole('button', { name: 'Run failed tests' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Fix all failures with AI' })).toBeNull();
+    });
   });
 
   it('points at installing the runner when it is missing, without a fix button', async () => {

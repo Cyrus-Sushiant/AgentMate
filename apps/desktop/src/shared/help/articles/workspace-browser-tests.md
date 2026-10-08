@@ -134,8 +134,8 @@ Tests are shown as a tree: a test project for each framework found (a folder wit
 
 While tests run, a line says **Running {n} tests…** and the counts update live, for example **2 failed**, **40 passed**, **1 skipped**, with a timer. A stopped run says **Stopped**. When the run ends:
 
-- **Run failed** runs only what failed.
-- **Fix all with AI** appears when more than one test failed.
+- **Run failed** runs only what failed, and runs again every test project that could not run.
+- **Fix all with AI** appears when more than one thing failed, counting projects that could not run (except ones whose test tool was not found).
 - **Output** shows or hides the raw output of the run in a pane at the bottom.
 
 The last run comes back when you return to the project, and the failing count stays on the tab's icon even when you are looking at another tab.
