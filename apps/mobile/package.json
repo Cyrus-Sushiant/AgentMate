@@ -1,6 +1,6 @@
 {
   "name": "@agentmat/mobile",
-  "version": "1.55.1",
+  "version": "1.55.2",
   "private": true,
   "main": "index.ts",
   "dependencies": {
