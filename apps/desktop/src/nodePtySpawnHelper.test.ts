@@ -17,8 +17,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 /**
  * node-pty runs a small program, spawn-helper, to start every terminal on macOS. Version 1.1.0
  * publishes it without the execute bit, and then every shell and agent tab fails with
- * "posix_spawnp failed". The desktop package's postinstall sets the bit, and the packaged app
- * keeps it, since electron-builder copies file modes.
+ * "posix_spawnp failed". The desktop package's postinstall sets the bit for local development,
+ * the afterPack hook repairs and asserts the staged copy so a broken bit never ships, and the
+ * pty host verifies and repairs the helper at runtime before every spawn.
  */
 
 const SCRIPT = join(__dirname, '..', 'scripts', 'fix-node-pty-spawn-helper.mjs');

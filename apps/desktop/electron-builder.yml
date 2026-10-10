@@ -10,6 +10,11 @@ directories:
 # tarball is missing the winpty git submodule's build scripts. Skip it.
 npmRebuild: false
 
+# node-pty starts every macOS terminal through its spawn-helper, which version 1.1.0 ships
+# without the execute bit. The hook repairs the staged copy and fails the packaging when the
+# bit is still missing afterwards, so a broken helper can never ship again.
+afterPack: ./scripts/after-pack-spawn-helper.cjs
+
 files:
   - out/**/*
   - package.json

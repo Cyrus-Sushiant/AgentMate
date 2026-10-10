@@ -17,6 +17,7 @@ import type {
 } from './protocol';
 import { buildShellLaunch } from './shellIntegration';
 import { resolveSpawnTarget } from './shellResolve';
+import { ensureSpawnHelper } from './spawnHelper';
 
 /**
  * Lines of history kept per session for repainting a terminal after the app reconnects.
@@ -160,6 +161,12 @@ export class PtySessionManager {
   private spawn(options: SpawnSessionOptions, listener: SessionListener): void {
     const cols = options.cols ?? 80;
     const rows = options.rows ?? 24;
+    // On macOS every spawn goes through node-pty's spawn-helper, which version 1.1.0 ships
+    // without the execute bit. Check (and repair) it before touching the shell, so a broken
+    // helper fails fast naming its path instead of the cryptic "posix_spawnp failed".
+    const helper = ensureSpawnHelper();
+    if (helper.detail) this.log(helper.detail);
+    if (!helper.ok) throw new Error(helper.detail);
     // A shell the user uninstalled, or a folder deleted since the tab was created, must not
     // cost the user their terminal: the fallbacks below take over and say so in the log.
     const target = resolveSpawnTarget({ shell: options.shell, cwd: options.cwd, env: options.env });
