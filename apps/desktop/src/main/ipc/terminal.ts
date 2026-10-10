@@ -16,13 +16,13 @@ import { agentStatus } from '../agents/statusTracker';
 import { keepAwake } from '../power/keepAwake';
 import type { HostClient } from '../ptyHost/hostClient';
 import { connectToHost } from '../ptyHost/hostLauncher';
-import { ALLOWED_SHELLS, type AllowedShell, defaultShellName } from '../ptyHost/shellResolve';
 import type {
   CreateOrAttachPayload,
   CreateOrAttachResult,
   HostSessionInfo,
 } from '../ptyHost/protocol';
 import { PtySessionManager, type SessionListener } from '../ptyHost/sessionManager';
+import { ALLOWED_SHELLS, type AllowedShell, defaultShellName } from '../ptyHost/shellResolve';
 import { store } from '../store';
 import { sampleListeningPorts } from '../system/listeningPorts';
 import { sampleProcessTrees } from '../system/processTree';

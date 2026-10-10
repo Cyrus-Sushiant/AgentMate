@@ -3,7 +3,6 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as pty from 'node-pty';
 import { killShellTree } from './killTree';
-import { resolveSpawnTarget } from './shellResolve';
 import {
   consoleClients,
   createPasteBoost,
@@ -17,6 +16,7 @@ import type {
   SpawnSessionOptions,
 } from './protocol';
 import { buildShellLaunch } from './shellIntegration';
+import { resolveSpawnTarget } from './shellResolve';
 
 /**
  * Lines of history kept per session for repainting a terminal after the app reconnects.
