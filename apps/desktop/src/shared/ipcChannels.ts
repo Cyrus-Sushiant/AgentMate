@@ -1076,6 +1076,7 @@ export const IPC = {
     createGithubRepo: 'git:createGithubRepo',
     connectRemote: 'git:connectRemote',
     detectRemote: 'git:detectRemote',
+    cloneInto: 'git:cloneInto',
     watchRepo: 'git:watchRepo',
     unwatchRepo: 'git:unwatchRepo',
     // main -> renderer: the repo moved on disk (commit, checkout, merge, fetch, stage)

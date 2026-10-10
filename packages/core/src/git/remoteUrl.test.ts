@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { browsableRepoUrl, stripRemoteCredentials } from './remoteUrl.js';
+import {
+  browsableRepoUrl,
+  isClonableGithubUrl,
+  normalizeCloneUrl,
+  stripRemoteCredentials,
+} from './remoteUrl.js';
 
 /**
  * A remote cloned with a token is stored verbatim, so anything that shows or opens
@@ -126,5 +131,49 @@ describe('browsableRepoUrl', () => {
     // Nothing here parses as a remote, so the fallback treats it as a bare host path.
     expect(browsableRepoUrl('not a url at all')).toBe('https://not a url at all');
     expect(browsableRepoUrl('://')).toBe('https://://');
+  });
+});
+
+describe('normalizeCloneUrl / isClonableGithubUrl', () => {
+  it('accepts https, bare, scp-style and ssh GitHub addresses', () => {
+    expect(normalizeCloneUrl('https://github.com/me/my-app')).toBe(
+      'https://github.com/me/my-app',
+    );
+    expect(normalizeCloneUrl('https://github.com/me/my-app.git')).toBe(
+      'https://github.com/me/my-app',
+    );
+    expect(normalizeCloneUrl('github.com/me/my-app')).toBe('https://github.com/me/my-app');
+    expect(normalizeCloneUrl('git@github.com:me/my-app.git')).toBe(
+      'https://github.com/me/my-app',
+    );
+    expect(normalizeCloneUrl('ssh://git@github.com/me/my-app.git')).toBe(
+      'https://github.com/me/my-app',
+    );
+    expect(isClonableGithubUrl('github.com/me/my-app')).toBe(true);
+  });
+
+  it('strips embedded credentials before normalizing', () => {
+    expect(normalizeCloneUrl('https://user:ghp_secret@github.com/me/my-app.git')).toBe(
+      'https://github.com/me/my-app',
+    );
+  });
+
+  it('rejects local paths, file URLs and non-GitHub hosts (v1 scope)', () => {
+    for (const input of [
+      '',
+      '   ',
+      'C:\\code\\app',
+      '\\\\share\\repo',
+      '/home/me/repo',
+      '../repo',
+      'file:///home/me/repo',
+      'https://gitlab.com/me/app',
+      'git@gitlab.com:me/app.git',
+      'https://github.com/only-owner',
+      'not a url at all',
+    ]) {
+      expect(normalizeCloneUrl(input), input).toBeNull();
+      expect(isClonableGithubUrl(input), input).toBe(false);
+    }
   });
 });

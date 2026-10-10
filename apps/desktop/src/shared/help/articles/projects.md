@@ -61,7 +61,7 @@ Until the name and folder are filled in, the button is disabled and the footer s
 | --- | --- |
 | **Name** | The project's name. |
 | **Folder** | Where the project lives. Paste a path or click **Browse**. Terminals and agents start in this folder. Picking a folder fills in the name from the folder name if the name is empty. |
-| **Git repository** | Where the code is hosted, as a link. If the folder is a git repository, AgentMate reads its origin remote and fills this in (and says so). Nothing is cloned or pushed from here. An **Open** button opens the link. |
+| **Git repository** | Where the code is hosted. Paste a public GitHub link (`github.com/owner/repo`) to clone it into the folder on Create — the dialog says "Will clone into …". The folder must be empty (an existing repo is kept as-is). A failed clone still creates the project with the link, and the error tells you why. Private repos need `gh auth login` first. An **Open** button opens the link. Fetch and pull afterwards from the project's Git tab. |
 | **Tags** | Press `Enter` or comma to add a tag. Backspace in the empty box removes the last one. Tags are used by search and filtering. |
 | **Description** | One line about what the project is. |
 

@@ -1779,6 +1779,19 @@ export interface ConnectRemoteInput {
   push: boolean;
 }
 
+/** Clones a GitHub repo into the folder picked in the New Project dialog. */
+export interface CloneIntoInput {
+  folderPath: string;
+  /** Whatever the user pasted; validated and normalized in main. */
+  repoUrl: string;
+}
+
+/** Outcome of the Add Project auto-clone. Project creation still proceeds on failure. */
+export interface CloneIntoResult extends GitOpResult {
+  /** True when the folder already held a repo and no clone was needed. */
+  skipped?: boolean;
+}
+
 export type PackageManagerEcosystem = 'node' | 'dotnet' | 'dart';
 export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget' | 'pub';
 

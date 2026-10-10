@@ -36,3 +36,53 @@ export function browsableRepoUrl(address: string): string {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return url;
   return `https://${url}`;
 }
+
+/**
+ * v1 clone scope: public GitHub repos only. Accepts the forms users paste
+ * (https URL with or without .git, bare host/owner/repo, scp-style
+ * git@github.com:owner/repo, ssh://git@github.com/owner/repo), and rejects
+ * local paths, file:// URLs and non-GitHub hosts so Add Project never clones
+ * from an unexpected place. Returns null when the address is not clonable.
+ */
+export function normalizeCloneUrl(address: string): string | null {
+  const raw = stripRemoteCredentials(address.trim().replace(/\.git$/i, ''));
+  if (!raw || /\s/.test(raw)) return null;
+  if (/^([a-z]:[\\/]|\\\\|\/|\.{1,2}[\\/]|file:)/i.test(raw)) return null;
+
+  // scp-style: git@github.com:owner/repo (optionally user@host)
+  const scp = /^[^@\s/]+@([^:\s/]+):(.+)$/.exec(raw);
+  if (scp) {
+    if (scp[1].toLowerCase() !== 'github.com') return null;
+    const path = scp[2].replace(/^\/+|\/+$/g, '');
+    if (!/^[^/]+\/[^/]+(\/[^/]+)*$/.test(path)) return null;
+    return `https://github.com/${path}`;
+  }
+
+  const ssh = /^ssh:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(raw);
+  if (ssh) {
+    if (ssh[1].toLowerCase() !== 'github.com') return null;
+    const path = ssh[2].replace(/^\/+|\/+$/g, '');
+    if (!/^[^/]+\/[^/]+(\/[^/]+)*$/.test(path)) return null;
+    return `https://github.com/${path}`;
+  }
+
+  let path: string;
+  const https = /^(https?:\/\/)([^/]+)\/(.+)$/i.exec(raw);
+  if (https) {
+    if (https[2].toLowerCase() !== 'github.com') return null;
+    path = https[3];
+  } else {
+    // bare host/owner/repo copied from the address bar
+    const bare = /^github\.com\/(.+)$/i.exec(raw);
+    if (!bare) return null;
+    path = bare[1];
+  }
+  path = path.replace(/^\/+|\/+$/g, '');
+  if (!/^[^/]+\/[^/]+(\/[^/]+)*$/.test(path)) return null;
+  return `https://github.com/${path}`;
+}
+
+/** True when Add Project can auto-clone the address in v1. */
+export function isClonableGithubUrl(address: string): boolean {
+  return normalizeCloneUrl(address) !== null;
+}

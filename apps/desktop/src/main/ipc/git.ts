@@ -1,9 +1,19 @@
 import type { GitChangeEntry, Project } from '@agentmat/core';
-import { browsableRepoUrl, buildCommitMessagePrompt, stripRemoteCredentials } from '@agentmat/core';
+import {
+  browsableRepoUrl,
+  buildCommitMessagePrompt,
+  normalizeCloneUrl,
+  stripRemoteCredentials,
+} from '@agentmat/core';
+import { execFile } from 'node:child_process';
+import { mkdir, readdir } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
   ApplyVersionResult,
+  CloneIntoInput,
+  CloneIntoResult,
   ConnectRemoteInput,
   CreateGithubRepoInput,
   CreateGithubRepoResult,
@@ -369,6 +379,85 @@ function registerRepoHandlers(): void {
       // this value is prefilled into the project form, stored, shown, and later
       // handed to shell.openExternal.
       return browsableRepoUrl(remote);
+    },
+  );
+
+  /**
+   * Clones a public GitHub repo into the folder picked in New Project ("Clone
+   * into Folder"). Blocks on a non-empty folder, skips when the folder already
+   * holds a repo, and maps git stderr to friendly errors (private repos surface
+   * a gh-auth hint). Never throws: the renderer still creates the project link
+   * when the clone fails.
+   */
+  ipcMain.handle(
+    IPC.git.cloneInto,
+    async (_event, input: CloneIntoInput): Promise<CloneIntoResult> => {
+      const folder = input?.folderPath?.trim() ?? '';
+      if (!folder) return { ok: false, message: 'Pick a folder to clone into.' };
+      const normalized = normalizeCloneUrl(input?.repoUrl ?? '');
+      if (!normalized) {
+        return {
+          ok: false,
+          message: 'That address cannot be cloned. Use a public github.com/owner/repo link.',
+        };
+      }
+      try {
+        await mkdir(folder, { recursive: true });
+        if (await isGitRepo(folder)) {
+          return { ok: true, message: 'Folder is already a git repository.', skipped: true };
+        }
+        const entries = await readdir(folder);
+        const meaningful = entries.filter(
+          (entry) => entry !== '.DS_Store' && entry !== 'Thumbs.db',
+        );
+        if (meaningful.length > 0) {
+          return {
+            ok: false,
+            message: 'Folder is not empty. Choose an empty folder to clone into.',
+          };
+        }
+        const execFileAsync = promisify(execFile);
+        try {
+          await execFileAsync('git', ['clone', normalized, folder], {
+            timeout: 120000,
+            windowsHide: true,
+            maxBuffer: 10 * 1024 * 1024,
+            env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+          });
+        } catch (error) {
+          const stderr = String(
+            (error as { stderr?: string })?.stderr ??
+              (error as Error)?.message ??
+              '',
+          );
+          if (/repository not found|not found|404/i.test(stderr)) {
+            return {
+              ok: false,
+              message:
+                'Repository not found. Check the address, or sign in with "gh auth login" for a private repo.',
+            };
+          }
+          if (/authentication|permission denied|401|403|askpass|could not read username/i.test(stderr)) {
+            return {
+              ok: false,
+              message:
+                'GitHub asked for sign-in. This looks like a private repo — run "gh auth login" (or use SSH) and try Fetch after creating.',
+            };
+          }
+          if (/already exists and is not an empty directory/i.test(stderr)) {
+            return {
+              ok: false,
+              message: 'Folder is not empty. Choose an empty folder to clone into.',
+            };
+          }
+          const firstLine = stderr.split('\n').map((l) => l.trim()).filter(Boolean)[0];
+          return { ok: false, message: firstLine || 'Clone failed. Check the address and try again.' };
+        }
+        // Clone writes the checkout straight into folder, nothing more to move.
+        return { ok: true, message: `Cloned ${stripRemoteCredentials(normalized)}.` };
+      } catch (error) {
+        return { ok: false, message: (error as Error)?.message || 'Clone failed.' };
+      }
     },
   );
 }

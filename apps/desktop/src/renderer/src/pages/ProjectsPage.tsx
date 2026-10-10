@@ -179,11 +179,37 @@ export default function ProjectsPage(): React.JSX.Element {
   }, [dialogOpen, promptBuildOpen, reviewOpen]);
 
   const createMutation = useMutation({
-    mutationFn: (values: ProjectFormValues) => window.agentmat.projects.create(values),
-    onSuccess: () => {
-      toast.success('Project created.');
+    mutationFn: async (values: ProjectFormValues): Promise<{ project: Project; cloned: boolean }> => {
+      let cloned = false;
+      const repo = values.repoUrl?.trim();
+      // Auto-clone ("Clone into Folder"): a public GitHub address is cloned into
+      // the chosen folder before the record is created. A failed clone never
+      // blocks creation: the address is kept as a link and the error is shown.
+      if (repo) {
+        try {
+          const result = await window.agentmat.git.cloneInto({
+            folderPath: values.folderPath,
+            repoUrl: repo,
+          });
+          if (result.ok) {
+            cloned = !result.skipped;
+            if (!result.skipped) toast.success('Repository cloned.');
+          } else {
+            toast.error(result.message);
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Clone failed.');
+        }
+      }
+      const project = await window.agentmat.projects.create(values);
+      return { project, cloned };
+    },
+    onSuccess: ({ project, cloned }) => {
+      toast.success(cloned ? 'Project created — repo cloned.' : 'Project created.');
       setDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      // Land on the Git tab after a clone so Fetch/Pull are one click away.
+      if (cloned) navigate(`/projects/${project.id}?tab=git`);
     },
   });
 

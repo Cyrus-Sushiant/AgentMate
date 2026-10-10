@@ -1,5 +1,11 @@
 import type { AgentType, Project, ProjectRunCommand } from '@agentmat/core';
-import { AGENT_TYPES, browsableRepoUrl, CLI_REGISTRY, configuredRunCommands } from '@agentmat/core';
+import {
+  AGENT_TYPES,
+  browsableRepoUrl,
+  CLI_REGISTRY,
+  configuredRunCommands,
+  isClonableGithubUrl,
+} from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -81,7 +87,10 @@ export interface ProjectFormValues {
   /** `#rrggbb` colour for the folder glyph, which only shows while there is no image. */
   iconColor: string | null;
   websiteUrl: string;
-  /** Git repository the code lives in. Stored as a link, nothing is run against it. */
+  /**
+   * Git repository the code lives in. New projects auto-clone a public GitHub
+   * address into the folder on Create; otherwise it is just a link to open.
+   */
   repoUrl: string;
 }
 
@@ -320,6 +329,11 @@ export function ProjectFormDialog({
 
   const canSubmit = name.trim().length > 0 && folderPath.length > 0;
 
+  // New projects auto-clone a public GitHub address into the folder on Create
+  // ("Clone into Folder"). Editing never clones: the field stays a plain link.
+  const willClone =
+    !initial && repoUrl.trim().length > 0 && isClonableGithubUrl(repoUrl);
+
   /**
    * Order is priority here: the Run button offers these top down, and a project
    * with a single command runs whatever sits first. Both the drag and the arrow
@@ -472,7 +486,9 @@ export function ProjectFormDialog({
                 hint={
                   repoDetected
                     ? "Read from the folder's origin remote. Change it if the code lives somewhere else."
-                    : 'Where the code is hosted, if it already is somewhere. Kept as a link: nothing is cloned or pushed.'
+                    : willClone
+                      ? 'Public GitHub link: will be cloned into the folder above on Create. Nothing is pushed.'
+                      : 'Where the code is hosted. Paste a public GitHub link to clone it into the folder on Create, or leave it as a plain link.'
                 }
               >
                 <div className="flex gap-2">
@@ -499,6 +515,13 @@ export function ProjectFormDialog({
                     </Button>
                   )}
                 </div>
+                {willClone && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {folderPath.trim()
+                      ? `Will clone into ${folderPath.trim()} on Create (folder must be empty). Fetch and pull afterwards from the project's Git tab.`
+                      : 'Choose a folder above: the repo will be cloned into it on Create.'}
+                  </p>
+                )}
               </Field>
 
               <Field
