@@ -16,6 +16,7 @@ import { agentStatus } from '../agents/statusTracker';
 import { keepAwake } from '../power/keepAwake';
 import type { HostClient } from '../ptyHost/hostClient';
 import { connectToHost } from '../ptyHost/hostLauncher';
+import { ALLOWED_SHELLS, type AllowedShell, defaultShellName } from '../ptyHost/shellResolve';
 import type {
   CreateOrAttachPayload,
   CreateOrAttachResult,
@@ -27,12 +28,9 @@ import { sampleListeningPorts } from '../system/listeningPorts';
 import { sampleProcessTrees } from '../system/processTree';
 import { broadcastToWindows, sendToContents } from './send';
 
-const ALLOWED_SHELLS = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash', 'zsh', 'fish'] as const;
-type AllowedShell = (typeof ALLOWED_SHELLS)[number];
-
 function defaultShell(): AllowedShell {
   if (process.platform === 'win32') return 'powershell.exe';
-  return (process.env.SHELL?.split('/').pop() as AllowedShell) ?? 'bash';
+  return defaultShellName(process.platform, process.env);
 }
 
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -251,10 +249,11 @@ export function registerTerminalHandlers(): void {
           attachOnly: options.attachOnly,
         });
       } catch (error) {
-        // The pane only says "Could not start this terminal." Without this line nothing anywhere
-        // records why, which is all a bug report has to go on when a shell refuses to start.
+        // The pane only shows the reason after "Could not start this terminal." Without this
+        // line nothing anywhere records why, which is all a bug report has to go on when a
+        // shell refuses to start.
         // biome-ignore lint/suspicious/noConsole: the only record of a terminal that won't open
-        console.warn(`[terminal] could not start ${shell}`, error);
+        console.warn(`[terminal] could not start ${shell} in ${options.cwd ?? '<default>'}`, error);
         if (previousOwner) owners.set(sessionId, previousOwner);
         else owners.delete(sessionId);
         throw error;

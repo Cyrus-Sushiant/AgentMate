@@ -218,6 +218,22 @@ describe('terminal:create', () => {
     expect(lastCreatePayload().shell).toBe('zsh');
   });
 
+  it('falls back to the platform shell when SHELL names something unstartable', async () => {
+    // A Mac user who uninstalls the shell SHELL points at (or a Finder launch with a stripped
+    // environment) used to hand that name to the pty as-is, which failed to start. Now the
+    // platform default takes over instead of the terminal going blank.
+    vi.stubEnv('SHELL', '/bin/sh');
+    await withPlatform('linux', () => invoke(IPC.terminal.create, { sessionId: 'sh-linux' }));
+    expect(lastCreatePayload().shell).toBe('bash');
+
+    await withPlatform('darwin', () => invoke(IPC.terminal.create, { sessionId: 'sh-mac' }));
+    expect(lastCreatePayload().shell).toBe('zsh');
+
+    vi.stubEnv('SHELL', '');
+    await withPlatform('darwin', () => invoke(IPC.terminal.create, { sessionId: 'empty-mac' }));
+    expect(lastCreatePayload().shell).toBe('zsh');
+  });
+
   it('replaces a session id that is not a plain identifier', async () => {
     const result = await invoke<TerminalAttachResult>(IPC.terminal.create, {
       sessionId: '../../etc/passwd',

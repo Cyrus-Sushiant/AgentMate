@@ -6,6 +6,7 @@ import { onFontsLoaded, whenTerminalFontReady } from '@/lib/terminal/fontReady';
 import { attachTerminalPaste } from '@/lib/terminal/pasteFiles';
 import { createResizeSync } from '@/lib/terminal/resizeSync';
 import { sshTerminalAdapter } from '@/lib/terminal/sshAdapter';
+import { describeTerminalStartError } from '@/lib/terminal/startError';
 import { attachRtlRendering } from '@/lib/terminal/terminalRtl';
 import {
   attachFocusOnClick,
@@ -181,8 +182,12 @@ export function TerminalPane({ meta, active, onExit }: TerminalPaneProps): React
       })
       .catch((error: unknown) => {
         if (disposed) return;
+        // Remote shells report their own failures (a refused connection); a local shell that
+        // never started prints the backend's reason after the familiar line.
         const message =
-          remote && error instanceof Error ? error.message : 'Could not start this terminal.';
+          remote && error instanceof Error && error.message
+            ? error.message
+            : describeTerminalStartError(error);
         term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
       });
 

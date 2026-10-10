@@ -139,7 +139,8 @@ test('a shell runs a command, a second tab is its own, and closing tabs ends bot
 
   // The drawer opens empty; a tab is a separate act.
   expect(await drawerSessions(page)).toEqual([]);
-  await page.getByRole('button', { name: /^New (PowerShell|bash|zsh)$/ }).click();
+  // Exact: the tab-strip icon button ("New Terminal (shortcut…)") matches the prefix too.
+  await page.getByRole('button', { name: 'New Terminal', exact: true }).click();
 
   await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(1);
   const [first] = await drawerSessions(page);
@@ -157,7 +158,7 @@ test('a shell runs a command, a second tab is its own, and closing tabs ends bot
 
   // A second tab gets its own shell, not a second view of the first.
   await page
-    .getByRole('button', { name: /^New (PowerShell|bash|zsh)/ })
+    .getByRole('button', { name: /^New Terminal/ })
     .first()
     .click();
   await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(2);
@@ -186,7 +187,7 @@ test('one click anywhere on a tab switches to it while typing in another', async
   const { page } = launched;
   await openDrawer(page);
 
-  const newTab = page.getByRole('button', { name: /^New (PowerShell|bash|zsh)/ }).first();
+  const newTab = page.getByRole('button', { name: /^New Terminal/ }).first();
   await newTab.click();
   await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(1);
   await newTab.click();
@@ -228,7 +229,7 @@ test('quitting with no shells left takes the background host with it', async () 
   const { page, root } = current;
   await openDrawer(page);
 
-  await page.getByRole('button', { name: /^New (PowerShell|bash|zsh)$/ }).click();
+  await page.getByRole('button', { name: 'New Terminal', exact: true }).click();
   await expect.poll(() => drawerSessions(page), { timeout: 60_000 }).toHaveLength(1);
   // The host is a process of its own, started with this profile on its command line.
   expect(processesUnder(root)).toBeGreaterThan(0);

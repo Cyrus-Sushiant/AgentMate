@@ -14,7 +14,7 @@ vi.mock('@/lib/terminal/terminalRuntime', () => ({
   terminalRuntime: { deliverPrompt: vi.fn(() => Promise.resolve(true)) },
 }));
 vi.mock('@/stores/terminalStore', () => ({
-  defaultNewSession: () => ({ title: 'PowerShell', shell: 'powershell.exe' }),
+  defaultNewSession: () => ({ title: 'Terminal', shell: 'powershell.exe' }),
   useTerminalStore: { getState: () => ({ openSession: vi.fn() }) },
 }));
 vi.mock('@/stores/workspaceStore', () => ({

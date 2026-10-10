@@ -56,7 +56,7 @@ CLIs that are not installed are hidden by default. Click **Show all CLIs** to se
 
 ### The terminal will not start
 
-A pane that says **Could not start this terminal.** failed to launch its shell. Check that the shell you picked is installed. AgentMate writes the reason to its own console output, which a bug report can include.
+A pane that says **Could not start this terminal.** failed to launch its shell. The line after it says why: a shell that is not installed (reinstall it, or pick another from the shell menu), or a folder that was deleted or moved (reopen the project from its new location). AgentMate writes the reason to its own console output, which a bug report can include.
 
 ### The session ended
 

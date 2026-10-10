@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { type TerminalSessionMeta, useTerminalStore } from '@/stores/terminalStore';
+import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge';
 
 /**
  * The drawer's frame: it is its own rounded island, the same on a page and on the Workspace
@@ -57,6 +58,20 @@ afterEach(() => {
 });
 
 describe('TerminalDrawer shell', () => {
+  it('calls the new-tab buttons Terminal on every platform, never the shell name', () => {
+    for (const platform of ['win32', 'darwin', 'linux'] as const) {
+      installAgentmatBridge({ platform });
+      useTerminalStore.setState({ sessions: [], activeSessionId: null });
+      const view = renderDrawer();
+      // The empty-state button and the tab-strip icon button both open a plain terminal.
+      expect(screen.getAllByRole('button', { name: /^New Terminal/ }).length).toBeGreaterThan(0);
+      expect(screen.getByText('New Terminal')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /New (zsh|bash|PowerShell)/ })).toBeNull();
+      expect(screen.queryByText(/New (zsh|bash|PowerShell)/)).toBeNull();
+      view.unmount();
+    }
+  });
+
   it('draws the drawer as its own island, sized from the store', () => {
     const { shell, island } = renderDrawer();
 

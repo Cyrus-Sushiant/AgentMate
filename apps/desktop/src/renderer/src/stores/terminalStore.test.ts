@@ -31,12 +31,12 @@ beforeEach(() => {
 });
 
 describe('defaultNewSession', () => {
-  it('starts the shell that belongs to the platform', () => {
-    expect(defaultNewSession()).toEqual({ title: 'PowerShell', shell: 'powershell.exe' });
+  it('starts the shell that belongs to the platform, always called a terminal', () => {
+    expect(defaultNewSession()).toEqual({ title: 'Terminal', shell: 'powershell.exe' });
     installAgentmatBridge({ platform: 'darwin' });
-    expect(defaultNewSession()).toEqual({ title: 'zsh', shell: 'zsh' });
+    expect(defaultNewSession()).toEqual({ title: 'Terminal', shell: 'zsh' });
     installAgentmatBridge({ platform: 'linux' });
-    expect(defaultNewSession()).toEqual({ title: 'bash', shell: 'bash' });
+    expect(defaultNewSession()).toEqual({ title: 'Terminal', shell: 'bash' });
   });
 });
 
@@ -95,21 +95,21 @@ describe('openSession', () => {
 });
 
 describe('openDefaultSession', () => {
-  it('names the first tab after the shell and numbers the ones after it', () => {
+  it('names the first tab Terminal and numbers the ones after it', () => {
     store().openDefaultSession();
     store().openDefaultSession();
     store().openDefaultSession();
     expect(store().sessions.map((session) => session.title)).toEqual([
-      'PowerShell',
-      'PowerShell 2',
-      'PowerShell 3',
+      'Terminal',
+      'Terminal 2',
+      'Terminal 3',
     ]);
   });
 
   it('counts only tabs running the same shell', () => {
     store().openSession({ title: 'bash', shell: 'bash' });
     store().openDefaultSession();
-    expect(store().sessions.at(-1)?.title).toBe('PowerShell');
+    expect(store().sessions.at(-1)?.title).toBe('Terminal');
   });
 });
 

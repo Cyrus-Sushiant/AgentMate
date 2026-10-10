@@ -86,12 +86,13 @@ type PersistedTerminalState = Pick<
   'isOpen' | 'drawerHeight' | 'sessions' | 'activeSessionId'
 >;
 
-/** The shell a plain "new tab" starts, per platform. */
+/** The shell a plain "new tab" starts, per platform. The tab is always called a terminal:
+ * naming it after the shell ("New zsh") confused people into thinking zsh itself was the app. */
 export function defaultNewSession(): { title: string; shell?: string } {
   const platform = window.agentmat.platform;
-  if (platform === 'win32') return { title: 'PowerShell', shell: 'powershell.exe' };
-  if (platform === 'darwin') return { title: 'zsh', shell: 'zsh' };
-  return { title: 'bash', shell: 'bash' };
+  if (platform === 'win32') return { title: 'Terminal', shell: 'powershell.exe' };
+  if (platform === 'darwin') return { title: 'Terminal', shell: 'zsh' };
+  return { title: 'Terminal', shell: 'bash' };
 }
 
 function withoutSession(

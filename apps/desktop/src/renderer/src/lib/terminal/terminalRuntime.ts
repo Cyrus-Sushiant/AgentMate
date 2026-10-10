@@ -11,6 +11,7 @@ import { claimTerminalFocus, releaseTerminalFocus } from './focusClaim';
 import { onFontsLoaded, whenTerminalFontReady } from './fontReady';
 import { attachTerminalPaste } from './pasteFiles';
 import { createResizeSync, type ResizeSync } from './resizeSync';
+import { describeTerminalStartError } from './startError';
 import { attachRtlRendering } from './terminalRtl';
 import {
   attachFocusOnClick,
@@ -376,9 +377,9 @@ function start(entry: Entry): void {
       }
       entry.term.write(snapshot.data, () => release(true));
     })
-    .catch(() => {
+    .catch((error: unknown) => {
       if (entries.get(spec.id) === entry) {
-        entry.term.write('\r\n\x1b[31mCould not start this terminal.\x1b[0m\r\n');
+        entry.term.write(`\r\n\x1b[31m${describeTerminalStartError(error)}\x1b[0m\r\n`);
       }
     });
 }

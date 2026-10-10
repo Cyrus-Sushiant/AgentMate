@@ -3,6 +3,7 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal as HeadlessTerminal } from '@xterm/headless';
 import * as pty from 'node-pty';
 import { killShellTree } from './killTree';
+import { resolveSpawnTarget } from './shellResolve';
 import {
   consoleClients,
   createPasteBoost,
@@ -159,14 +160,27 @@ export class PtySessionManager {
   private spawn(options: SpawnSessionOptions, listener: SessionListener): void {
     const cols = options.cols ?? 80;
     const rows = options.rows ?? 24;
-    const launch = buildShellLaunch(options.shell, process.platform, options.env);
-    const ptyProcess = pty.spawn(options.shell, launch.args, {
-      name: 'xterm-256color',
-      cols,
-      rows,
-      cwd: options.cwd ?? process.env.HOME ?? process.env.USERPROFILE,
-      env: { ...shellEnv(options.env), ...launch.env },
-    });
+    // A shell the user uninstalled, or a folder deleted since the tab was created, must not
+    // cost the user their terminal: the fallbacks below take over and say so in the log.
+    const target = resolveSpawnTarget({ shell: options.shell, cwd: options.cwd, env: options.env });
+    for (const note of target.notes) this.log(note);
+    const launch = buildShellLaunch(target.shell, process.platform, options.env);
+    let ptyProcess: pty.IPty;
+    try {
+      ptyProcess = pty.spawn(target.file, launch.args, {
+        name: 'xterm-256color',
+        cols,
+        rows,
+        cwd: target.cwd,
+        env: { ...shellEnv(options.env), ...launch.env },
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.log(`could not start ${target.shell} in ${target.cwd}: ${detail}`);
+      // Thrown rather than logged only: the rejection travels back to the pane, which prints it
+      // after "Could not start this terminal." so the user sees why, not just that.
+      throw new Error(`${target.shell} could not be started in ${target.cwd}: ${detail}`);
+    }
     // Mirrors the options the app's own xterm uses, so what gets serialized reads back the
     // same way it was drawn the first time.
     const emulator = new HeadlessTerminal({
@@ -205,7 +219,7 @@ export class PtySessionManager {
       // A shell that dies this fast never started: a missing binary, or a pty backend that
       // cannot run its helper. The pane just goes blank, so say so somewhere.
       if (Date.now() - session.createdAt < IMMEDIATE_EXIT_MS) {
-        this.log(`${options.shell} exited immediately with code ${exitCode}`);
+        this.log(`${target.shell} exited immediately with code ${exitCode}`);
       }
       // An attach in progress reports the exit itself once its snapshot is out.
       if (session.attaching.length === 0) this.finish(session);
