@@ -78,6 +78,23 @@ function internals(): AutoUpdaterInternals {
   return autoUpdater as unknown as AutoUpdaterInternals;
 }
 
+/**
+ * On macOS electron-updater emits `update-downloaded` as soon as the zip is in
+ * its cache, before Squirrel.Mac has fetched it from the local proxy server
+ * (see MacUpdater.updateDownloaded). Showing "Restart now" at that point leaves
+ * the button dead: MacUpdater.quitAndInstall() only waits for the native
+ * `update-downloaded` event and quits later, with no feedback. While our own
+ * resumable download still holds the lock, the native handoff has not finished,
+ * so the `downloaded` broadcast must wait until `autoUpdater.downloadUpdate()`
+ * resolves (which on macOS is after Squirrel has the file).
+ */
+export function shouldDeferDownloadedBroadcast(
+  platform: NodeJS.Platform,
+  hasActiveDownload: boolean,
+): boolean {
+  return platform === 'darwin' && hasActiveDownload;
+}
+
 const HTML_ENTITIES: Record<string, string> = {
   amp: '&',
   lt: '<',
@@ -282,6 +299,12 @@ function wireEvents(): void {
 
   autoUpdater.on('update-downloaded', (info) => {
     activeUpdateInfo = toUpdateInfo(info);
+    if (shouldDeferDownloadedBroadcast(process.platform, downloadLock != null)) {
+      // macOS only: the zip is cached but Squirrel.Mac has not picked it up yet.
+      // runDownload() broadcasts `downloaded` after the native handoff resolves,
+      // so `Restart now` only appears once quitAndInstall() can actually quit.
+      return;
+    }
     lastProgress = null;
     broadcast({ state: 'downloaded', info: activeUpdateInfo });
   });
@@ -455,6 +478,13 @@ async function runDownload(): Promise<void> {
     if (digest === asset.sha512) {
       await seedElectronUpdaterCache(asset, done);
       await autoUpdater.downloadUpdate();
+      if (shouldDeferDownloadedBroadcast(process.platform, true)) {
+        // The `update-downloaded` event above was deferred; Squirrel.Mac has the
+        // file now, so `Restart now` will actually quit.
+        activeUpdateInfo = info;
+        lastProgress = null;
+        broadcast({ state: 'downloaded', info });
+      }
       return;
     }
     await rm(done, { force: true });
@@ -519,6 +549,12 @@ async function runDownload(): Promise<void> {
     await rename(part, done);
     await seedElectronUpdaterCache(asset, done);
     await autoUpdater.downloadUpdate();
+    if (shouldDeferDownloadedBroadcast(process.platform, true)) {
+      // Same deferred handoff as the cache-hit path above.
+      activeUpdateInfo = info;
+      lastProgress = null;
+      broadcast({ state: 'downloaded', info });
+    }
   } catch (error) {
     if (error instanceof DownloadAbortedError) {
       const transferred = await fileSize(part);
@@ -577,7 +613,22 @@ export function quitAndInstall(): void {
   preserveTerminalsOnQuit();
   // The user already chose to restart for the update, so open sessions don't ask again.
   allowQuit();
-  autoUpdater.quitAndInstall();
+  try {
+    autoUpdater.quitAndInstall();
+  } catch (error) {
+    // BaseUpdater.install dispatches its own error event, but a synchronous throw
+    // (e.g. "No update filepath") would otherwise leave the `downloaded` dialog
+    // open with a dead button. Surface it so the dialog can explain the retry.
+    const message = error instanceof Error ? error.message : 'Restart to install failed.';
+    const status: UpdateStatus = {
+      state: 'error',
+      message,
+      info: activeUpdateInfo ?? undefined,
+      resumable: false,
+    };
+    broadcast(status);
+    throw error instanceof Error ? error : new Error(message);
+  }
 }
 
 /** Runs an initial check on startup, then re-checks hourly while packaged. */

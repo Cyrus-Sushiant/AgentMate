@@ -1,5 +1,5 @@
 import type { UpdateDownloadProgress, UpdateStatus } from '@shared/apiTypes';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CloudDownload, Download, Pause, Play, RefreshCw, Wifi } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -274,24 +274,7 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
   }
 
   if (status.state === 'downloaded') {
-    return (
-      <>
-        <DialogHeader>
-          <DialogTitle>Update ready to install</DialogTitle>
-          <DialogDescription>
-            AgentMate v{status.info.version} is downloaded. Restart now to finish installing, or it
-            installs the next time you quit.
-          </DialogDescription>
-        </DialogHeader>
-        <UpdateProgressTrack percent={100} />
-        <DialogFooter>
-          <Button variant="soft" onClick={() => closeUpdateDialog()}>
-            Later
-          </Button>
-          <Button onClick={() => void window.agentmat.app.quitAndInstall()}>Restart now</Button>
-        </DialogFooter>
-      </>
-    );
+    return <DownloadedDialogBody version={status.info.version} />;
   }
 
   if (status.state === 'error') {
@@ -341,6 +324,48 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
       <DialogTitle>Updates</DialogTitle>
       <DialogDescription>Checking for a new version.</DialogDescription>
     </DialogHeader>
+  );
+}
+
+/**
+ * The restart step hands off to the OS installer, which can take a moment on
+ * macOS while Squirrel finishes its local handoff. Disable both buttons while
+ * the IPC call is in flight so a click that has not quit yet never looks dead,
+ * and surface a failure instead of staying on a stuck dialog.
+ */
+export function DownloadedDialogBody({ version }: { version: string }): React.JSX.Element {
+  const [restarting, setRestarting] = useState(false);
+
+  async function restartNow(): Promise<void> {
+    if (restarting) return;
+    setRestarting(true);
+    try {
+      await window.agentmat.app.quitAndInstall();
+    } catch {
+      setRestarting(false);
+      toast.error('Restart to install failed. Quit the app and it installs on the way out.');
+    }
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Update ready to install</DialogTitle>
+        <DialogDescription>
+          AgentMate v{version} is downloaded. Restart now to finish installing, or it installs the
+          next time you quit.
+        </DialogDescription>
+      </DialogHeader>
+      <UpdateProgressTrack percent={100} />
+      <DialogFooter>
+        <Button variant="soft" disabled={restarting} onClick={() => closeUpdateDialog()}>
+          Later
+        </Button>
+        <Button disabled={restarting} onClick={() => void restartNow()}>
+          {restarting ? 'Restarting…' : 'Restart now'}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 

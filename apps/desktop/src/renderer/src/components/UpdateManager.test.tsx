@@ -311,3 +311,55 @@ describe('UpdateStatusChip', () => {
     expect(screen.queryByRole('button', { name: 'Show update download' })).toBeNull();
   });
 });
+
+describe('UpdateManager restart', () => {
+  it('shows progress and locks the dialog while the installer takes over', async () => {
+    const { bridge, user } = renderManager();
+    // The macOS installer handoff can take a moment; the promise stays pending.
+    bridge.$set('app.quitAndInstall', () => new Promise<void>(() => undefined));
+    act(() => bridge.$emit('app.onUpdateStatus', { state: 'downloaded', info }));
+    await screen.findByRole('dialog');
+
+    await user.click(screen.getByRole('button', { name: 'Restart now' }));
+
+    const restarting = await screen.findByRole('button', { name: 'Restarting…' });
+    expect(restarting.getAttribute('disabled')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Later' }).getAttribute('disabled')).not.toBeNull();
+  });
+
+  it('sends a single restart even when clicked twice', async () => {
+    const { bridge, user } = renderManager();
+    bridge.$set('app.quitAndInstall', () => new Promise<void>(() => undefined));
+    act(() => bridge.$emit('app.onUpdateStatus', { state: 'downloaded', info }));
+    await screen.findByRole('dialog');
+
+    const button = screen.getByRole('button', { name: 'Restart now' });
+    await user.click(button);
+    await screen.findByRole('button', { name: 'Restarting…' });
+    // Disabled by now, so this is a no-op rather than a second install attempt.
+    await user.click(screen.getByRole('button', { name: 'Restarting…' }));
+
+    await waitFor(() => expect(bridge.$fn('app.quitAndInstall')).toHaveBeenCalledTimes(1));
+  });
+
+  it('explains a restart failure instead of sitting on a dead dialog', async () => {
+    const { bridge, user } = renderManager();
+    toast.error.mockClear();
+    bridge.$set('app.quitAndInstall', async () => {
+      throw new Error('No update filepath provided');
+    });
+    act(() => bridge.$emit('app.onUpdateStatus', { state: 'downloaded', info }));
+    await screen.findByRole('dialog');
+
+    await user.click(screen.getByRole('button', { name: 'Restart now' }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Restart to install failed. Quit the app and it installs on the way out.',
+      ),
+    );
+    // Back to an enabled Restart so the user can retry or quit manually.
+    const retry = await screen.findByRole('button', { name: 'Restart now' });
+    expect(retry.getAttribute('disabled')).toBeNull();
+  });
+});

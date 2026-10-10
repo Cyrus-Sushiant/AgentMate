@@ -1232,12 +1232,28 @@ export default function SettingsPage(): React.JSX.Element {
 
   const updateStatus = useUpdateStore((s) => s.status);
   const checkingForUpdates = updateStatus.state === 'checking';
+  const [restartingForUpdate, setRestartingForUpdate] = useState(false);
 
   async function handleCheckForUpdates(): Promise<void> {
     const result = await window.agentmat.app.checkForUpdates();
     if (result.state === 'not-available') toast.success("You're on the latest version.");
     else if (result.state === 'error') toast.error(result.message);
   }
+
+  async function handleQuitAndInstall(): Promise<void> {
+    if (restartingForUpdate) return;
+    setRestartingForUpdate(true);
+    try {
+      await window.agentmat.app.quitAndInstall();
+    } catch {
+      setRestartingForUpdate(false);
+      toast.error('Restart to install failed. Quit the app and it installs on the way out.');
+    }
+  }
+
+  useEffect(() => {
+    if (updateStatus.state !== 'downloaded') setRestartingForUpdate(false);
+  }, [updateStatus.state]);
 
   function updateStatusLabel(): string {
     switch (updateStatus.state) {
@@ -2633,8 +2649,11 @@ export default function SettingsPage(): React.JSX.Element {
                     description={`AgentMate ${versionLabel}`}
                     action={
                       updateStatus.state === 'downloaded' ? (
-                        <Button onClick={() => void window.agentmat.app.quitAndInstall()}>
-                          Restart now
+                        <Button
+                          disabled={restartingForUpdate}
+                          onClick={() => void handleQuitAndInstall()}
+                        >
+                          {restartingForUpdate ? 'Restarting…' : 'Restart now'}
                         </Button>
                       ) : updateStatus.state === 'downloading' ? (
                         <div className="flex items-center gap-2">
