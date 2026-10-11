@@ -136,16 +136,12 @@ describe('browsableRepoUrl', () => {
 
 describe('normalizeCloneUrl / isClonableGithubUrl', () => {
   it('accepts https, bare, scp-style and ssh GitHub addresses', () => {
-    expect(normalizeCloneUrl('https://github.com/me/my-app')).toBe(
-      'https://github.com/me/my-app',
-    );
+    expect(normalizeCloneUrl('https://github.com/me/my-app')).toBe('https://github.com/me/my-app');
     expect(normalizeCloneUrl('https://github.com/me/my-app.git')).toBe(
       'https://github.com/me/my-app',
     );
     expect(normalizeCloneUrl('github.com/me/my-app')).toBe('https://github.com/me/my-app');
-    expect(normalizeCloneUrl('git@github.com:me/my-app.git')).toBe(
-      'https://github.com/me/my-app',
-    );
+    expect(normalizeCloneUrl('git@github.com:me/my-app.git')).toBe('https://github.com/me/my-app');
     expect(normalizeCloneUrl('ssh://git@github.com/me/my-app.git')).toBe(
       'https://github.com/me/my-app',
     );

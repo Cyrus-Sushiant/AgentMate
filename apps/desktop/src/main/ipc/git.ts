@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process';
+import { mkdir, readdir } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import type { GitChangeEntry, Project } from '@agentmat/core';
 import {
   browsableRepoUrl,
@@ -5,9 +8,6 @@ import {
   normalizeCloneUrl,
   stripRemoteCredentials,
 } from '@agentmat/core';
-import { execFile } from 'node:child_process';
-import { mkdir, readdir } from 'node:fs/promises';
-import { promisify } from 'node:util';
 import { ipcMain } from 'electron';
 import type {
   ApplyVersionInput,
@@ -426,9 +426,7 @@ function registerRepoHandlers(): void {
           });
         } catch (error) {
           const stderr = String(
-            (error as { stderr?: string })?.stderr ??
-              (error as Error)?.message ??
-              '',
+            (error as { stderr?: string })?.stderr ?? (error as Error)?.message ?? '',
           );
           if (/repository not found|not found|404/i.test(stderr)) {
             return {
@@ -437,7 +435,9 @@ function registerRepoHandlers(): void {
                 'Repository not found. Check the address, or sign in with "gh auth login" for a private repo.',
             };
           }
-          if (/authentication|permission denied|401|403|askpass|could not read username/i.test(stderr)) {
+          if (
+            /authentication|permission denied|401|403|askpass|could not read username/i.test(stderr)
+          ) {
             return {
               ok: false,
               message:
@@ -450,8 +450,14 @@ function registerRepoHandlers(): void {
               message: 'Folder is not empty. Choose an empty folder to clone into.',
             };
           }
-          const firstLine = stderr.split('\n').map((l) => l.trim()).filter(Boolean)[0];
-          return { ok: false, message: firstLine || 'Clone failed. Check the address and try again.' };
+          const firstLine = stderr
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)[0];
+          return {
+            ok: false,
+            message: firstLine || 'Clone failed. Check the address and try again.',
+          };
         }
         // Clone writes the checkout straight into folder, nothing more to move.
         return { ok: true, message: `Cloned ${stripRemoteCredentials(normalized)}.` };

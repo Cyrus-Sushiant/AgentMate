@@ -179,7 +179,9 @@ export default function ProjectsPage(): React.JSX.Element {
   }, [dialogOpen, promptBuildOpen, reviewOpen]);
 
   const createMutation = useMutation({
-    mutationFn: async (values: ProjectFormValues): Promise<{ project: Project; cloned: boolean }> => {
+    mutationFn: async (
+      values: ProjectFormValues,
+    ): Promise<{ project: Project; cloned: boolean }> => {
       let cloned = false;
       const repo = values.repoUrl?.trim();
       // Auto-clone ("Clone into Folder"): a public GitHub address is cloned into

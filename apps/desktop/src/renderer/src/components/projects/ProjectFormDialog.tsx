@@ -331,8 +331,7 @@ export function ProjectFormDialog({
 
   // New projects auto-clone a public GitHub address into the folder on Create
   // ("Clone into Folder"). Editing never clones: the field stays a plain link.
-  const willClone =
-    !initial && repoUrl.trim().length > 0 && isClonableGithubUrl(repoUrl);
+  const willClone = !initial && repoUrl.trim().length > 0 && isClonableGithubUrl(repoUrl);
 
   /**
    * Order is priority here: the Run button offers these top down, and a project

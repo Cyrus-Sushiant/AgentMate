@@ -379,10 +379,7 @@ describe('ProjectsPage GitHub auto-clone', () => {
     const dialog = await screen.findByRole('dialog');
 
     await user.type(within(dialog).getByLabelText(/^Folder/), 'C:\\code\\apollo');
-    await user.type(
-      within(dialog).getByLabelText(/Git repository/),
-      'github.com/me/my-app',
-    );
+    await user.type(within(dialog).getByLabelText(/Git repository/), 'github.com/me/my-app');
 
     expect(await within(dialog).findByText(/Will clone into/)).toBeTruthy();
   });
@@ -405,10 +402,7 @@ describe('ProjectsPage GitHub auto-clone', () => {
     await waitFor(() =>
       expect((within(dialog).getByLabelText(/^Name/) as HTMLInputElement).value).toBe('apollo'),
     );
-    await user.type(
-      within(dialog).getByLabelText(/Git repository/),
-      'github.com/me/my-app',
-    );
+    await user.type(within(dialog).getByLabelText(/Git repository/), 'github.com/me/my-app');
     await user.click(createButton(dialog));
 
     await waitFor(() =>
@@ -448,10 +442,7 @@ describe('ProjectsPage GitHub auto-clone', () => {
         'C:\\code\\apollo',
       ),
     );
-    await user.type(
-      within(dialog).getByLabelText(/Git repository/),
-      'github.com/me/my-app',
-    );
+    await user.type(within(dialog).getByLabelText(/Git repository/), 'github.com/me/my-app');
     await user.click(createButton(dialog));
 
     await waitFor(() => expect(bridge.$fn('git.cloneInto')).toHaveBeenCalled());
