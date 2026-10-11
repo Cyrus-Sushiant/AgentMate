@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import appIconDark from '@/assets/app-icon.png';
 import appIconLight from '@/assets/app-icon-light.png';
-import { Search, WindowMaximize, WindowMinimize, X } from '@/components/icons';
+import { Minus, Plus, Search, X } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useIsDarkMode } from '@/lib/chartColors';
 import { isTitleBarBlankDoubleClick } from '@/lib/titleBar';
@@ -12,11 +12,13 @@ import { HistoryNav } from './HistoryNav';
 
 function TrafficLight({
   color,
+  border,
   icon: Icon,
   onClick,
   title,
 }: {
   color: string;
+  border: string;
   icon: typeof X;
   onClick: () => void;
   title: string;
@@ -25,13 +27,20 @@ function TrafficLight({
     <SimpleTooltip label={title}>
       <button
         type="button"
+        aria-label={title}
         onClick={onClick}
         className={cn(
-          'group/dot flex h-3.5 w-3.5 items-center justify-center rounded-full transition-transform hover:scale-110 [-webkit-app-region:no-drag]',
+          'flex h-3 w-3 items-center justify-center rounded-full border shadow-[inset_0_0_2px_rgba(255,255,255,0.4),0_0_1px_rgba(0,0,0,0.2)] transition-[filter,brightness] duration-100 [-webkit-app-region:no-drag]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+          'active:brightness-75 active:saturate-150',
           color,
+          border,
         )}
       >
-        <Icon className="h-2 w-2 text-black/60 opacity-0 transition-opacity group-hover/dot:opacity-100" />
+        {/* Native macOS shows every glyph while the pointer is anywhere over the
+            traffic-light cluster, not just over the button itself — hence the shared
+            group/traffic on the container. Focus reveals them too for keyboard users. */}
+        <Icon className="h-[8px] w-[8px] text-black/60 opacity-0 transition-opacity duration-100 group-hover/traffic:opacity-100 group-focus-within/traffic:opacity-100 group-active/traffic:opacity-100 focus-visible:opacity-100" />
       </button>
     </SimpleTooltip>
   );
@@ -43,17 +52,25 @@ export function MacTrafficLights({
   onClose,
 }: WindowControlsProps): React.JSX.Element {
   return (
-    <div className="flex items-center gap-2">
-      <TrafficLight color="bg-[#ff5f57]" icon={X} title="Close" onClick={onClose} />
+    <div className="group/traffic flex items-center gap-2 px-1 py-1.5">
+      <TrafficLight
+        color="bg-[#ff5f57]"
+        border="border-[#e0443e]/80"
+        icon={X}
+        title="Close"
+        onClick={onClose}
+      />
       <TrafficLight
         color="bg-[#febc2e]"
-        icon={WindowMinimize}
+        border="border-[#de9f22]/80"
+        icon={Minus}
         title="Minimize"
         onClick={onMinimize}
       />
       <TrafficLight
         color="bg-[#28c840]"
-        icon={WindowMaximize}
+        border="border-[#1aab29]/80"
+        icon={Plus}
         title="Maximize"
         onClick={onMaximizeToggle}
       />

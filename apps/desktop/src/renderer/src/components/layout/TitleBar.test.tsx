@@ -102,8 +102,11 @@ describe('TitleBar on macOS', () => {
 
     expect(screen.queryByText(GLYPH.close)).toBeNull();
 
-    await user.click(trafficLight(container, 'window-minimize'));
-    await user.click(trafficLight(container, 'window-maximize'));
+    // Native glyphs: xmark/minus/plus, revealed as a group on cluster hover.
+    expect(container.querySelector('.group\\/traffic')).toBeTruthy();
+
+    await user.click(trafficLight(container, 'minus'));
+    await user.click(trafficLight(container, 'plus'));
     await user.click(trafficLight(container, 'xmark'));
 
     expect(bridge.$fn('window.minimize')).toHaveBeenCalled();
