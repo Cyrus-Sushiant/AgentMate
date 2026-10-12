@@ -339,7 +339,11 @@ async function openclaudeRoots(fs: HistoryFs, home: string): Promise<string[]> {
   return [...new Set(roots)];
 }
 
-async function openclaudeFiles(fs: HistoryFs, home: string, settings: Settings): Promise<FileInfo[]> {
+async function openclaudeFiles(
+  fs: HistoryFs,
+  home: string,
+  settings: Settings,
+): Promise<FileInfo[]> {
   const wanted = settings.folder === undefined ? null : claudeProjectDirName(settings.folder);
   const dirs: string[] = [];
   for (const root of await openclaudeRoots(fs, home)) {
@@ -390,7 +394,9 @@ async function geminiHashRoots(
   const hashes = (await listDir(fs, tmpRoot)).filter((e) => e.isDirectory);
   await mapLimit(hashes, settings.concurrency, async (entry) => {
     try {
-      const text = (await fs.readRange(fs.join(tmpRoot, entry.name, '.project_root'), 0, 4096)).trim();
+      const text = (
+        await fs.readRange(fs.join(tmpRoot, entry.name, '.project_root'), 0, 4096)
+      ).trim();
       if (text) map.set(entry.name, text);
     } catch {
       /* no sidecar */
@@ -405,7 +411,9 @@ async function geminiChats(
   settings: Settings,
 ): Promise<{ file: FileInfo; cwd: string | null }[]> {
   const out: { file: FileInfo; cwd: string | null }[] = [];
-  const hashCwd = await geminiHashRoots(fs, tmpRoot, settings).catch(() => new Map<string, string>());
+  const hashCwd = await geminiHashRoots(fs, tmpRoot, settings).catch(
+    () => new Map<string, string>(),
+  );
   const hashes = (await listDir(fs, tmpRoot).catch(() => [] as HistoryDirEntry[])).filter(
     (e) => e.isDirectory,
   );
@@ -449,16 +457,20 @@ interface CursorCandidate extends FileInfo {
   promptMtime: number;
 }
 
-async function cursorFiles(fs: HistoryFs, home: string, settings: Settings): Promise<CursorCandidate[]> {
+async function cursorFiles(
+  fs: HistoryFs,
+  home: string,
+  settings: Settings,
+): Promise<CursorCandidate[]> {
   const out: CursorCandidate[] = [];
   const chatsRoot = fs.join(home, '.cursor', 'chats');
   const workspaces = (await listDir(fs, chatsRoot).catch(() => [] as HistoryDirEntry[])).filter(
     (e) => e.isDirectory,
   );
   await mapLimit(workspaces, settings.concurrency, async (ws) => {
-    const ids = (await listDir(fs, fs.join(chatsRoot, ws.name)).catch(() => [] as HistoryDirEntry[])).filter(
-      (e) => e.isDirectory,
-    );
+    const ids = (
+      await listDir(fs, fs.join(chatsRoot, ws.name)).catch(() => [] as HistoryDirEntry[])
+    ).filter((e) => e.isDirectory);
     await mapLimit(ids, settings.concurrency, async (id) => {
       const dir = fs.join(chatsRoot, ws.name, id.name);
       const entries = await listDir(fs, dir).catch(() => [] as HistoryDirEntry[]);
@@ -619,9 +631,9 @@ async function grokFiles(fs: HistoryFs, home: string, settings: Settings): Promi
   });
   const out: FileInfo[] = [];
   await mapLimit(wanted, settings.concurrency, async (entry) => {
-    const sessions = (await listDir(fs, fs.join(root, entry.name)).catch(
-      () => [] as HistoryDirEntry[],
-    )).filter((e) => e.isDirectory);
+    const sessions = (
+      await listDir(fs, fs.join(root, entry.name)).catch(() => [] as HistoryDirEntry[])
+    ).filter((e) => e.isDirectory);
     await mapLimit(sessions, settings.concurrency, async (session) => {
       const chat = fs.join(root, entry.name, session.name, 'chat_history.jsonl');
       try {
@@ -674,9 +686,9 @@ async function clineFiles(fs: HistoryFs, home: string, settings: Settings): Prom
   );
   const out: FileInfo[] = [];
   await mapLimit(groups, settings.concurrency, async (group) => {
-    const entries = (await listDir(fs, fs.join(root, group.name)).catch(
-      () => [] as HistoryDirEntry[],
-    )).filter((e) => e.isFile && e.name.endsWith('.json') && !e.name.endsWith('.messages.json'));
+    const entries = (
+      await listDir(fs, fs.join(root, group.name)).catch(() => [] as HistoryDirEntry[])
+    ).filter((e) => e.isFile && e.name.endsWith('.json') && !e.name.endsWith('.messages.json'));
     for (const entry of entries) out.push(fileInfo(fs, fs.join(root, group.name), entry));
   });
   if (settings.folder === undefined) return out;
@@ -690,7 +702,13 @@ async function clineFiles(fs: HistoryFs, home: string, settings: Settings): Prom
         return;
       }
       try {
-        if (sameFolder(JSON.parse(`"${cwd}"`) as string, settings.folder as string, fs.caseInsensitive)) {
+        if (
+          sameFolder(
+            JSON.parse(`"${cwd}"`) as string,
+            settings.folder as string,
+            fs.caseInsensitive,
+          )
+        ) {
           kept.push(file);
         }
       } catch {
@@ -745,18 +763,27 @@ export async function collectHistory(
   const codex = await codexHome(fs, home);
   const geminiTmp = fs.join(home, '.gemini', 'tmp');
   const qwenTmp = fs.join(home, '.qwen', 'tmp');
-  const [claudeCandidates, openclaudeCandidates, codexCandidates, geminiCandidates, qwenCandidates, cursorCandidates, continueCandidates, grokCandidates, clineCandidates] =
-    await Promise.all([
-      claudeFiles(fs, home, settings).catch(() => []),
-      openclaudeFiles(fs, home, settings).catch(() => []),
-      codexFiles(fs, codex, settings).catch(() => []),
-      geminiChats(fs, geminiTmp, settings).catch(() => []),
-      geminiChats(fs, qwenTmp, settings).catch(() => []),
-      cursorFiles(fs, home, settings).catch(() => []),
-      continueFiles(fs, home, settings).catch(() => []),
-      grokFiles(fs, home, settings).catch(() => []),
-      clineFiles(fs, home, settings).catch(() => []),
-    ]);
+  const [
+    claudeCandidates,
+    openclaudeCandidates,
+    codexCandidates,
+    geminiCandidates,
+    qwenCandidates,
+    cursorCandidates,
+    continueCandidates,
+    grokCandidates,
+    clineCandidates,
+  ] = await Promise.all([
+    claudeFiles(fs, home, settings).catch(() => []),
+    openclaudeFiles(fs, home, settings).catch(() => []),
+    codexFiles(fs, codex, settings).catch(() => []),
+    geminiChats(fs, geminiTmp, settings).catch(() => []),
+    geminiChats(fs, qwenTmp, settings).catch(() => []),
+    cursorFiles(fs, home, settings).catch(() => []),
+    continueFiles(fs, home, settings).catch(() => []),
+    grokFiles(fs, home, settings).catch(() => []),
+    clineFiles(fs, home, settings).catch(() => []),
+  ]);
   type Picked =
     | { provider: AgentHistoryProvider; file: FileInfo; cwd?: string | null }
     | { provider: AgentHistoryProvider; file: CursorCandidate };
@@ -783,9 +810,21 @@ export async function collectHistory(
       case 'codex':
         return codexSession(fs, item.file, settings);
       case 'gemini-cli':
-        return geminiSession('gemini-cli', fs, item.file, (item as { cwd?: string | null }).cwd ?? null, settings);
+        return geminiSession(
+          'gemini-cli',
+          fs,
+          item.file,
+          (item as { cwd?: string | null }).cwd ?? null,
+          settings,
+        );
       case 'qwen-cli':
-        return geminiSession('qwen-cli', fs, item.file, (item as { cwd?: string | null }).cwd ?? null, settings);
+        return geminiSession(
+          'qwen-cli',
+          fs,
+          item.file,
+          (item as { cwd?: string | null }).cwd ?? null,
+          settings,
+        );
       case 'cursor-cli':
         return cursorSession(fs, item.file as CursorCandidate, settings);
       case 'continue-cli':

@@ -342,14 +342,19 @@ export function summarizeGeminiChat(
       if (!Array.isArray(content)) continue;
       const text = content
         .map((block) =>
-          block && typeof block === 'object' && typeof (block as { text?: unknown }).text === 'string'
+          block &&
+          typeof block === 'object' &&
+          typeof (block as { text?: unknown }).text === 'string'
             ? String((block as { text?: unknown }).text)
             : '',
         )
         .join(' ');
       // The first user message is always the giant `<session_context>` setup
       // block; skip anything that is only context.
-      if (text.includes('<session_context>') && !/>\s*\S/.test(text.split('<session_context>')[0] ?? '')) {
+      if (
+        text.includes('<session_context>') &&
+        !/>\s*\S/.test(text.split('<session_context>')[0] ?? '')
+      ) {
         // A message that is mostly context may still end with a real prompt,
         // but the setup message has no user text outside the context block.
         const outside = text.replace(/<session_context>[\s\S]*?(<\/session_context>|$)/, '').trim();
@@ -441,7 +446,8 @@ export function summarizeContinueSession(
     id,
     title,
     firstPrompt: texts[0] ?? null,
-    lastPrompt: texts.length > 1 && texts[texts.length - 1] !== texts[0] ? texts[texts.length - 1] : null,
+    lastPrompt:
+      texts.length > 1 && texts[texts.length - 1] !== texts[0] ? texts[texts.length - 1] : null,
     cwd,
     gitBranch: null,
     model: jsonField(source, 'model') ?? jsonField(source, 'modelId'),
@@ -485,7 +491,14 @@ export function summarizeCursorSession(
     }
   }
   if (prompts.length === 0) {
-    const skip = new Set(['cwd', 'title', 'schemaVersion', 'createdAtMs', 'updatedAtMs', 'hasConversation']);
+    const skip = new Set([
+      'cwd',
+      'title',
+      'schemaVersion',
+      'createdAtMs',
+      'updatedAtMs',
+      'hasConversation',
+    ]);
     const stringRe = /"((?:[^"\\]|\\.){2,})"/g;
     let match: RegExpExecArray | null;
     while ((match = stringRe.exec(source)) !== null) {
@@ -532,7 +545,9 @@ export function summarizeClineSession(
   const source = [...head, ...tail].join('\n');
   const id = jsonField(source, 'session_id') ?? fallbackId;
   const prompt = jsonField(source, 'prompt');
-  const firstPrompt = prompt ? promptPreview(prompt.replace(/<user_input[^>]*>|<\/user_input>/g, ' ')) : null;
+  const firstPrompt = prompt
+    ? promptPreview(prompt.replace(/<user_input[^>]*>|<\/user_input>/g, ' '))
+    : null;
   if (!firstPrompt) return null;
   return {
     id,

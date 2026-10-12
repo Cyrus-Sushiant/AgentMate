@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CLI_REGISTRY } from '../cli/registry.js';
 import {
   AGENT_HISTORY_PROVIDERS,
+  type AgentHistoryProvider,
   claudeProjectDirName,
   codexRolloutMeta,
   HISTORY_UNSUPPORTED_CLIS,
@@ -14,7 +15,6 @@ import {
   summarizeCursorSession,
   summarizeGeminiChat,
   summarizeGrokChat,
-  type AgentHistoryProvider,
 } from './sessionHistory.js';
 
 const line = (value: unknown): string => JSON.stringify(value);
@@ -244,9 +244,7 @@ describe('continue sessions', () => {
   });
 
   it('returns null when there is no prompt and no title', () => {
-    expect(
-      summarizeContinueSession('x', [JSON.stringify({ sessionId: 'x' })], []),
-    ).toBeNull();
+    expect(summarizeContinueSession('x', [JSON.stringify({ sessionId: 'x' })], [])).toBeNull();
   });
 });
 
@@ -254,7 +252,10 @@ describe('cursor sessions', () => {
   it('reads cwd, title and prompts from meta plus prompt history', () => {
     const summary = summarizeCursorSession(
       'chat-id',
-      ['{"cwd":"E:\\\\AgentMate","title":"Commit Lint Fixer"}', '["Fix the flaky tests","And lint"]'],
+      [
+        '{"cwd":"E:\\\\AgentMate","title":"Commit Lint Fixer"}',
+        '["Fix the flaky tests","And lint"]',
+      ],
       [],
     );
     expect(summary).toMatchObject({
@@ -300,12 +301,15 @@ describe('cline sessions', () => {
 });
 
 describe('grok chats', () => {
-  const user = (text: string) =>
-    line({ type: 'user', content: [{ type: 'text', text }] });
+  const user = (text: string) => line({ type: 'user', content: [{ type: 'text', text }] });
   const assistant = line({ type: 'assistant', content: 'OK', model_id: 'grok-4.6' });
 
   it('reads the <user_query> ask and the model', () => {
-    const summary = summarizeGrokChat('sid', [user('<user_query>\nReply with exactly: OK\n</user_query>'), assistant], []);
+    const summary = summarizeGrokChat(
+      'sid',
+      [user('<user_query>\nReply with exactly: OK\n</user_query>'), assistant],
+      [],
+    );
     expect(summary).toMatchObject({
       id: 'sid',
       firstPrompt: 'Reply with exactly: OK',
@@ -314,7 +318,9 @@ describe('grok chats', () => {
   });
 
   it('skips scaffolding messages', () => {
-    expect(summarizeGrokChat('sid', [user('<user_info>\nOS: windows\n</user_info>')], [])).toBeNull();
+    expect(
+      summarizeGrokChat('sid', [user('<user_info>\nOS: windows\n</user_info>')], []),
+    ).toBeNull();
   });
 });
 

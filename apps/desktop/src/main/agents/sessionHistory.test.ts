@@ -390,12 +390,17 @@ describe('collectHistory for every CLI', () => {
           sessionId: 'n1',
           title: 'Continue work',
           workspaceDirectory: 'file:///work/app',
-          history: [{ message: { role: 'user', content: [{ type: 'text', text: 'Continue fix it' }] } }],
+          history: [
+            { message: { role: 'user', content: [{ type: 'text', text: 'Continue fix it' }] } },
+          ],
         }),
         mtimeMs: 70,
       },
       '/home/me/.grok/sessions/%2Fwork%2Fapp/gs1/chat_history.jsonl': {
-        content: jsonl({ type: 'user', content: [{ type: 'text', text: '<user_query>Grok fix it</user_query>' }] }),
+        content: jsonl({
+          type: 'user',
+          content: [{ type: 'text', text: '<user_query>Grok fix it</user_query>' }],
+        }),
         mtimeMs: 80,
       },
       '/home/me/.cline/data/sessions/111/claude.json': {
@@ -451,7 +456,17 @@ describe('collectHistory for every CLI', () => {
   it('returns every folder when no folder is given', async () => {
     const sessions = await collectHistory(fakeFs(tree()));
     expect(sessions.map((s) => s.provider).sort()).toEqual(
-      ['claude-code', 'cline-cli', 'codex', 'continue-cli', 'cursor-cli', 'gemini-cli', 'grok-cli', 'openclaude', 'qwen-cli'].sort(),
+      [
+        'claude-code',
+        'cline-cli',
+        'codex',
+        'continue-cli',
+        'cursor-cli',
+        'gemini-cli',
+        'grok-cli',
+        'openclaude',
+        'qwen-cli',
+      ].sort(),
     );
   });
 

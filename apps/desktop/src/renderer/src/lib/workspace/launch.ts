@@ -208,7 +208,10 @@ export const HISTORY_CLI_ID: Record<AgentHistoryProvider, string> = {
  * `--resume <id>`. Providers without a known resume spelling return null and
  * the UI disables the resume action with a reason.
  */
-export function resumeArgsFor(provider: AgentHistoryProvider, id: string): {
+export function resumeArgsFor(
+  provider: AgentHistoryProvider,
+  id: string,
+): {
   runArgs?: string[];
   leadingArgs?: string[];
 } | null {
@@ -217,8 +220,12 @@ export function resumeArgsFor(provider: AgentHistoryProvider, id: string): {
 }
 
 /** Why a conversation cannot be resumed right now, if at all. */
-export function resumeDisabledReasonFor(session: Pick<AgentHistorySession, 'provider'>): string | null {
-  return resumeArgsFor(session.provider, 'x') ? null : `Resume is not supported for ${session.provider} yet.`;
+export function resumeDisabledReasonFor(
+  session: Pick<AgentHistorySession, 'provider'>,
+): string | null {
+  return resumeArgsFor(session.provider, 'x')
+    ? null
+    : `Resume is not supported for ${session.provider} yet.`;
 }
 
 /**
@@ -353,7 +360,12 @@ export function resumeInputFor(tab: WorkspaceTerminalTab): string | null {
   if (!entry) return null;
   const resume = resumeArgsFor(entry[0], id);
   if (!resume) return null;
-  const command = agentCommand(tab.cliId, tab.shell, resume.runArgs ?? [], resume.leadingArgs ?? []);
+  const command = agentCommand(
+    tab.cliId,
+    tab.shell,
+    resume.runArgs ?? [],
+    resume.leadingArgs ?? [],
+  );
   return command ? `${command}\r` : null;
 }
 

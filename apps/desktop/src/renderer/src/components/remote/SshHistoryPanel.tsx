@@ -179,17 +179,18 @@ function HistorySheet({
   const hiddenCount = backgroundCount(sessions, provider);
   // The probe runs in a login shell, so a CLI on a PATH set only in .bashrc reads as missing
   // while the interactive resume shell would still find it. Warn, never block.
-  const CLI_PRESENT: Record<HistoryProvider, (clis: NonNullable<typeof data>['clis']) => boolean> = {
-    'claude-code': (clis) => clis.claude,
-    openclaude: () => true,
-    codex: (clis) => clis.codex,
-    'gemini-cli': (clis) => clis.gemini,
-    'qwen-cli': (clis) => clis.qwen,
-    'cursor-cli': (clis) => clis.cursor,
-    'continue-cli': (clis) => clis.continue,
-    'grok-cli': (clis) => clis.grok,
-    'cline-cli': (clis) => clis.cline,
-  };
+  const CLI_PRESENT: Record<HistoryProvider, (clis: NonNullable<typeof data>['clis']) => boolean> =
+    {
+      'claude-code': (clis) => clis.claude,
+      openclaude: () => true,
+      codex: (clis) => clis.codex,
+      'gemini-cli': (clis) => clis.gemini,
+      'qwen-cli': (clis) => clis.qwen,
+      'cursor-cli': (clis) => clis.cursor,
+      'continue-cli': (clis) => clis.continue,
+      'grok-cli': (clis) => clis.grok,
+      'cline-cli': (clis) => clis.cline,
+    };
   const missingClis = data ? [...providers].filter((p) => !CLI_PRESENT[p](data.clis)) : [];
   const summary =
     data && sessions.length > 0
@@ -498,9 +499,7 @@ function EmptyState(): React.JSX.Element {
         <History className="h-5 w-5" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">
-          No agent conversations on this server yet.
-        </p>
+        <p className="text-sm font-medium">No agent conversations on this server yet.</p>
         <p className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground">
           They show up here after you run an agent CLI over SSH on it.
         </p>
