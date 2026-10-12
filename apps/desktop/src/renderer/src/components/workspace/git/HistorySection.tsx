@@ -9,6 +9,7 @@ import {
 } from '@/components/agentHistory/AgentHistoryList';
 import {
   backgroundCount,
+  countByProvider,
   filterSessions,
   type ProviderFilter,
 } from '@/components/agentHistory/historyFilters';
@@ -60,6 +61,7 @@ export function HistorySection({ project }: { project: Project }): React.JSX.Ele
 
   const sessions = history.data ?? [];
   const providers = new Set(sessions.map((s) => s.provider));
+  const counts = countByProvider(sessions);
   const hiddenCount = backgroundCount(sessions, provider);
   const visible = filterSessions(sessions, { query, provider, showBackground });
 
@@ -94,6 +96,7 @@ export function HistorySection({ project }: { project: Project }): React.JSX.Ele
         provider={provider}
         onProviderChange={setProvider}
         providers={providers}
+        counts={counts}
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">
         <HistoryDayGroups sessions={visible} openIds={openConversations} onResume={resume} />

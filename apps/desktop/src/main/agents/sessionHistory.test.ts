@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearHistoryCaches,
   collectHistory,
@@ -23,6 +23,11 @@ interface FakeOptions {
   env?: Record<string, string>;
   caseInsensitive?: boolean;
   scope?: string;
+  /** In-memory OpenCode store: sessions plus first/last user prompt per session id. */
+  opencode?: {
+    sessions: Record<string, unknown>[];
+    prompts?: Record<string, { first: string | null; last: string | null }>;
+  };
 }
 
 type FakeFs = HistoryFs & {
@@ -33,6 +38,17 @@ type FakeFs = HistoryFs & {
 function fakeFs(files: Record<string, FakeFile>, options: FakeOptions = {}): FakeFs {
   const map = new Map(Object.entries(files));
   const reads: FakeFs['reads'] = [];
+  const queryDb: HistoryFs['queryDb'] = options.opencode
+    ? async (_dbPath, sql, params = []) => {
+        const store = options.opencode;
+        if (!store || sql.includes('FROM session')) return [...(store?.sessions ?? [])];
+        const id = params[0];
+        const prompts = (store?.prompts ?? {})[id as string];
+        if (!prompts) return [];
+        const text = sql.includes('DESC') ? prompts.last : prompts.first;
+        return text == null ? [] : [{ data: JSON.stringify({ type: 'text', text }) }];
+      }
+    : undefined;
   return {
     files: map,
     reads,
@@ -71,6 +87,7 @@ function fakeFs(files: Record<string, FakeFile>, options: FakeOptions = {}): Fak
         .subarray(start, start + length)
         .toString('utf-8');
     },
+    queryDb,
   };
 }
 
@@ -413,11 +430,45 @@ describe('collectHistory for every CLI', () => {
         }),
         mtimeMs: 90,
       },
+      // The header probe findOpencodeDb reads; the rows come from queryDb.
+      '/home/me/.local/share/opencode/opencode.db': {
+        content: 'SQLite format 3\0fake',
+        mtimeMs: 1,
+      },
     };
   }
 
+  function opencodeStore() {
+    return {
+      sessions: [
+        {
+          id: 'ses_aaa',
+          directory: '/work/app',
+          title: 'OpenCode work',
+          model: '{"id":"m1","providerID":"opencode"}',
+          time_created: 90,
+          time_updated: 100,
+        },
+        {
+          id: 'ses_bbb',
+          directory: '/elsewhere',
+          title: 'Elsewhere work',
+          model: '{"id":"m2","providerID":"opencode"}',
+          time_created: 80,
+          time_updated: 85,
+        },
+      ],
+      prompts: {
+        ses_aaa: { first: 'OpenCode fix it', last: 'OpenCode follow-up' },
+        ses_bbb: { first: 'Not here', last: null },
+      },
+    };
+  }
+
+  const withOpencode = () => fakeFs(tree(), { opencode: opencodeStore() });
+
   it('lists sessions from every supported CLI in one folder', async () => {
-    const sessions = await collectHistory(fakeFs(tree()), { folder: '/work/app' });
+    const sessions = await collectHistory(withOpencode(), { folder: '/work/app' });
     expect(sessions.map((s) => [s.provider, s.firstPrompt]).sort()).toEqual(
       [
         ['claude-code', 'Claude here'],
@@ -428,6 +479,7 @@ describe('collectHistory for every CLI', () => {
         ['gemini-cli', 'Gemini fix it'],
         ['grok-cli', 'Grok fix it'],
         ['openclaude', 'OpenClaude here'],
+        ['opencode', 'OpenCode fix it'],
         ['qwen-cli', 'Gemini fix it'],
       ].sort(),
     );
@@ -435,6 +487,13 @@ describe('collectHistory for every CLI', () => {
     for (const session of sessions) {
       expect(session.cwd === null || session.cwd === '/work/app').toBe(true);
     }
+    const opencode = sessions.find((s) => s.provider === 'opencode');
+    expect(opencode).toMatchObject({
+      id: 'ses_aaa',
+      title: 'OpenCode work',
+      lastPrompt: 'OpenCode follow-up',
+      model: 'm1',
+    });
   });
 
   it('hides other folders without hiding sessions with no recorded folder', async () => {
@@ -454,8 +513,14 @@ describe('collectHistory for every CLI', () => {
   });
 
   it('returns every folder when no folder is given', async () => {
-    const sessions = await collectHistory(fakeFs(tree()));
-    expect(sessions.map((s) => s.provider).sort()).toEqual(
+    const sessions = await collectHistory(withOpencode());
+    expect(
+      sessions
+        .filter((s) => s.provider === 'opencode')
+        .map((s) => s.id)
+        .sort(),
+    ).toEqual(['ses_aaa', 'ses_bbb']);
+    expect([...new Set(sessions.map((s) => s.provider))].sort()).toEqual(
       [
         'claude-code',
         'cline-cli',
@@ -465,6 +530,7 @@ describe('collectHistory for every CLI', () => {
         'gemini-cli',
         'grok-cli',
         'openclaude',
+        'opencode',
         'qwen-cli',
       ].sort(),
     );
@@ -472,10 +538,196 @@ describe('collectHistory for every CLI', () => {
 
   it('resolves the provider for each stored session (no silent Claude-only fallback)', async () => {
     // Regression test for the reported bug: history must not collapse to claude-code.
-    const sessions = await collectHistory(fakeFs(tree()), { folder: '/work/app' });
+    const sessions = await collectHistory(withOpencode(), { folder: '/work/app' });
     const providers = new Set(sessions.map((s) => s.provider));
     expect(providers.has('claude-code')).toBe(true);
+    expect(providers.has('opencode')).toBe(true);
     expect(providers.size).toBeGreaterThan(2);
+  });
+});
+
+describe('collectHistory for OpenCode', () => {
+  const dbFile = (mtimeMs = 1): Record<string, FakeFile> => ({
+    '/home/me/.local/share/opencode/opencode.db': { content: 'SQLite format 3\0fake', mtimeMs },
+  });
+
+  const store = (
+    sessions: Record<string, unknown>[],
+    prompts: Record<string, { first: string | null; last: string | null }> = {},
+  ) => ({ sessions, prompts });
+
+  it('reads sessions and prompts from the SQLite store', async () => {
+    const fs = fakeFs(dbFile(), {
+      opencode: store(
+        [
+          {
+            id: 'ses_1',
+            directory: '/work/app',
+            title: 'Ship it',
+            model: '{"id":"m1","providerID":"opencode"}',
+            time_created: 10,
+            time_updated: 20,
+          },
+        ],
+        { ses_1: { first: 'First ask', last: 'Last ask' } },
+      ),
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({
+      provider: 'opencode',
+      id: 'ses_1',
+      title: 'Ship it',
+      firstPrompt: 'First ask',
+      lastPrompt: 'Last ask',
+      cwd: '/work/app',
+      model: 'm1',
+      startedAt: 10,
+      updatedAt: 20,
+    });
+  });
+
+  it('keeps folder filtering on the session directory', async () => {
+    const fs = fakeFs(dbFile(), {
+      opencode: store(
+        [
+          {
+            id: 'here',
+            directory: '/work/app',
+            title: 'Here',
+            model: null,
+            time_created: 1,
+            time_updated: 2,
+          },
+          {
+            id: 'there',
+            directory: '/elsewhere',
+            title: 'There',
+            model: null,
+            time_created: 1,
+            time_updated: 3,
+          },
+        ],
+        {
+          here: { first: 'Here ask', last: null },
+          there: { first: 'There ask', last: null },
+        },
+      ),
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions.map((s) => s.id)).toEqual(['here']);
+  });
+
+  it('skips OpenCode without a database or without SQL support', async () => {
+    // No db file at all.
+    await expect(collectHistory(fakeFs({}, { opencode: store([]) }))).resolves.toEqual([]);
+    // A remote target has no queryDb, so its OpenCode sessions stay hidden.
+    const remote = fakeFs(dbFile());
+    expect(remote.queryDb).toBeUndefined();
+    await expect(collectHistory(remote, { folder: '/work/app' })).resolves.toEqual([]);
+  });
+
+  it('skips sessions with neither a prompt nor a real title', async () => {
+    const fs = fakeFs(dbFile(), {
+      opencode: store(
+        [
+          {
+            id: 'empty',
+            directory: '/work/app',
+            title: 'New session - 2026-10-11T00:14:02.527Z',
+            model: null,
+            time_created: 1,
+            time_updated: 2,
+          },
+        ],
+        {},
+      ),
+    });
+    await expect(collectHistory(fs, { folder: '/work/app' })).resolves.toEqual([]);
+  });
+
+  it('reads a real SQLite store through localHistoryFs', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const dir = await mkdtemp(join(tmpdir(), 'opencode-'));
+    try {
+      const storeDir = join(dir, '.local', 'share', 'opencode');
+      await mkdir(storeDir, { recursive: true });
+      const dbPath = join(storeDir, 'opencode.db');
+      const db = new DatabaseSync(dbPath);
+      try {
+        db.exec(
+          'CREATE TABLE session (id TEXT, directory TEXT, title TEXT, model TEXT, time_created INTEGER, time_updated INTEGER)',
+        );
+        db.exec('CREATE TABLE message (id TEXT, session_id TEXT, data TEXT)');
+        db.exec(
+          'CREATE TABLE part (id TEXT, message_id TEXT, session_id TEXT, time_created INTEGER, data TEXT)',
+        );
+        db.prepare('INSERT INTO session VALUES (?, ?, ?, ?, ?, ?)').run(
+          'ses_real',
+          'E:/App',
+          'Real session',
+          '{"id":"m-real","providerID":"opencode"}',
+          100,
+          200,
+        );
+        db.prepare('INSERT INTO message VALUES (?, ?, ?)').run(
+          'msg_1',
+          'ses_real',
+          JSON.stringify({ role: 'user' }),
+        );
+        const insertPart = db.prepare('INSERT INTO part VALUES (?, ?, ?, ?, ?)');
+        insertPart.run(
+          'prt_1',
+          'msg_1',
+          'ses_real',
+          101,
+          JSON.stringify({ type: 'text', text: 'Real first prompt' }),
+        );
+        insertPart.run(
+          'prt_2',
+          'msg_1',
+          'ses_real',
+          102,
+          JSON.stringify({ type: 'text', text: 'Real last prompt' }),
+        );
+      } finally {
+        db.close();
+      }
+      const fs: HistoryFs = { ...localHistoryFs, scope: 'opencode-real', home: async () => dir };
+      const sessions = await collectHistory(fs, { folder: 'E:/App' });
+      expect(sessions.map((s) => [s.provider, s.id, s.firstPrompt, s.lastPrompt])).toEqual([
+        ['opencode', 'ses_real', 'Real first prompt', 'Real last prompt'],
+      ]);
+      expect(sessions[0]).toMatchObject({ cwd: 'E:/App', model: 'm-real' });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('caches prompts until the session updates', async () => {
+    const sessions = [
+      {
+        id: 'ses_1',
+        directory: '/work/app',
+        title: 'Cached',
+        model: null,
+        time_created: 1,
+        time_updated: 2,
+      },
+    ];
+    const options = {
+      opencode: store(sessions, { ses_1: { first: 'Original', last: null } }),
+    };
+    const fs = fakeFs(dbFile(), options);
+    const queryDb = vi.fn(fs.queryDb);
+    fs.queryDb = queryDb;
+    await collectHistory(fs, { folder: '/work/app' });
+    const callsAfterFirst = queryDb.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    await collectHistory(fs, { folder: '/work/app' });
+    // Sessions list is re-read, but the cached prompts are not.
+    expect(queryDb.mock.calls.length).toBeLessThan(callsAfterFirst * 2);
   });
 });
 

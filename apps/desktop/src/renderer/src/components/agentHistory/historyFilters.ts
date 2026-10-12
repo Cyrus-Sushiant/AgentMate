@@ -18,6 +18,7 @@ export const PROVIDER_LABEL: Record<HistoryProvider, string> = {
   'continue-cli': 'Continue',
   'grok-cli': 'Grok',
   'cline-cli': 'Cline',
+  opencode: 'OpenCode',
 };
 
 export interface HistoryFilter {
@@ -76,6 +77,17 @@ export function backgroundCount(
   provider: ProviderFilter,
 ): number {
   return sessions.filter((s) => s.background && matchesProvider(s, provider)).length;
+}
+
+/** Conversations per agent, for the agent filter menu counts. */
+export function countByProvider(
+  sessions: readonly AgentHistorySession[],
+): Map<HistoryProvider, number> {
+  const counts = new Map<HistoryProvider, number>();
+  for (const session of sessions) {
+    counts.set(session.provider, (counts.get(session.provider) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** Splits an already sorted list into day runs, keeping its order. */

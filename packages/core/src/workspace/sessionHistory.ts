@@ -18,7 +18,8 @@ export type AgentHistoryProvider =
   | 'cursor-cli'
   | 'continue-cli'
   | 'grok-cli'
-  | 'cline-cli';
+  | 'cline-cli'
+  | 'opencode';
 
 /** Every provider `collectHistory` reads. Add a reader in main when extending. */
 export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
@@ -31,6 +32,7 @@ export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
   'continue-cli',
   'grok-cli',
   'cline-cli',
+  'opencode',
 ];
 
 /**
@@ -39,7 +41,6 @@ export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
  * CLI is added to `CLI_REGISTRY` without a history decision.
  */
 export const HISTORY_UNSUPPORTED_CLIS: readonly string[] = [
-  'opencode',
   'copilot-cli',
   'aider',
   'goose',
@@ -618,6 +619,62 @@ export function summarizeGrokChat(
     model,
     effort: null,
     startedAt: null,
+    background: false,
+  };
+}
+
+// --- OpenCode (SQLite session store) -------------------------------------------
+
+/** One row of OpenCode's `session` table, as read by main. */
+export interface OpencodeSessionRow {
+  id: string;
+  directory: string | null;
+  title: string | null;
+  /** JSON like `{"id":"model-name","providerID":"..."}`. */
+  model: string | null;
+  time_created: number | null;
+  time_updated: number | null;
+}
+
+function opencodeModel(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const id = (parsed as { id?: unknown }).id;
+      if (typeof id === 'string' && id) return id;
+    }
+  } catch {
+    /* not JSON: fall through */
+  }
+  return raw || null;
+}
+
+/**
+ * Summarizes an OpenCode session. Untitled sessions are named
+ * `New session - <timestamp>` by the CLI, which carries no information and
+ * becomes a null title. Epoch times are milliseconds.
+ */
+export function summarizeOpencodeSession(
+  row: OpencodeSessionRow,
+  firstPrompt: string | null,
+  lastPrompt: string | null,
+): SessionSummary | null {
+  const title =
+    row.title && !/^New session - /.test(row.title) && row.title.toLowerCase() !== 'untitled'
+      ? row.title
+      : null;
+  if (!firstPrompt && !title) return null;
+  return {
+    id: row.id,
+    title,
+    firstPrompt,
+    lastPrompt: lastPrompt && lastPrompt !== firstPrompt ? lastPrompt : null,
+    cwd: row.directory || null,
+    gitBranch: null,
+    model: opencodeModel(row.model),
+    effort: null,
+    startedAt: typeof row.time_created === 'number' ? row.time_created : null,
     background: false,
   };
 }

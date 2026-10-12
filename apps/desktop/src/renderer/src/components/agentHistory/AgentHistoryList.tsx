@@ -1,7 +1,15 @@
 import type { AgentHistorySession } from '@agentmat/core';
 import { toast } from 'sonner';
 import { CliLogo } from '@/components/cliLogos';
-import { Copy, GitBranch, Play, Search } from '@/components/icons';
+import { ChevronDown, Copy, GitBranch, Play, Search } from '@/components/icons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { timeAgo } from '@/lib/time';
@@ -171,6 +179,8 @@ export interface HistoryToolbarProps {
   onProviderChange: (provider: ProviderFilter) => void;
   /** The agents present in the list; the agent filter shows only when there are several. */
   providers: ReadonlySet<HistoryProvider>;
+  /** Conversations per agent, shown as counts in the agent filter menu. */
+  counts?: ReadonlyMap<HistoryProvider, number>;
 }
 
 export function HistoryToolbar({
@@ -179,7 +189,15 @@ export function HistoryToolbar({
   provider,
   onProviderChange,
   providers,
+  counts,
 }: HistoryToolbarProps): React.JSX.Element {
+  // Busiest agent first, so the likeliest pick sits at the top of the menu.
+  const ordered = [...providers].sort(
+    (a, b) =>
+      (counts?.get(b) ?? 0) - (counts?.get(a) ?? 0) ||
+      PROVIDER_LABEL[a].localeCompare(PROVIDER_LABEL[b]),
+  );
+  const total = ordered.reduce((sum, p) => sum + (counts?.get(p) ?? 0), 0);
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1.5">
       <Search className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
@@ -191,29 +209,41 @@ export function HistoryToolbar({
         className="h-6 min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/70"
       />
       {providers.size > 1 ? (
-        <div
-          role="radiogroup"
-          aria-label="Agent"
-          className="flex shrink-0 items-center rounded-md bg-foreground/[0.05] p-0.5"
-        >
-          {(['all', ...[...providers].sort()] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={provider === value}
-              onClick={() => onProviderChange(value)}
-              className={cn(
-                'rounded px-1.5 py-px text-[10px] font-medium transition-colors',
-                provider === value
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Filter by agent"
+            className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-foreground/[0.05] px-1.5 text-[10px] font-medium text-foreground transition-colors hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&_svg]:shrink-0"
+          >
+            {provider === 'all' ? null : (
+              <CliLogo cliId={HISTORY_CLI_ID[provider]} className="h-2.5 w-2.5" />
+            )}
+            <span className="max-w-24 truncate">
+              {provider === 'all' ? 'All agents' : PROVIDER_LABEL[provider]}
+            </span>
+            <ChevronDown className="h-2 w-2 text-muted-foreground" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" aria-label="Agent">
+            <DropdownMenuRadioGroup
+              value={provider}
+              onValueChange={(value) => onProviderChange(value as ProviderFilter)}
             >
-              {value === 'all' ? 'All' : PROVIDER_LABEL[value]}
-            </button>
-          ))}
-        </div>
+              <DropdownMenuRadioItem value="all">
+                <span className="flex-1">All agents</span>
+                <span className="tabular-nums text-muted-foreground">{total}</span>
+              </DropdownMenuRadioItem>
+              <DropdownMenuSeparator />
+              {ordered.map((value) => (
+                <DropdownMenuRadioItem key={value} value={value}>
+                  <CliLogo cliId={HISTORY_CLI_ID[value]} className="h-3 w-3" />
+                  <span className="flex-1">{PROVIDER_LABEL[value]}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {counts?.get(value) ?? 0}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : null}
     </div>
   );

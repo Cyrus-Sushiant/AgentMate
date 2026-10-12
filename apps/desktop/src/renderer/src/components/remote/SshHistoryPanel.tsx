@@ -13,6 +13,7 @@ import {
 } from '@/components/agentHistory/AgentHistoryList';
 import {
   backgroundCount,
+  countByProvider,
   displayPath,
   type FolderGroup,
   filterSessions,
@@ -62,6 +63,7 @@ const CLI_COMMAND: Record<HistoryProvider, string> = {
   'continue-cli': 'cn',
   'grok-cli': 'grok',
   'cline-cli': 'cline',
+  opencode: 'opencode',
 };
 
 const UNKNOWN_FOLDER = 'Unknown folder';
@@ -173,6 +175,7 @@ function HistorySheet({
   const home = data?.home ?? null;
   const searching = query.trim() !== '';
   const providers = new Set(sessions.map((s) => s.provider));
+  const counts = countByProvider(sessions);
   const browsable = filterSessions(sessions, { query: '', provider: 'all', showBackground });
   const visible = filterSessions(sessions, { query, provider, showBackground });
   const groups = groupByFolder(visible);
@@ -190,6 +193,7 @@ function HistorySheet({
       'continue-cli': (clis) => clis.continue,
       'grok-cli': (clis) => clis.grok,
       'cline-cli': (clis) => clis.cline,
+      opencode: (clis) => clis.opencode,
     };
   const missingClis = data ? [...providers].filter((p) => !CLI_PRESENT[p](data.clis)) : [];
   const summary =
@@ -306,6 +310,7 @@ function HistorySheet({
                 provider={provider}
                 onProviderChange={setProvider}
                 providers={providers}
+                counts={counts}
               />
             </div>
             {missingClis.length > 0 ? (

@@ -6,6 +6,7 @@ import {
   claudeProjectDirName,
   codexRolloutMeta,
   HISTORY_UNSUPPORTED_CLIS,
+  type OpencodeSessionRow,
   promptPreview,
   sameFolder,
   summarizeClaudeTranscript,
@@ -15,6 +16,7 @@ import {
   summarizeCursorSession,
   summarizeGeminiChat,
   summarizeGrokChat,
+  summarizeOpencodeSession,
 } from './sessionHistory.js';
 
 const line = (value: unknown): string => JSON.stringify(value);
@@ -324,6 +326,54 @@ describe('grok chats', () => {
   });
 });
 
+describe('opencode sessions', () => {
+  const row = (overrides: Partial<OpencodeSessionRow> = {}): OpencodeSessionRow => ({
+    id: 'ses_abc123',
+    directory: 'E:/AgentMate',
+    title: 'Fix the login',
+    model: '{"id":"muse-spark","providerID":"opencode","variant":"default"}',
+    time_created: 1791677642527,
+    time_updated: 1791771129416,
+    ...overrides,
+  });
+
+  it('reads id, folder, title, model and prompts', () => {
+    const summary = summarizeOpencodeSession(row(), 'Fix it', 'Then that');
+    expect(summary).toMatchObject({
+      id: 'ses_abc123',
+      title: 'Fix the login',
+      firstPrompt: 'Fix it',
+      lastPrompt: 'Then that',
+      cwd: 'E:/AgentMate',
+      model: 'muse-spark',
+      startedAt: 1791677642527,
+    });
+  });
+
+  it('drops the CLI-generated "New session" title', () => {
+    expect(
+      summarizeOpencodeSession(row({ title: 'New session - 2026-10-11T00:14:02.527Z' }), 'Hi', null)
+        ?.title,
+    ).toBeNull();
+    // A title alone still counts as a conversation.
+    expect(summarizeOpencodeSession(row({ title: 'Real title' }), null, null)).toMatchObject({
+      title: 'Real title',
+      firstPrompt: null,
+    });
+  });
+
+  it('returns null without a prompt and without a real title', () => {
+    expect(summarizeOpencodeSession(row({ title: 'New session - x' }), null, null)).toBeNull();
+  });
+
+  it('tolerates a missing or non-JSON model', () => {
+    expect(summarizeOpencodeSession(row({ model: null }), 'Hi', null)?.model).toBeNull();
+    expect(summarizeOpencodeSession(row({ model: 'plain-model' }), 'Hi', null)?.model).toBe(
+      'plain-model',
+    );
+  });
+});
+
 describe('history provider coverage', () => {
   it('accounts for every CLI in the registry', () => {
     const covered = new Set<string>([...AGENT_HISTORY_PROVIDERS, ...HISTORY_UNSUPPORTED_CLIS]);
@@ -352,6 +402,7 @@ describe('history provider coverage', () => {
       'continue-cli': 'continue-cli',
       'grok-cli': 'grok-cli',
       'cline-cli': 'cline-cli',
+      opencode: 'opencode',
     };
     for (const provider of AGENT_HISTORY_PROVIDERS) {
       if (provider === 'codex') continue;

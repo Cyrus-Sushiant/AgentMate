@@ -1,11 +1,14 @@
-import { open, readdir, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { copyFileSync, mkdtempSync } from 'node:fs';
+import { open, readdir, rm, stat } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   type AgentHistoryProvider,
   type AgentHistorySession,
   claudeProjectDirName,
   codexRolloutMeta,
+  type OpencodeSessionRow,
+  promptPreview,
   type SessionSummary,
   sameFolder,
   summarizeClaudeTranscript,
@@ -15,7 +18,9 @@ import {
   summarizeCursorSession,
   summarizeGeminiChat,
   summarizeGrokChat,
+  summarizeOpencodeSession,
 } from '@agentmat/core';
+import Database from 'better-sqlite3';
 
 // Past conversations for the workspace's history section. Each CLI keeps its own store:
 // Claude Code (and OpenClaude, same format) one transcript per session in a folder named
@@ -23,8 +28,9 @@ import {
 // Gemini/Qwen JSONL chats under tmp/<hash>/chats with the folder in a sibling
 // `.project_root`; Cursor meta.json + prompt_history.json; Continue one JSON per
 // session; Grok chat_history.jsonl under a url-encoded folder dir; Cline one JSON
-// per session. Only the first and last chunk of a file is read, and the result is
-// cached against the file's size and mtime, so listing again is nearly free.
+// per session; OpenCode rows in a SQLite store queried for metadata plus the first
+// and last user prompt. Only the first and last chunk of a file is read, and the
+// result is cached against the file's size and mtime, so listing again is nearly free.
 //
 // The reading goes through a small HistoryFs, so the same logic lists this machine's history
 // and, over SFTP, a saved server's.
@@ -58,6 +64,11 @@ export interface HistoryFs {
   list(dir: string): Promise<HistoryDirEntry[]>;
   /** Decoded UTF-8 text of bytes [start, start+length). */
   readRange(path: string, start: number, length: number): Promise<string>;
+  /**
+   * Rows from a local SQLite database. Only the local reader implements it:
+   * SQL cannot run over SFTP, so remote targets skip SQLite-backed CLIs.
+   */
+  queryDb?(dbPath: string, sql: string, params?: unknown[]): Promise<Record<string, unknown>[]>;
 }
 
 export interface CollectHistoryOptions {
@@ -741,6 +752,139 @@ async function clineSession(
   return toSession('cline-cli', file, summary);
 }
 
+// --- OpenCode (SQLite session store) ----------------------------------------------
+
+const OPENCODE_DB_HEADER = 'SQLite format 3\0';
+
+/**
+ * Where OpenCode keeps `opencode.db`. The XDG-style path holds on Linux and
+ * Windows; macOS uses Application Support. Probed in order, so a missing file
+ * just falls through to the next candidate.
+ */
+async function findOpencodeDb(fs: HistoryFs, home: string): Promise<string | null> {
+  const candidates = [
+    fs.join(home, '.local', 'share', 'opencode', 'opencode.db'),
+    fs.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db'),
+  ];
+  for (const dbPath of candidates) {
+    try {
+      const header = await fs.readRange(dbPath, 0, OPENCODE_DB_HEADER.length);
+      if (header === OPENCODE_DB_HEADER) return dbPath;
+    } catch {
+      /* missing or unreadable: try the next candidate */
+    }
+  }
+  return null;
+}
+
+const OPENCODE_SESSIONS_SQL =
+  'SELECT id, directory, title, model, time_created, time_updated FROM session ORDER BY time_updated DESC';
+
+const OPENCODE_FIRST_PROMPT_SQL = `SELECT p.data AS data FROM part p JOIN message m ON m.id = p.message_id
+  WHERE m.session_id = ? AND json_extract(m.data, '$.role') = 'user'
+  AND json_extract(p.data, '$.type') = 'text' ORDER BY p.time_created LIMIT 1`;
+
+const OPENCODE_LAST_PROMPT_SQL = `SELECT p.data AS data FROM part p JOIN message m ON m.id = p.message_id
+  WHERE m.session_id = ? AND json_extract(m.data, '$.role') = 'user'
+  AND json_extract(p.data, '$.type') = 'text' ORDER BY p.time_created DESC LIMIT 1`;
+
+interface OpencodeCandidate {
+  file: FileInfo;
+  row: OpencodeSessionRow;
+  dbPath: string;
+}
+
+async function opencodeCandidates(
+  fs: HistoryFs,
+  home: string,
+  settings: Settings,
+): Promise<OpencodeCandidate[]> {
+  // SQL cannot run over SFTP, so only targets with a queryDb (this machine) read OpenCode.
+  if (!fs.queryDb) return [];
+  const dbPath = await findOpencodeDb(fs, home).catch(() => null);
+  if (!dbPath) return [];
+  let rows: Record<string, unknown>[];
+  try {
+    rows = await fs.queryDb(dbPath, OPENCODE_SESSIONS_SQL);
+  } catch {
+    return [];
+  }
+  const out: OpencodeCandidate[] = [];
+  for (const record of rows) {
+    if (typeof record.id !== 'string' || !record.id) continue;
+    const cwd = typeof record.directory === 'string' && record.directory ? record.directory : null;
+    if (
+      settings.folder !== undefined &&
+      cwd &&
+      !sameFolder(cwd, settings.folder, fs.caseInsensitive)
+    ) {
+      continue;
+    }
+    const timeUpdated = typeof record.time_updated === 'number' ? record.time_updated : 0;
+    out.push({
+      // Pseudo-file: the summary cache keys on `size:mtimeMs`, i.e. the session's
+      // last update, so an edited session is re-read and the rest is free.
+      file: { path: `${dbPath}#${record.id}`, name: record.id, mtimeMs: timeUpdated, size: 0 },
+      row: {
+        id: record.id,
+        directory: cwd,
+        title: typeof record.title === 'string' ? record.title : null,
+        model: typeof record.model === 'string' ? record.model : null,
+        time_created: typeof record.time_created === 'number' ? record.time_created : null,
+        time_updated: typeof record.time_updated === 'number' ? record.time_updated : null,
+      },
+      dbPath,
+    });
+  }
+  return out;
+}
+
+async function opencodePrompt(
+  fs: HistoryFs,
+  dbPath: string,
+  sessionId: string,
+  sql: string,
+): Promise<string | null> {
+  try {
+    const rows = await fs.queryDb?.(dbPath, sql, [sessionId]);
+    const data = rows?.[0]?.data;
+    if (typeof data !== 'string') return null;
+    let text: string | null = null;
+    try {
+      const parsed: unknown = JSON.parse(data);
+      if (parsed && typeof parsed === 'object') {
+        const value = (parsed as { text?: unknown }).text;
+        if (typeof value === 'string') text = value;
+      }
+    } catch {
+      return null;
+    }
+    return text ? promptPreview(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function opencodeSession(
+  fs: HistoryFs,
+  candidate: OpencodeCandidate,
+  settings: Settings,
+): Promise<AgentHistorySession | null> {
+  const summary = await summarize(fs, candidate.file, async () => {
+    const [first, last] = await Promise.all([
+      opencodePrompt(fs, candidate.dbPath, candidate.row.id, OPENCODE_FIRST_PROMPT_SQL),
+      opencodePrompt(fs, candidate.dbPath, candidate.row.id, OPENCODE_LAST_PROMPT_SQL),
+    ]);
+    return summarizeOpencodeSession(candidate.row, first, last);
+  });
+  if (!summary) return null;
+  const { folder } = settings;
+  if (folder !== undefined && summary.cwd && !sameFolder(summary.cwd, folder, fs.caseInsensitive)) {
+    return null;
+  }
+  return toSession('opencode', candidate.file, summary);
+}
+
 // --- All ---------------------------------------------------------------------
 
 /**
@@ -773,6 +917,7 @@ export async function collectHistory(
     continueCandidates,
     grokCandidates,
     clineCandidates,
+    opencodeSessions,
   ] = await Promise.all([
     claudeFiles(fs, home, settings).catch(() => []),
     openclaudeFiles(fs, home, settings).catch(() => []),
@@ -783,10 +928,12 @@ export async function collectHistory(
     continueFiles(fs, home, settings).catch(() => []),
     grokFiles(fs, home, settings).catch(() => []),
     clineFiles(fs, home, settings).catch(() => []),
+    opencodeCandidates(fs, home, settings).catch(() => []),
   ]);
   type Picked =
-    | { provider: AgentHistoryProvider; file: FileInfo; cwd?: string | null }
-    | { provider: AgentHistoryProvider; file: CursorCandidate };
+    | { provider: Exclude<AgentHistoryProvider, 'opencode'>; file: FileInfo; cwd?: string | null }
+    | { provider: Exclude<AgentHistoryProvider, 'opencode'>; file: CursorCandidate }
+    | { provider: 'opencode'; file: FileInfo; row: OpencodeSessionRow; dbPath: string };
   const picked: Picked[] = [
     ...claudeCandidates.map((file) => ({ provider: 'claude-code' as const, file })),
     ...openclaudeCandidates.map((file) => ({ provider: 'openclaude' as const, file })),
@@ -797,6 +944,7 @@ export async function collectHistory(
     ...continueCandidates.map((file) => ({ provider: 'continue-cli' as const, file })),
     ...grokCandidates.map((file) => ({ provider: 'grok-cli' as const, file })),
     ...clineCandidates.map((file) => ({ provider: 'cline-cli' as const, file })),
+    ...opencodeSessions.map((candidate) => ({ provider: 'opencode' as const, ...candidate })),
   ]
     .sort((a, b) => b.file.mtimeMs - a.file.mtimeMs)
     .slice(0, settings.limit);
@@ -833,6 +981,8 @@ export async function collectHistory(
         return grokSession(fs, item.file, settings);
       case 'cline-cli':
         return clineSession(fs, item.file, settings);
+      case 'opencode':
+        return opencodeSession(fs, item, settings);
     }
   });
   let sessions = read.filter((s): s is AgentHistorySession => s !== null);
@@ -891,6 +1041,38 @@ export const localHistoryFs: HistoryFs = {
     return listed.filter((entry): entry is HistoryDirEntry => entry !== null);
   },
   readRange: readChunk,
+  queryDb: async (dbPath, sql, params = []) => {
+    const run = (path: string): Record<string, unknown>[] => {
+      const db = new Database(path, { readonly: true, fileMustExist: true });
+      try {
+        return db.prepare(sql).all(...params) as Record<string, unknown>[];
+      } finally {
+        db.close();
+      }
+    };
+    try {
+      return run(dbPath);
+    } catch {
+      // The CLI may be running and hold the DB in WAL mode; a read-only open
+      // can lose that race, so retry against a private copy (WAL sidecars
+      // included, without them the copy reads as a stale snapshot).
+      const dir = mkdtempSync(join(tmpdir(), 'agentmate-history-'));
+      try {
+        const copy = join(dir, 'history.db');
+        copyFileSync(dbPath, copy);
+        for (const ext of ['-wal', '-shm']) {
+          try {
+            copyFileSync(dbPath + ext, copy + ext);
+          } catch {
+            /* no such sidecar */
+          }
+        }
+        return run(copy);
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
+  },
 };
 
 /** Past conversations from every supported CLI started in `folder`, newest first. */

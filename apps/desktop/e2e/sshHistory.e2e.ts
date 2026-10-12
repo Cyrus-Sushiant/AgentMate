@@ -244,11 +244,13 @@ test('lists the conversations on a server and resumes one in an SSH tab', async 
   await expect(srvApp).toHaveAttribute('aria-expanded', 'true');
   await expect(scripts).toHaveAttribute('aria-expanded', 'false');
 
-  // The provider filter keeps only Codex.
-  await sheet.getByRole('radio', { name: 'Codex' }).click();
+  // The agent filter menu keeps only Codex.
+  await sheet.getByRole('button', { name: 'Filter by agent' }).click();
+  await sheet.getByRole('menuitemradio', { name: /Codex/ }).click();
   await expect(srvGroup.getByText(CODEX.prompt)).toBeVisible();
   await expect(sheet.getByText(TITLED.title)).toHaveCount(0);
-  await sheet.getByRole('radio', { name: 'All' }).click();
+  await sheet.getByRole('button', { name: 'Filter by agent' }).click();
+  await sheet.getByRole('menuitemradio', { name: /All agents/ }).click();
 
   // Resume the titled conversation.
   await expect(terminalTabs(page)).toHaveCount(0);

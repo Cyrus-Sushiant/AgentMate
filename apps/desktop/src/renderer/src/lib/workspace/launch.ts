@@ -200,13 +200,15 @@ export const HISTORY_CLI_ID: Record<AgentHistoryProvider, string> = {
   'continue-cli': 'continue-cli',
   'grok-cli': 'grok-cli',
   'cline-cli': 'cline-cli',
+  opencode: 'opencode',
 };
 
 /**
- * Whether a saved conversation can be resumed from a fresh tab. Only Codex
- * uses a positional `resume <id>`; every other supported CLI resumes with
- * `--resume <id>`. Providers without a known resume spelling return null and
- * the UI disables the resume action with a reason.
+ * Whether a saved conversation can be resumed from a fresh tab. Codex uses a
+ * positional `resume <id>` and OpenCode a `--session <id>` flag; every other
+ * supported CLI resumes with `--resume <id>`. Providers without a known
+ * resume spelling return null and the UI disables the resume action with a
+ * reason.
  */
 export function resumeArgsFor(
   provider: AgentHistoryProvider,
@@ -216,6 +218,7 @@ export function resumeArgsFor(
   leadingArgs?: string[];
 } | null {
   if (provider === 'codex') return { leadingArgs: ['resume', id] };
+  if (provider === 'opencode') return { leadingArgs: ['--session', id] };
   return { runArgs: ['--resume', id] };
 }
 
@@ -230,7 +233,7 @@ export function resumeDisabledReasonFor(
 
 /**
  * Opens a tab that picks a past conversation back up: `claude --resume <id>`,
- * `codex resume <id>`, `gemini --resume <id>`, and so on, with the user's
+ * `codex resume <id>`, `opencode --session <id>`, and so on, with the user's
  * usual arguments.
  */
 export function launchResumeTab(
@@ -335,9 +338,12 @@ export function openRemoteResume(
   });
 }
 
-/** The conversation a resume command picks up (`--resume <id>`, or `resume <id>` for Codex). */
+/**
+ * The conversation a resume command picks up (`--resume <id>`, `resume <id>`
+ * for Codex, `--session <id>` for OpenCode, whose ids contain underscores).
+ */
 export function resumedConversationId(launchInput: string | undefined): string | null {
-  return launchInput?.match(/(?:--resume|resume)\s+'?"?([0-9a-zA-Z-]{8,})/)?.[1] ?? null;
+  return launchInput?.match(/(?:--resume|resume|--session)\s+'?"?([0-9a-zA-Z_-]{8,})/)?.[1] ?? null;
 }
 
 /** Settles once the status hook lookup for this CLI (if one was started) is done. */

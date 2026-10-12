@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type { AgentHistorySession } from '@agentmat/core';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -122,13 +123,17 @@ describe('HistoryRow', () => {
 });
 
 describe('HistoryToolbar', () => {
-  function renderToolbar(providers: AgentHistorySession['provider'][]) {
+  function renderToolbar(
+    providers: AgentHistorySession['provider'][],
+    counts?: Map<AgentHistorySession['provider'], number>,
+  ) {
     const handlers = { onQueryChange: vi.fn(), onProviderChange: vi.fn() };
     renderUi(
       <HistoryToolbar
         query=""
         provider="all"
         providers={new Set(providers)}
+        counts={counts}
         onQueryChange={handlers.onQueryChange}
         onProviderChange={handlers.onProviderChange}
       />,
@@ -136,19 +141,31 @@ describe('HistoryToolbar', () => {
     return handlers;
   }
 
+  async function openMenu() {
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Filter by agent' }));
+    return screen.findAllByRole('menuitemradio');
+  }
+
   it('offers the agent filter only when there is more than one agent', () => {
     renderToolbar(['claude-code']);
-    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filter by agent' })).not.toBeInTheDocument();
     cleanup();
 
-    const handlers = renderToolbar(['claude-code', 'codex']);
-    expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual([
-      'All',
-      'Claude',
-      'Codex',
-    ]);
-    expect(screen.getByRole('radio', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('radio', { name: 'Codex' }));
+    renderToolbar(['claude-code', 'codex']);
+    expect(screen.getByRole('button', { name: 'Filter by agent' })).toHaveTextContent('All agents');
+  });
+
+  it('picks an agent from the menu', async () => {
+    const handlers = renderToolbar(
+      ['claude-code', 'codex'],
+      new Map([
+        ['claude-code', 1],
+        ['codex', 1],
+      ]),
+    );
+    const items = await openMenu();
+    expect(items.map((r) => r.textContent)).toEqual(['All agents2', 'Claude1', 'Codex1']);
+    await userEvent.setup().click(screen.getByRole('menuitemradio', { name: 'Codex1' }));
     expect(handlers.onProviderChange).toHaveBeenCalledWith('codex');
   });
 
@@ -160,11 +177,27 @@ describe('HistoryToolbar', () => {
     expect(handlers.onQueryChange).toHaveBeenCalledWith('login');
   });
 
-  it('lists every provider present, not just Claude and Codex', () => {
+  it('lists every provider present with counts, busiest first', async () => {
     // Regression test: the filter must grow with new history providers.
-    renderToolbar(['claude-code', 'gemini-cli', 'cursor-cli', 'codex']);
-    const labels = screen.getAllByRole('radio').map((r) => r.textContent);
-    expect(labels).toEqual(['All', 'Claude', 'Codex', 'Cursor', 'Gemini']);
+    renderToolbar(
+      ['claude-code', 'gemini-cli', 'cursor-cli', 'codex', 'opencode'],
+      new Map([
+        ['claude-code', 1],
+        ['gemini-cli', 5],
+        ['cursor-cli', 2],
+        ['codex', 1],
+        ['opencode', 3],
+      ]),
+    );
+    const items = await openMenu();
+    expect(items.map((r) => r.textContent)).toEqual([
+      'All agents12',
+      'Gemini5',
+      'OpenCode3',
+      'Cursor2',
+      'Claude1',
+      'Codex1',
+    ]);
   });
 });
 

@@ -2,6 +2,7 @@ import type { AgentHistorySession } from '@agentmat/core';
 import { describe, expect, it } from 'vitest';
 import {
   backgroundCount,
+  countByProvider,
   dayBucket,
   displayPath,
   filterSessions,
@@ -81,6 +82,25 @@ describe('filterSessions', () => {
       'person',
       'tool',
     ]);
+  });
+});
+
+describe('countByProvider', () => {
+  it('counts conversations per agent for the filter menu', () => {
+    const sessions = [
+      session({ id: 'a', provider: 'claude-code' }),
+      session({ id: 'b', provider: 'codex' }),
+      session({ id: 'c', provider: 'codex' }),
+      session({ id: 'd', provider: 'opencode' }),
+    ];
+    expect(countByProvider(sessions)).toEqual(
+      new Map([
+        ['claude-code', 1],
+        ['codex', 2],
+        ['opencode', 1],
+      ]),
+    );
+    expect(countByProvider([])).toEqual(new Map());
   });
 });
 
