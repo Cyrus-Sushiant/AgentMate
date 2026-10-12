@@ -1,8 +1,16 @@
-import { appendFileSync, mkdirSync, truncateSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, statSync, truncateSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tempDir } from '../../test/main/fixtures';
-import { retentionSinceMs, type ScanCache, scanProviderLogs } from './logParsers';
+import {
+  collectLogFiles,
+  type FileScanState,
+  type LogFile,
+  retentionSinceMs,
+  type ScanCache,
+  scanLogFile,
+  scanProviderLogs,
+} from './logParsers';
 
 /**
  * Token usage is read straight out of the CLIs' own session logs, which are append-only JSONL
@@ -514,5 +522,163 @@ describe('Codex logs', () => {
     writeCodexLog('rollout.jsonl', [codexTokenCount({ at: now, input: 10, output: 1 })]);
 
     expect((await scanCodex()).limits).toBeUndefined();
+  });
+});
+
+/**
+ * One file at a time, which is what the per-conversation usage menu reads. These care about the
+ * same resume bookkeeping as the provider scan, without a folder of logs around it.
+ */
+describe('scanLogFile', () => {
+  const logFile = (path: string): LogFile => {
+    const info = statSync(path);
+    return { path, mtimeMs: info.mtimeMs, size: info.size };
+  };
+
+  const claude = (path: string, prev?: FileScanState) =>
+    scanLogFile('claude-code', logFile(path), prev);
+
+  it('reads a file it has not seen from the first line to the last', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now, model: 'm', id: 'a', input: 10 }),
+      claudeLine({ at: now, model: 'm', id: 'b', output: 5 }),
+    ]);
+
+    const state = await claude(path);
+
+    expect(state?.entries.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(state?.offset).toBe(statSync(path).size);
+  });
+
+  it('hands back the very same state for a file that did not change, reading nothing', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now, model: 'm', id: 'a', input: 10 }),
+    ]);
+    const first = await claude(path);
+
+    const second = await claude(path, first ?? undefined);
+
+    expect(second).toBe(first);
+  });
+
+  it('reads only what was appended, and keeps what it already had', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now, model: 'm', id: 'a', input: 10 }),
+    ]);
+    const first = await claude(path);
+    const firstOffset = first?.offset ?? 0;
+
+    appendFileSync(path, claudeLine({ at: now, model: 'm', id: 'b', input: 20 }), 'utf-8');
+    const second = await claude(path, first ?? undefined);
+
+    expect(second?.entries.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(second?.offset).toBe(statSync(path).size);
+    expect(second?.offset).toBeGreaterThan(firstOffset);
+  });
+
+  it('does not read the earlier bytes again when a file only grew', async () => {
+    const line = (input: number) => claudeLine({ at: now, model: 'm', id: 'a', input });
+    const path = writeClaudeLog('a.jsonl', [line(10)]);
+    const first = await claude(path);
+
+    // Same length, other content: a full re-read would now see 99, a resumed one cannot.
+    writeFileSync(path, line(99), 'utf-8');
+    appendFileSync(path, claudeLine({ at: now, model: 'm', id: 'b', input: 20 }), 'utf-8');
+    const second = await claude(path, first ?? undefined);
+
+    expect(second?.entries.map((e) => [e.id, e.input])).toEqual([
+      ['a', 10],
+      ['b', 20],
+    ]);
+  });
+
+  it('leaves a half-written last line for the next read instead of dropping it', async () => {
+    const whole = claudeLine({ at: now, model: 'm', id: 'a', input: 10 });
+    const next = claudeLine({ at: now, model: 'm', id: 'b', input: 20 });
+    const path = writeClaudeLog('a.jsonl', [whole, next.slice(0, 30)]);
+
+    const partial = await claude(path);
+    expect(partial?.entries.map((e) => e.id)).toEqual(['a']);
+    // The offset stops at the end of the last complete line.
+    expect(partial?.offset).toBe(Buffer.byteLength(whole));
+
+    appendFileSync(path, next.slice(30), 'utf-8');
+    const complete = await claude(path, partial ?? undefined);
+    expect(complete?.entries.map((e) => e.id)).toEqual(['a', 'b']);
+  });
+
+  it('starts over when the file is now shorter than what it had read', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now, model: 'm', id: 'a', input: 10 }),
+      claudeLine({ at: now, model: 'm', id: 'b', input: 20 }),
+    ]);
+    const first = await claude(path);
+    writeFileSync(path, claudeLine({ at: now, model: 'm', id: 'c', input: 1 }), 'utf-8');
+
+    const second = await claude(path, first ?? undefined);
+
+    expect(second?.entries.map((e) => e.id)).toEqual(['c']);
+  });
+
+  it('carries the model Codex named earlier into a read that resumes after it', async () => {
+    const path = writeCodexLog('rollout.jsonl', [
+      codexTurnContext('test-model', now - HOUR_MS),
+      codexTokenCount({ at: now, input: 100, output: 10 }),
+    ]);
+    const first = await scanLogFile('codex', logFile(path), undefined);
+
+    appendFileSync(path, codexTokenCount({ at: now, input: 200, output: 20 }), 'utf-8');
+    const second = await scanLogFile('codex', logFile(path), first ?? undefined);
+
+    expect(second?.entries.map((e) => [e.model, e.input])).toEqual([
+      ['test-model', 100],
+      ['test-model', 200],
+    ]);
+  });
+
+  it('is null for a file that cannot be read, so the caller can skip it', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now, model: 'm', id: 'a', input: 10 }),
+    ]);
+    const info = logFile(path);
+
+    await expect(
+      scanLogFile('claude-code', { ...info, path: join(root, 'claude', 'gone.jsonl') }, undefined),
+    ).resolves.toBeNull();
+  });
+
+  it('keeps events of any age, since a conversation is read whole', async () => {
+    const path = writeClaudeLog('a.jsonl', [
+      claudeLine({ at: now - 400 * 24 * HOUR_MS, model: 'm', id: 'old', input: 10 }),
+    ]);
+
+    expect((await claude(path))?.entries.map((e) => e.id)).toEqual(['old']);
+  });
+});
+
+describe('collectLogFiles', () => {
+  it('finds transcripts in nested folders and skips anything else', async () => {
+    const dir = join(root, 'claude', 'projects', 'demo');
+    mkdirSync(join(dir, 'session', 'subagents'), { recursive: true });
+    writeFileSync(join(dir, 'session.jsonl'), '{}\n');
+    writeFileSync(join(dir, 'session', 'subagents', 'agent-1.jsonl'), '{}\n');
+    writeFileSync(join(dir, 'notes.txt'), 'x');
+
+    const files = await collectLogFiles(dir, 0);
+
+    expect(files.map((f) => f.path.slice(dir.length + 1).replaceAll('\\', '/')).sort()).toEqual([
+      'session.jsonl',
+      'session/subagents/agent-1.jsonl',
+    ]);
+  });
+
+  it('skips files older than the cutoff, and a folder that does not exist', async () => {
+    const dir = join(root, 'claude', 'projects', 'demo');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'session.jsonl'), '{}\n');
+
+    // Far in the future, since this file runs on a fake clock and the file's mtime is real.
+    expect(await collectLogFiles(dir, Number.MAX_SAFE_INTEGER)).toEqual([]);
+    expect(await collectLogFiles(join(root, 'nope'), 0)).toEqual([]);
   });
 });

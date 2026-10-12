@@ -25,7 +25,7 @@ The page has two halves. The left half is where you describe the task, the right
 
 1. In **Your request**, describe what you want, for example "Add a login form with email/password validation". Any language works. You can also click the microphone button (**Record voice input**) to dictate, see the Voice input section below.
 2. Choose a **Prompt Type**. The options are Frontend, Backend, Full Stack (the default), UI Design, UX Review, Product, API, Database, Testing, Security, Performance, DevOps, Documentation, Refactoring, Bug Fix, Code Review, Architecture, Mobile, Electron, React, Next.js, Node.js, .NET, Flutter, Python, AI Agent and Custom.
-3. Choose a **Target AI**. The list holds every AI CLI AgentMate knows (Claude Code, Gemini, OpenCode, OpenClaude, Codex, Grok, Cursor, Copilot, FreeBuff, Qwen, Aider, Goose, Cline, Continue and Pi). The prompt is shaped for the agent you pick.
+3. Choose a **Target AI**. The list holds every AI CLI AgentMate knows (Claude Code, Gemini, OpenCode, OpenClaude, Codex, Grok, Cursor, Copilot, FreeBuff, Qwen, Aider, Goose, Cline, Continue, Pi and Muse Code). The prompt is shaped for the agent you pick.
 4. Optionally choose a **Project**. The box starts as "No project". If you choose one, **Target AI** switches to that project's agent. A project is needed to save a draft or a scheduled series.
 5. Leave **Status** on **Draft**, or switch to **Scheduled** (see below).
 6. Click **Generate Prompt**.

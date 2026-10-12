@@ -90,9 +90,9 @@ describe('PaneLauncher agent cards', () => {
     );
     const gemini = await screen.findByRole('link', { name: 'Install Gemini CLI' });
     expect(gemini).toHaveAttribute('href', '/cli-manager');
-    // Fourteen are missing: eight show as icons and the rest fold into one link.
+    // Fifteen are missing: eight show as icons and the rest fold into one link.
     expect(screen.getAllByRole('link', { name: /^Install / })).toHaveLength(8);
-    expect(screen.getByRole('link', { name: '6 more agents to install' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '7 more agents to install' })).toHaveAttribute(
       'href',
       '/cli-manager',
     );

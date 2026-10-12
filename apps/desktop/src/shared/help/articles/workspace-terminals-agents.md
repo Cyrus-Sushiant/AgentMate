@@ -39,7 +39,7 @@ Click **+** in a pane's tab strip. The menu lists **Build a prompt…**, then **
 
 ### Which agents are offered
 
-AgentMate knows these CLIs: Claude Code CLI, Gemini CLI, OpenCode, OpenClaude, Codex CLI, Grok CLI, Cursor CLI, GitHub Copilot CLI, FreeBuff CLI, Qwen CLI, Aider, Goose, Cline CLI, Continue CLI and Pi. Only the ones installed on your computer show up in the launchers. Install and update them from [AI CLI Manager](cli-manager.md).
+AgentMate knows these CLIs: Claude Code CLI, Gemini CLI, OpenCode, OpenClaude, Codex CLI, Grok CLI, Cursor CLI, GitHub Copilot CLI, FreeBuff CLI, Qwen CLI, Aider, Goose, Cline CLI, Continue CLI, Pi and Muse Code CLI. Only the ones installed on your computer show up in the launchers. Install and update them from [AI CLI Manager](cli-manager.md).
 
 ### Which agent is the default
 

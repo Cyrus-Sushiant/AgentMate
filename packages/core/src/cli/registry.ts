@@ -450,6 +450,32 @@ export const CLI_REGISTRY: CliDefinition[] = [
     updateCheck: { type: 'npm', package: '@earendil-works/pi-coding-agent' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
+  {
+    id: 'muse-code',
+    name: 'Muse Code CLI',
+    label: 'Muse Code',
+    description: "Meta's coding agent for the terminal and CI, built for Muse Spark.",
+    homepageUrl: 'https://dev.meta.ai/lp/muse-code',
+    docsUrl: 'https://dev.meta.ai/docs/muse-code',
+    executableNames: ['muse'],
+    detectCommand: { command: 'muse', args: ['--version'] },
+    versionCommand: { command: 'muse', args: ['--version'] },
+    // `muse exec "<prompt>"` runs one prompt to completion and exits. The docs don't describe a
+    // piped prompt, so the prompt goes in as the final argument.
+    promptCommand: { command: 'muse', args: ['exec'] },
+    // Skips the approval prompts that nothing can answer in a headless run, and keeps the OS
+    // sandbox on. `--yolo` would turn the sandbox off too, so it stays out of these runs.
+    promptWriteArgs: ['--disable-approval'],
+    argsExample: `--model ${CLI_MODEL_EXAMPLES['muse-code']}`,
+    // The docs give `curl ... | sh`, but the script is bash only (it uses `[[`, which dash does
+    // not support), so it is piped to bash here.
+    installCommand: {
+      win32: 'irm https://dev.meta.ai/install.ps1 | iex',
+      darwin: 'curl -fsSL https://dev.meta.ai/install.sh | bash',
+      linux: 'curl -fsSL https://dev.meta.ai/install.sh | bash',
+    },
+    supportedOS: ['win32', 'darwin', 'linux'],
+  },
 ];
 
 export function getCliDefinition(id: string): CliDefinition | undefined {

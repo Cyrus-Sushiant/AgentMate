@@ -16,23 +16,19 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { HISTORY_CLI_ID } from '@/lib/workspace/launch';
-import { modelDisplayName } from '@/stores/agentStatusStore';
 import {
   groupByDay,
   type HistoryProvider,
   PROVIDER_LABEL,
   type ProviderFilter,
 } from './historyFilters';
+import { shortModel } from './modelLabel';
 import { SessionUsageMenu } from './SessionUsageMenu';
 
 /**
  * The rows, toolbar and placeholders of an AI conversation history list. Presentational only:
  * the caller owns the data, the filters and what resuming means (a local tab, an SSH tab).
  */
-
-export function shortModel(model: string): string {
-  return /^gpt/i.test(model) ? model.replace(/^gpt/i, 'GPT') : modelDisplayName(model);
-}
 
 export interface HistoryRowProps {
   session: AgentHistorySession;

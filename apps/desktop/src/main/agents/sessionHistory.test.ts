@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearHistorySources, historySource } from './historySources';
 import {
   clearHistoryCaches,
   collectHistory,
@@ -866,6 +867,127 @@ describe('collectHistory for FreeBuff', () => {
 
   it('returns nothing when no project dir exists', async () => {
     await expect(collectHistory(fakeFs({}), { folder: '/work/app' })).resolves.toEqual([]);
+  });
+});
+
+describe('collectHistory remembering where sessions live', () => {
+  // The usage menu opens a transcript by the provider and id the list handed out, so the list
+  // has to leave that mapping behind. Only this machine's files can be opened later.
+  beforeEach(() => {
+    clearHistorySources();
+  });
+
+  const claudeFile = `${claudeDir}/-work-app/a.jsonl`;
+  const opencodeDb = '/home/me/.local/share/opencode/opencode.db';
+
+  it('remembers the transcript of every session it lists on this machine', async () => {
+    const fs = fakeFs(
+      {
+        [claudeFile]: { content: claudeTranscript('/work/app', 'Fix it'), mtimeMs: 10 },
+        [`${codexDir}/rollout-1.jsonl`]: {
+          content: codexRollout('x1', '/work/app', 'Codex yes'),
+          mtimeMs: 40,
+        },
+      },
+      { scope: 'local' },
+    );
+    await collectHistory(fs, { folder: '/work/app' });
+
+    expect(historySource('claude-code', 'a')).toEqual({ path: claudeFile, mtimeMs: 10 });
+    // Codex lists by the session id inside the file, not by the file name.
+    expect(historySource('codex', 'x1')).toEqual({
+      path: `${codexDir}/rollout-1.jsonl`,
+      mtimeMs: 40,
+    });
+  });
+
+  it('remembers the database and the pseudo path of an OpenCode session', async () => {
+    const fs = fakeFs(
+      { [opencodeDb]: { content: 'SQLite format 3\0fake', mtimeMs: 1 } },
+      {
+        scope: 'local',
+        opencode: {
+          sessions: [
+            {
+              id: 'ses_1',
+              directory: '/work/app',
+              title: 'Ship it',
+              model: null,
+              time_created: 10,
+              time_updated: 20,
+            },
+          ],
+          prompts: { ses_1: { first: 'First ask', last: null } },
+        },
+      },
+    );
+    await collectHistory(fs, { folder: '/work/app' });
+
+    // The mtime is the session's last update, which is what tells the usage cache to re-read.
+    expect(historySource('opencode', 'ses_1')).toEqual({
+      path: `${opencodeDb}#ses_1`,
+      mtimeMs: 20,
+      dbPath: opencodeDb,
+    });
+  });
+
+  it('keeps the same id under two agents apart', async () => {
+    const fs = fakeFs(
+      {
+        [claudeFile]: { content: claudeTranscript('/work/app', 'Claude'), mtimeMs: 10 },
+        [`${codexDir}/rollout-1.jsonl`]: {
+          content: codexRollout('a', '/work/app', 'Codex'),
+          mtimeMs: 40,
+        },
+      },
+      { scope: 'local' },
+    );
+    await collectHistory(fs, { folder: '/work/app' });
+
+    expect(historySource('claude-code', 'a')?.path).toBe(claudeFile);
+    expect(historySource('codex', 'a')?.path).toBe(`${codexDir}/rollout-1.jsonl`);
+  });
+
+  it('updates a session it lists again after it changed, and knows no other', async () => {
+    const files = {
+      [claudeFile]: { content: claudeTranscript('/work/app', 'Fix it'), mtimeMs: 10 },
+    };
+    await collectHistory(fakeFs(files, { scope: 'local' }), { folder: '/work/app' });
+    expect(historySource('claude-code', 'a')?.mtimeMs).toBe(10);
+
+    files[claudeFile] = { content: claudeTranscript('/work/app', 'Fix it'), mtimeMs: 99 };
+    await collectHistory(fakeFs(files, { scope: 'local' }), { folder: '/work/app' });
+    expect(historySource('claude-code', 'a')?.mtimeMs).toBe(99);
+    expect(historySource('claude-code', 'never-listed')).toBeUndefined();
+  });
+
+  it('remembers nothing for a server, whose files this machine cannot open', async () => {
+    const fs = fakeFs(
+      { [claudeFile]: { content: claudeTranscript('/work/app', 'Fix it'), mtimeMs: 10 } },
+      { scope: 'ssh:srv-1' },
+    );
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+
+    expect(sessions.map((s) => s.id)).toEqual(['a']);
+    expect(historySource('claude-code', 'a')).toBeUndefined();
+  });
+
+  it('skips a candidate that turned out to hold no conversation', async () => {
+    const fs = fakeFs(
+      {
+        [claudeFile]: { content: claudeTranscript('/work/app', 'Fix it'), mtimeMs: 10 },
+        // Only snapshots, so it is not a session and has nothing to remember.
+        [`${claudeDir}/-work-app/empty.jsonl`]: {
+          content: jsonl({ type: 'file-history-snapshot' }),
+          mtimeMs: 20,
+        },
+      },
+      { scope: 'local' },
+    );
+    await collectHistory(fs, { folder: '/work/app' });
+
+    expect(historySource('claude-code', 'a')).toBeDefined();
+    expect(historySource('claude-code', 'empty')).toBeUndefined();
   });
 });
 

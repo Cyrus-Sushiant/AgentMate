@@ -34,6 +34,8 @@ import type {
   GitInitInput,
   GitOpResult,
   GitStatus,
+  GitStashEntry,
+  GitStashPushInput,
   GitTagInfo,
   RenameBranchInput,
   ResolveConflictWithAiResult,
@@ -137,7 +139,11 @@ import {
   readFileImageDiff,
   readWorkspaceGitState,
   resolveConflict,
+  listStashes,
   stagePaths,
+  stashDrop,
+  stashPush,
+  stashRestore,
   undoDiscard,
   unstagePaths,
   writeWorkingFile,
@@ -1258,6 +1264,57 @@ function registerWorkspaceHandlers(): void {
       if (result.ok && push) schedulePipelineCheck(projectId);
       return result;
     },
+  );
+
+  ipcMain.handle(
+    IPC.git.stashPush,
+    (_event, input: GitStashPushInput): Promise<GitOpResult> =>
+      workspaceGitOp(input?.projectId, async ({ root }) => {
+        if (input?.keepIndex && input?.includeUntracked) {
+          throw new Error('A stash cannot keep staged changes and include untracked files at once.');
+        }
+        return stashPush(root, {
+          includeUntracked: Boolean(input?.includeUntracked),
+          keepIndex: Boolean(input?.keepIndex),
+          message: typeof input?.message === 'string' ? input.message : undefined,
+        });
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.stashList,
+    async (_event, projectId: string): Promise<GitStashEntry[]> => {
+      const { root } = await requireRepo(projectId);
+      return listStashes(root);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.git.stashPop,
+    (_event, projectId: string, ref?: string): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => {
+        const stashes = await listStashes(root);
+        const target = typeof ref === 'string' && ref ? ref : stashes[0]?.ref;
+        if (!target) throw new Error('There is no stash to pop.');
+        return stashRestore(root, target, 'pop');
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.stashApply,
+    (_event, projectId: string, ref?: string): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => {
+        const stashes = await listStashes(root);
+        const target = typeof ref === 'string' && ref ? ref : stashes[0]?.ref;
+        if (!target) throw new Error('There is no stash to apply.');
+        return stashRestore(root, target, 'apply');
+      }),
+  );
+
+  ipcMain.handle(
+    IPC.git.stashDrop,
+    (_event, projectId: string, ref: string): Promise<GitOpResult> =>
+      workspaceGitOp(projectId, async ({ root }) => stashDrop(root, ref)),
   );
 
   ipcMain.handle(

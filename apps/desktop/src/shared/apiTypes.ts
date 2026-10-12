@@ -246,6 +246,15 @@ export interface LastRunInfo {
 /** CLI id to what it was last actually running on. */
 export type LastRunInfoByCli = Record<string, LastRunInfo>;
 
+/** What one model in a conversation used. */
+export interface AgentSessionModelUsage {
+  /** Raw model id, e.g. `claude-opus-5-5`. */
+  model: string;
+  tokens: UsageTokens;
+  /** Null when the model has no known price. */
+  costUsd: number | null;
+}
+
 /**
  * What one past conversation used, read from the agent's own log. `unsupported` is an agent that
  * does not record tokens; `unavailable` is a conversation whose log is not on this machine or
@@ -259,6 +268,8 @@ export type AgentSessionUsage =
       costUsd: number | null;
       /** Some of the tokens ran on a model with no price, so `costUsd` is a lower bound. */
       costPartial: boolean;
+      /** Per model, most tokens first. Empty when the log does not name a model. */
+      models: AgentSessionModelUsage[];
     }
   | { status: 'unsupported' }
   | { status: 'unavailable' };
@@ -1436,6 +1447,27 @@ export interface ResolveConflictWithAiResult extends GitDiscardResult {
   cancelled?: boolean;
 }
 
+/** One entry of `git stash list`, newest first. */
+export interface GitStashEntry {
+  /** `stash@{0}`, `stash@{1}`, … — what pop/apply/drop take. */
+  ref: string;
+  /** 0 for the newest stash. */
+  index: number;
+  /** The message git stored, e.g. "WIP on main: abc1234 Subject". */
+  message: string;
+}
+
+/** How a stash push from the workspace panel behaves. */
+export interface GitStashPushInput {
+  projectId: string;
+  /** Also stash untracked files (`--include-untracked`). */
+  includeUntracked: boolean;
+  /** Leave staged changes in place, stashing only the rest (`--keep-index`). */
+  keepIndex: boolean;
+  /** Optional message; git generates a "WIP on …" one when empty. */
+  message?: string;
+}
+
 export interface GitTagInfo {
   /** Most recent tag reachable from HEAD, or null when the repo has none yet. */
   latestTag: string | null;
@@ -1939,8 +1971,9 @@ export interface SystemStatsSample {
   /**
    * Empty when no GPU could be queried. NVIDIA GPUs (via `nvidia-smi`) get
    * precise usage; on Windows, one additional non-NVIDIA GPU (e.g. an
-   * integrated Intel/AMD chip) is included with best-effort usage; see
-   * sampleOtherGpu in systemStats.ts for the accuracy caveat.
+   * integrated Intel/AMD chip) is included with best-effort usage (see
+   * sampleOtherGpu in system/gpuStats.ts for the accuracy caveat); on macOS
+   * every GPU, Apple Silicon included, is read from the IORegistry.
    */
   gpus: GpuUsage[];
   netRxBytesPerSec: number;

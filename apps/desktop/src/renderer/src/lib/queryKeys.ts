@@ -108,6 +108,8 @@ export const queryKeys = {
     ['git-branch-history', projectId, branch] as const,
   /** Prefix of a project's branch histories, for invalidating every branch at once. */
   gitBranchHistories: (projectId: string) => ['git-branch-history', projectId] as const,
+  /** A project's `git stash list`, newest first. */
+  gitStashList: (projectId: string) => ['git-stash-list', projectId] as const,
   githubAccount: ['github-account'] as const,
   githubActivity: ['github-activity'] as const,
   githubNotifications: ['github-notifications'] as const,

@@ -8,6 +8,7 @@ import {
   type DashboardRow,
   type DashboardStatId,
   type DashboardUsageSummaryId,
+  DEFAULT_DASHBOARD,
 } from '@agentmat/core';
 import { create } from 'zustand';
 
@@ -105,6 +106,8 @@ interface DashboardLayoutState {
   toggleStatCard: (id: DashboardStatId) => boolean;
   /** Adds or removes a Token Usage summary tile; returns true when it's now shown. */
   toggleSummaryCard: (id: DashboardUsageSummaryId) => boolean;
+  /** Puts back the cards and rows a new install starts with (see `DEFAULT_DASHBOARD`). */
+  resetToDefault: () => void;
 }
 
 function newRowId(): string {
@@ -323,6 +326,26 @@ export const useDashboardLayoutStore = create<DashboardLayoutState>((set, get) =
     set({ summaryCards: nextCards, rows: nextRows });
     persist(nextRows, { summaryCards: nextCards });
     return added;
+  },
+
+  resetToDefault: () => {
+    // A copy, so later edits to the live layout never write into the shared preset.
+    const preset = structuredClone(DEFAULT_DASHBOARD);
+    const next = {
+      chartCards: preset.dashboardChartCards,
+      usageCards: preset.dashboardUsageCards,
+      statCards: preset.dashboardStatCards,
+      summaryCards: preset.dashboardUsageSummaryCards,
+    };
+    const rows = sanitizeLayout(
+      preset.dashboardLayout,
+      next.chartCards,
+      next.usageCards,
+      next.statCards,
+      next.summaryCards,
+    );
+    set({ ...next, rows });
+    persist(rows, next);
   },
 }));
 

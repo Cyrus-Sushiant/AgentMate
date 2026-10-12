@@ -94,6 +94,7 @@ export const CLI_MODEL_EXAMPLES = {
   'qwen-cli': 'qwen3-coder-plus',
   'cline-cli': CLAUDE_MODELS.sonnet.apiId,
   'continue-cli': 'owner/package',
+  'muse-code': 'muse-spark-1.2',
 } as const;
 
 // Ask AI (direct API calls)

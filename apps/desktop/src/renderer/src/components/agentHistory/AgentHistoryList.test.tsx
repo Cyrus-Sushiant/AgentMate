@@ -180,48 +180,122 @@ describe('HistoryRow usage menu', () => {
     );
   }
 
+  const opus = { model: 'claude-opus-5-5', tokens, costUsd: 3.456 };
+
+  /** An answer for a usable log; each test says only what it changes. */
+  function usage(overrides: Record<string, unknown> = {}) {
+    return {
+      status: 'ok',
+      tokens,
+      costUsd: 3.456,
+      costPartial: false,
+      models: [opus],
+      ...overrides,
+    };
+  }
+
   it('shows the tokens used and the estimated cost on a right-click', async () => {
-    const { bridge } = renderRow({ status: 'ok', tokens, costUsd: 3.456, costPartial: false });
+    const { bridge } = renderRow(usage());
     // The details are fetched when the menu opens, not for every row in the list.
     expect(() => bridge.$fn('agents.sessionUsage')).toThrow();
 
     fireEvent.contextMenu(screen.getByText('Costly one'));
 
     expect(await screen.findByText('Token usage')).toBeInTheDocument();
+    // The headline numbers, the total also spelled out in full.
     expect(await screen.findByText('2.58M')).toBeInTheDocument();
+    expect(screen.getByText('2,584,600')).toBeInTheDocument();
     expect(screen.getByText('$3.46')).toBeInTheDocument();
-    expect(screen.getByText('1.2K')).toBeInTheDocument();
-    expect(screen.getByText('3.4K')).toBeInTheDocument();
-    expect(screen.getByText('2.50M')).toBeInTheDocument();
-    expect(screen.getByText('80.0K')).toBeInTheDocument();
+    // The split, each kind with its share of the total.
+    for (const [label, value, percent] of [
+      ['Input', '1.2K', '<1%'],
+      ['Output', '3.4K', '<1%'],
+      ['Cache read', '2.50M', '97%'],
+      ['Cache write', '80.0K', '3%'],
+    ]) {
+      const row = screen.getByText(label).parentElement as HTMLElement;
+      expect(row).toHaveTextContent(`${label}${value}${percent}`);
+    }
     expect(bridge.$fn('agents.sessionUsage')).toHaveBeenCalledWith('claude-code', 'aaaaaaaa-0001');
   });
 
+  it('describes the split for screen readers and draws only the kinds that were used', async () => {
+    const onlyCache = { input: 0, output: 0, cacheRead: 900, cacheWrite: 100, total: 1_000 };
+    renderRow(usage({ tokens: onlyCache }));
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+
+    const bar = await screen.findByRole('img', { name: /Token split/ });
+    expect(bar).toHaveAccessibleName(
+      'Token split: Input 0%, Output 0%, Cache read 90%, Cache write 10%',
+    );
+    expect(bar.children).toHaveLength(2);
+  });
+
   it('opens from the hover buttons too, since the whole row is the trigger', async () => {
-    renderRow({ status: 'ok', tokens, costUsd: 1, costPartial: false });
+    renderRow(usage());
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Copy conversation id' }));
     expect(await screen.findByText('Token usage')).toBeInTheDocument();
   });
 
+  it('breaks a conversation that switched models down per model', async () => {
+    renderRow(
+      usage({
+        costUsd: 4,
+        costPartial: true,
+        models: [
+          opus,
+          { model: 'claude-sonnet-5-5', tokens: { ...tokens, total: 500 }, costUsd: 0.5 },
+          { model: 'a-model-nobody-has-priced', tokens: { ...tokens, total: 100 }, costUsd: null },
+        ],
+      }),
+    );
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+
+    expect(await screen.findByText('Models')).toBeInTheDocument();
+    expect(screen.getByText('Opus 5.5').parentElement).toHaveTextContent('Opus 5.52.58M$3.46');
+    expect(screen.getByText('Sonnet 5.5').parentElement).toHaveTextContent('500$0.50');
+    expect(screen.getByText('Unpriced')).toBeInTheDocument();
+  });
+
+  it('folds a long model list into a count', async () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({
+      model: `claude-opus-5-${i}`,
+      tokens: { ...tokens, total: 1000 - i },
+      costUsd: 1,
+    }));
+    renderRow(usage({ models: many }));
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(await screen.findByText('and 2 more')).toBeInTheDocument();
+  });
+
+  it('names no model list when the run used one model', async () => {
+    renderRow(usage());
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    await screen.findByText('Token usage');
+    expect(screen.queryByText('Models')).not.toBeInTheDocument();
+  });
+
   it('marks a cost that only covers the models with a price', async () => {
-    renderRow({ status: 'ok', tokens, costUsd: 1, costPartial: true });
+    renderRow(usage({ costUsd: 1, costPartial: true }));
     fireEvent.contextMenu(screen.getByText('Costly one'));
     expect(await screen.findByText('$1.00+')).toBeInTheDocument();
     expect(screen.getByText(/Some models have no known price/)).toBeInTheDocument();
   });
 
   it('says so when no model in the run has a price', async () => {
-    renderRow({ status: 'ok', tokens, costUsd: null, costPartial: false });
+    renderRow(usage({ costUsd: null, models: [{ ...opus, costUsd: null }] }));
     fireEvent.contextMenu(screen.getByText('Costly one'));
-    expect(await screen.findByText('Not priced')).toBeInTheDocument();
-    expect(screen.getByText(/No price is known/)).toBeInTheDocument();
+    expect(await screen.findByText('Unpriced')).toBeInTheDocument();
+    expect(screen.getByText('No price is known for the model this ran on.')).toBeInTheDocument();
   });
 
-  it('shows no cost worry for a conversation that used nothing', async () => {
+  it('shows a conversation that used nothing as zero, with no bar and no price worry', async () => {
     const empty = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
-    renderRow({ status: 'ok', tokens: empty, costUsd: null, costPartial: false });
+    renderRow(usage({ tokens: empty, costUsd: null, models: [] }));
     fireEvent.contextMenu(screen.getByText('Costly one'));
     expect(await screen.findByText('$0.00')).toBeInTheDocument();
+    expect(screen.getByText('No tokens used yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /Token split/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/No price is known/)).not.toBeInTheDocument();
   });
 
@@ -353,6 +427,36 @@ describe('HistoryDayGroups', () => {
     expect(onResume).toHaveBeenCalledWith(today);
     fireEvent.click(screen.getByText('From long ago'));
     expect(onResume).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the usage menu to every row, or to none', async () => {
+    const sessions = [
+      session({ id: 'one-0001', title: 'First' }),
+      session({ id: 'two-0001', title: 'Second' }),
+    ];
+    const answer = {
+      status: 'ok',
+      tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, total: 10 },
+      costUsd: 0.01,
+      costPartial: false,
+      models: [],
+    };
+    const { bridge, unmount } = renderWithProviders(
+      <HistoryDayGroups sessions={sessions} openIds={new Map()} onResume={vi.fn()} showUsage />,
+      { bridge: { 'agents.sessionUsage': answer } },
+    );
+    // The second row, so it is not just the first one that got the menu.
+    fireEvent.contextMenu(screen.getByText('Second'));
+    expect(await screen.findByText('Token usage')).toBeInTheDocument();
+    expect(bridge.$fn('agents.sessionUsage')).toHaveBeenCalledTimes(1);
+    expect(bridge.$fn('agents.sessionUsage')).toHaveBeenCalledWith('claude-code', 'two-0001');
+    unmount();
+
+    renderWithProviders(
+      <HistoryDayGroups sessions={sessions} openIds={new Map()} onResume={vi.fn()} />,
+    );
+    fireEvent.contextMenu(screen.getByText('First'));
+    expect(screen.queryByText('Token usage')).not.toBeInTheDocument();
   });
 });
 

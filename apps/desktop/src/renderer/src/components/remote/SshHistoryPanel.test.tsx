@@ -1,6 +1,6 @@
 import type { AgentHistorySession } from '@agentmat/core';
 import type { SshConversationsResult, SshSavedServer } from '@shared/apiTypes';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
@@ -202,6 +202,15 @@ describe('SshHistoryPanel', () => {
     expect(success).toHaveBeenCalledWith('Resuming in a new SSH tab');
     expect(onOpenChange).toHaveBeenCalledWith(false);
     success.mockRestore();
+  });
+
+  it('offers no token usage menu, since a server conversation has no log on this machine', async () => {
+    const { bridge } = renderPanel();
+
+    fireEvent.contextMenu(await screen.findByText('Fix the login flow'));
+
+    expect(screen.queryByText('Token usage')).not.toBeInTheDocument();
+    expect(() => bridge.$fn('agents.sessionUsage')).toThrow();
   });
 
   it('stays open and quiet when the resume could not start', async () => {

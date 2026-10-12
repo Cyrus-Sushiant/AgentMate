@@ -7,6 +7,7 @@ import {
 } from '@agentmat/core';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { resolveConfirm, useConfirmStore } from '@/stores/confirmStore';
 import {
   type DashboardItemId,
   statItemId,
@@ -447,6 +448,39 @@ describe('DashboardPage editing the layout', () => {
       expect(useDashboardLayoutStore.getState().summaryCards).toContain('tokens-today'),
     );
     await waitFor(() => expect(tileValue('Tokens today')).toBe('1.0K'));
+  });
+
+  it('resets the layout to the new-install default once confirmed', async () => {
+    seedLayout(['cpu'], { statCards: [], usageCards: [], summaryCards: [] });
+    const { user, bridge } = renderPage(withStats());
+    await user.click(screen.getByRole('button', { name: 'Edit layout' }));
+
+    await user.click(screen.getByRole('button', { name: /Reset to default/ }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    // Nothing changes until the user says yes.
+    expect(useDashboardLayoutStore.getState().rows[0].items).toEqual(['cpu']);
+    resolveConfirm(true);
+
+    await waitFor(() =>
+      expect(useDashboardLayoutStore.getState().rows.map((row) => row.columns)).toEqual([
+        4, 2, 3, 2,
+      ]),
+    );
+    const state = useDashboardLayoutStore.getState();
+    expect(state.rows[0].items).toEqual([
+      summaryItemId('tokens-today'),
+      summaryItemId('tokens-week'),
+      summaryItemId('cost-today'),
+      statItemId('location'),
+    ]);
+    expect(state.usageCards).toEqual(['claude-code']);
+    expect(bridge.$fn('settings.update')).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dashboardStatCards: ['location'],
+        dashboardUsageSummaryCards: ['tokens-today', 'tokens-week', 'cost-today'],
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith('Dashboard reset to default.');
   });
 });
 

@@ -172,6 +172,23 @@ describe('summarizeUsage', () => {
     expect(usage.costPartial).toBe(false);
   });
 
+  it('lists each model with its own tokens and cost, the busiest first', () => {
+    const [second] = Object.keys(MODEL_PRICES).filter((key) => key !== PRICED);
+    const usage = ok(
+      summarizeUsage([
+        { ...base, model: PRICED, id: 'a', input: 100 },
+        { ...base, model: second, id: 'b', input: 5000 },
+        { ...base, model: UNPRICED, id: 'c', input: 20 },
+      ]),
+    );
+    expect(usage.models.map((m) => m.model)).toEqual([second, PRICED, UNPRICED]);
+    expect(usage.models[1].tokens.total).toBe(100);
+    expect(usage.models[1].costUsd).toBeCloseTo(
+      costOf(PRICED, { input: 100, output: 0, cacheRead: 0, cacheWrite: 0 }),
+    );
+    expect(usage.models[2].costUsd).toBeNull();
+  });
+
   it('marks the cost partial when only some of the tokens ran on a priced model', () => {
     const usage = ok(
       summarizeUsage([
@@ -341,6 +358,19 @@ describe('readSessionUsage, OpenCode sessions', () => {
     });
     // OpenCode priced the run itself, and that figure wins.
     expect(usage.costUsd).toBe(0.42);
+    expect(usage.models).toEqual([{ model: PRICED, tokens: usage.tokens, costUsd: 0.42 }]);
+  });
+
+  it('names no model when the session row has none', async () => {
+    listed();
+    const usage = ok(
+      await readSessionUsage(
+        'opencode',
+        'ses_abc',
+        fakeFs(async () => [{ ...row, model: null }]),
+      ),
+    );
+    expect(usage.models).toEqual([]);
   });
 
   it('falls back to the catalog price when OpenCode recorded no cost', async () => {

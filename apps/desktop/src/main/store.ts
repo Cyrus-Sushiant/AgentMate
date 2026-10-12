@@ -23,6 +23,7 @@ import {
   DASHBOARD_CHART_IDS,
   DASHBOARD_STAT_IDS,
   DEFAULT_COMMIT_MESSAGE_SETTINGS,
+  DEFAULT_DASHBOARD,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
@@ -115,7 +116,7 @@ async function writeJsonFile<T>(fileName: string, data: T): Promise<void> {
 async function readSettings(): Promise<AppSettings> {
   return withSettingsMigrations({
     ...DEFAULT_SETTINGS,
-    ...(await readJsonFile<Partial<AppSettings>>('settings.json', DEFAULT_SETTINGS)),
+    ...(await readJsonFile<Partial<AppSettings>>('settings.json', FIRST_RUN_SETTINGS)),
   });
 }
 
@@ -220,6 +221,22 @@ export const DEFAULT_SETTINGS: AppSettings = {
   androidEmulatorLaunchFlags: '',
   androidStopEmulatorsOnQuit: false,
   androidCapturePath: null,
+};
+
+/**
+ * A brand new install opens with DEFAULT_DASHBOARD. It only applies while settings.json doesn't
+ * exist, so a profile from an older build that is missing some of these keys keeps the plain
+ * defaults above (and its legacy card order still migrates) instead of being rearranged.
+ */
+const FIRST_RUN_DASHBOARD: Partial<AppSettings> = {
+  ...structuredClone(DEFAULT_DASHBOARD),
+  // Every chart is already placed, so none of them should be appended again on first load.
+  dashboardIntroducedCharts: [...DASHBOARD_CHART_IDS],
+};
+
+const FIRST_RUN_SETTINGS: AppSettings = {
+  ...DEFAULT_SETTINGS,
+  ...FIRST_RUN_DASHBOARD,
 };
 
 /**

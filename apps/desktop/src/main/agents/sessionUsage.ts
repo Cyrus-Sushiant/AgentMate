@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { estimateCost, type UsageTokens } from '@agentmat/core';
-import type { AgentSessionUsage } from '../../shared/apiTypes';
+import type { AgentSessionModelUsage, AgentSessionUsage } from '../../shared/apiTypes';
 import {
   collectLogFiles,
   type FileScanState,
@@ -88,6 +88,7 @@ export function summarizeUsage(entries: readonly RawUsageEntry[]): AgentSessionU
   }
 
   const total = makeTokens(0, 0, 0, 0);
+  const models: AgentSessionModelUsage[] = [];
   let costUsd: number | null = null;
   let costPartial = false;
   for (const [model, tokens] of byModel) {
@@ -99,8 +100,16 @@ export function summarizeUsage(entries: readonly RawUsageEntry[]): AgentSessionU
     const cost = estimateCost(model, tokens);
     if (cost === null) costPartial = true;
     else costUsd = (costUsd ?? 0) + cost;
+    models.push({ model, tokens, costUsd: cost });
   }
-  return { status: 'ok', tokens: total, costUsd, costPartial: costPartial && costUsd !== null };
+  models.sort((a, b) => b.tokens.total - a.tokens.total);
+  return {
+    status: 'ok',
+    tokens: total,
+    costUsd,
+    costPartial: costPartial && costUsd !== null,
+    models,
+  };
 }
 
 async function statLogFile(path: string): Promise<LogFile | null> {
@@ -188,7 +197,13 @@ async function opencodeUsage(
   // OpenCode priced the run with the provider's own rates; ours cover models it left at zero.
   const recorded = count(row.cost);
   const costUsd = recorded > 0 ? recorded : model ? estimateCost(model, tokens) : null;
-  const usage: AgentSessionUsage = { status: 'ok', tokens, costUsd, costPartial: false };
+  const usage: AgentSessionUsage = {
+    status: 'ok',
+    tokens,
+    costUsd,
+    costPartial: false,
+    models: model ? [{ model, tokens, costUsd }] : [],
+  };
   opencodeCache.set(id, { mtimeMs: source.mtimeMs, usage });
   return usage;
 }

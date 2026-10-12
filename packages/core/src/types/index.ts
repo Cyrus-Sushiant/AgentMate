@@ -359,6 +359,34 @@ export const DASHBOARD_USAGE_SUMMARY_IDS = [
 ] as const;
 export type DashboardUsageSummaryId = (typeof DASHBOARD_USAGE_SUMMARY_IDS)[number];
 
+/**
+ * The dashboard a brand new install opens with, and what "Reset to default" in the dashboard's
+ * edit mode puts back. Every card listed in the category lists has a cell in `dashboardLayout`,
+ * so nothing gets appended after it on load.
+ */
+export const DEFAULT_DASHBOARD: {
+  dashboardChartCards: DashboardChartId[];
+  dashboardStatCards: DashboardStatId[];
+  dashboardUsageCards: string[];
+  dashboardUsageSummaryCards: DashboardUsageSummaryId[];
+  dashboardLayout: DashboardRow[];
+} = {
+  dashboardChartCards: [...DASHBOARD_CHART_IDS],
+  dashboardStatCards: ['location'],
+  dashboardUsageCards: ['claude-code'],
+  dashboardUsageSummaryCards: ['tokens-today', 'tokens-week', 'cost-today'],
+  dashboardLayout: [
+    {
+      id: 'default-row-1',
+      columns: 4,
+      items: ['summary:tokens-today', 'summary:tokens-week', 'summary:cost-today', 'stat:location'],
+    },
+    { id: 'default-row-2', columns: 2, items: ['network', 'pings', 'cpu', 'gpu'] },
+    { id: 'default-row-3', columns: 3, items: ['usage:claude-code', 'memory', 'disk'] },
+    { id: 'default-row-4', columns: 2, items: ['github', 'github-actions'] },
+  ],
+};
+
 export interface SecurityScannerSettings {
   sonarToken?: string | null;
   sonarUrl?: string | null;

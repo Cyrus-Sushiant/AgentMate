@@ -33,6 +33,8 @@ const TARGET_AI_NOTES_BY_CLI_ID: Record<string, string> = {
   'freebuff-cli':
     'Keep the request self-contained and explicit about files, constraints, and the desired result.',
   pi: 'Assume a bare read/write/edit/bash toolset and no plan mode; spell out each step and file.',
+  'muse-code':
+    'Name the files to edit and the test command to run; it asks before risky shell commands, so keep each step concrete.',
 };
 
 export function targetAINote(targetAI: string): string {

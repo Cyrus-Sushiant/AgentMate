@@ -107,9 +107,44 @@ describe('a fresh profile', () => {
     expect(settings.defaultCliId).toBeNull();
     expect(settings.pingTargets).toEqual(['1.1.1.1']);
     expect(settings.keepAwake).toBe('agent');
-    expect(settings.dashboardStatCards).toEqual(DEFAULT_SETTINGS.dashboardStatCards);
+    expect(settings.dashboardStatCards).toEqual(['location']);
+    expect(settings.dashboardUsageCards).toEqual(['claude-code']);
+    expect(settings.dashboardUsageSummaryCards).toEqual([
+      'tokens-today',
+      'tokens-week',
+      'cost-today',
+    ]);
+    expect(settings.dashboardChartCards).toEqual(DEFAULT_SETTINGS.dashboardChartCards);
+    // Every card in the lists above has a cell, so the dashboard doesn't append any on first load.
+    expect(settings.dashboardLayout.flatMap((row) => row.items).sort()).toEqual(
+      [
+        ...settings.dashboardChartCards,
+        'stat:location',
+        'usage:claude-code',
+        'summary:tokens-today',
+        'summary:tokens-week',
+        'summary:cost-today',
+      ].sort(),
+    );
+    expect(settings.dashboardIntroducedCharts).toEqual(settings.dashboardChartCards);
     // Nothing was written just by reading: a first launch that crashes leaves no half profile.
     expect(existsSync(userData.dataFile('settings.json'))).toBe(false);
+  });
+
+  it('keeps the plain dashboard defaults for an existing profile that predates them', async () => {
+    writeFileSync(
+      userData.dataFile('settings.json'),
+      JSON.stringify({ dashboardChartOrder: ['memory', 'cpu'] }),
+      'utf-8',
+    );
+    const { store, DEFAULT_SETTINGS } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    // The first-run layout would hide this user's legacy card order, so it isn't applied here.
+    expect(settings.dashboardLayout).toEqual([]);
+    expect(settings.dashboardChartOrder).toEqual(['memory', 'cpu']);
+    expect(settings.dashboardStatCards).toEqual(DEFAULT_SETTINGS.dashboardStatCards);
   });
 
   it('round trips the defaults, so reading what was written changes nothing', async () => {

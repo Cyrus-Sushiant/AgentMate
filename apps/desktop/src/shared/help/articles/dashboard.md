@@ -35,7 +35,7 @@ The charts update live. They sample about every two seconds and keep roughly the
 | **CPU Usage** | Total CPU use as a percentage, with the processor model and number of cores. When the machine has more than one core, **Total** and **Per core** buttons switch the chart between one line and a line for each core. |
 | **Memory Usage** | The percentage of RAM in use, with used and total memory. |
 | **Disk I/O** | Combined read and write speed, and a line for each disk. It says "No disk activity detected." when nothing is reported. |
-| **GPU Usage** | GPU use as a percentage (the average when you have several GPUs), plus each GPU's memory. It shows N/A and "No supported GPU detected." when none can be read. |
+| **GPU Usage** | GPU use as a percentage (the average when you have several GPUs), plus each GPU's memory. It reads NVIDIA cards on any system, the integrated GPU on Windows, and every GPU on a Mac, Apple Silicon included. It shows N/A and "No supported GPU detected." when none can be read, for example an AMD or Intel GPU on Linux. |
 | **Network Throughput** | Download speed as the headline number, with lines for download and upload. |
 | **Network Status** | How many of your ping targets are online, a quality label, and each target's latency. |
 

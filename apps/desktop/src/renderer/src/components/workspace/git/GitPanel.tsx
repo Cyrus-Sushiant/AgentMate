@@ -70,6 +70,7 @@ import { PullRequestDialog } from './pr/PullRequestDialog';
 import { PullRequestSection } from './pr/PullRequestSection';
 import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
 import { SectionCount, SourceSection, SourceSectionSplitter } from './SourceSection';
+import { StashMenu, StashesSection, useStashes } from './StashesSection';
 import {
   type GitActions,
   openChangedFile,
@@ -593,6 +594,8 @@ function SourceControlBody({
   const [prDialogOpen, setPrDialogOpen] = useState(false);
   const openCreateWorktree = useWorktreeDialogStore((s) => s.openCreate);
   const worktreeCount = useWorktrees(parseScopeId(project.id).projectId).data?.length ?? 0;
+  // Cheap (`git stash list`), so the Stashes header can carry its count like Commits does.
+  const stashCount = useStashes(project.id, state?.isRepo === true).data?.length ?? 0;
 
   if (!state) {
     return (
@@ -716,8 +719,17 @@ function SourceControlBody({
           count={total}
           countLabel={`${total} changed file${total === 1 ? '' : 's'}`}
           countTone={state.conflicts.length > 0 ? 'destructive' : 'default'}
+          actions={<StashMenu project={project} state={state} actions={actions} />}
         >
           <ChangesBody project={project} state={state} actions={actions} />
+        </SourceSection>
+        <SourceSection
+          {...fold('stashes')}
+          title="Stashes"
+          count={stashCount}
+          countLabel={`${stashCount} ${stashCount === 1 ? 'stash' : 'stashes'}`}
+        >
+          <StashesSection project={project} />
         </SourceSection>
         <SourceSection
           {...fold('branches')}

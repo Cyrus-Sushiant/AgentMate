@@ -117,6 +117,7 @@ export const SIDE_PANEL_SECTIONS: SidePanelSection[] = [
 /** The folding sections inside the Source control tab, top to bottom. */
 export type SourceControlSection =
   | 'changes'
+  | 'stashes'
   | 'branches'
   | 'worktrees'
   | 'commits'
@@ -125,6 +126,7 @@ export type SourceControlSection =
 
 export const SOURCE_CONTROL_SECTIONS: SourceControlSection[] = [
   'changes',
+  'stashes',
   'branches',
   'worktrees',
   'commits',
@@ -135,6 +137,7 @@ export const SOURCE_CONTROL_SECTIONS: SourceControlSection[] = [
 /** Only the changes are open until the user opens something else. */
 const DEFAULT_OPEN_SOURCE_SECTIONS: Record<SourceControlSection, boolean> = {
   changes: true,
+  stashes: false,
   branches: false,
   worktrees: false,
   commits: false,

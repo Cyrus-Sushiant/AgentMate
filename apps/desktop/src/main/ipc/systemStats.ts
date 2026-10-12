@@ -6,7 +6,6 @@ import { promisify } from 'node:util';
 import { app, ipcMain } from 'electron';
 import type {
   DiskUsage,
-  GpuUsage,
   KillProcessResult,
   SystemStatsSample,
   TopResourceApp,
@@ -16,6 +15,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import { probeAll } from '../network/pingProbe';
 import { store } from '../store';
+import { sampleGpus } from '../system/gpuStats';
 import { asArray, runPowerShellJson } from '../system/processTree';
 
 const execFileAsync = promisify(execFile);
@@ -202,96 +202,6 @@ async function sampleDisks(): Promise<DiskUsage[]> {
   } catch {
     return [];
   }
-}
-
-async function sampleNvidiaGpus(): Promise<GpuUsage[]> {
-  try {
-    // NVIDIA is the only vendor that exposes live utilization through a
-    // standard CLI; other vendors are covered separately (Windows only)
-    // by sampleOtherGpu below.
-    const { stdout } = await execFileAsync('nvidia-smi', [
-      '--query-gpu=index,name,utilization.gpu,memory.used,memory.total',
-      '--format=csv,noheader,nounits',
-    ]);
-    return stdout
-      .trim()
-      .split('\n')
-      .map((line) => {
-        const [index, name, util, memUsed, memTotal] = line.split(',').map((v) => v.trim());
-        return {
-          id: `nvidia-${index}`,
-          label: name,
-          percent: Number(util),
-          memUsedBytes: Number(memUsed) * 1024 * 1024,
-          memTotalBytes: Number(memTotal) * 1024 * 1024,
-        };
-      })
-      .filter((g) => Number.isFinite(g.percent));
-  } catch {
-    return [];
-  }
-}
-
-// Best-effort coverage for the non-NVIDIA GPU (typically a laptop's
-// integrated Intel/AMD chip) using Windows' GPU performance counters.
-// Windows has no safe/simple way to attribute a specific "GPU Engine"
-// counter instance to a specific physical adapter (that requires DXGI's
-// IDXGIAdapter::GetDesc via native COM interop), so this reports the
-// busiest engine across the whole system as this GPU's usage. It's
-// usually accurate, but can occasionally reflect the NVIDIA GPU's load
-// instead when that GPU is the one actually busy (e.g. during gaming).
-const OTHER_GPU_SCRIPT = `
-$others = Get-CimInstance Win32_VideoController | Where-Object { $_.AdapterCompatibility -notmatch 'NVIDIA' -and $_.Name -notmatch 'NVIDIA' }
-if (-not $others) { Write-Output '[]'; exit }
-$engine = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue
-$busiest = 0
-if ($engine) {
-  $groups = $engine | Group-Object { $_.Name -replace '^pid_\\d+_', '' }
-  foreach ($g in $groups) {
-    $sum = ($g.Group | Measure-Object -Property UtilizationPercentage -Sum).Sum
-    if ($sum -gt $busiest) { $busiest = $sum }
-  }
-}
-$mem = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue
-$memUsed = 0
-if ($mem) { $memUsed = ($mem | Measure-Object -Property SharedUsage -Maximum).Maximum }
-$c = $others | Select-Object -First 1
-[PSCustomObject]@{ name = $c.Name; ram = [int64]$c.AdapterRAM; percent = [math]::Round($busiest, 1); memUsed = [int64]$memUsed } | ConvertTo-Json -Compress
-`;
-
-async function sampleOtherGpu(): Promise<GpuUsage[]> {
-  if (process.platform !== 'win32') return [];
-  try {
-    const { stdout } = await execFileAsync('powershell', [
-      '-NoProfile',
-      '-Command',
-      OTHER_GPU_SCRIPT,
-    ]);
-    const trimmed = stdout.trim();
-    if (!trimmed || trimmed === '[]') return [];
-    const parsed = JSON.parse(trimmed) as {
-      name: string;
-      ram: number;
-      percent: number;
-      memUsed: number;
-    };
-    return [
-      {
-        id: 'other-gpu',
-        label: parsed.name,
-        percent: Math.max(0, Math.min(100, parsed.percent)),
-        memUsedBytes: parsed.memUsed,
-        memTotalBytes: parsed.ram > 0 ? parsed.ram : parsed.memUsed,
-      },
-    ];
-  } catch {
-    return [];
-  }
-}
-
-async function sampleGpus(): Promise<GpuUsage[]> {
-  const [nvidia, other] = await Promise.all([sampleNvidiaGpus(), sampleOtherGpu()]);
-  return [...nvidia, ...other];
 }
 
 interface NetTotals {

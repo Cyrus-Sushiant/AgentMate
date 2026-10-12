@@ -3,7 +3,7 @@ title: AI CLI Manager
 category: Agents
 order: 10
 summary: See which AI coding CLIs (Claude Code, Codex, Gemini CLI, Cursor and more) are installed, install or update them, and choose your default CLI, launch defaults and agent order.
-keywords: cli, ai cli, claude code, codex, gemini cli, cursor, opencode, aider, goose, copilot, install, update, version, default cli, launch defaults, agent order, running clis, npm, pipx
+keywords: cli, ai cli, claude code, codex, gemini cli, cursor, opencode, aider, goose, copilot, muse code, install, update, version, default cli, launch defaults, agent order, running clis, npm, pipx
 route: /cli-manager
 ---
 
@@ -15,7 +15,7 @@ Click **AI CLI Manager** in the sidebar under **Agents**, or open the command pa
 
 ## Supported CLIs
 
-AgentMate knows these 15 CLIs. Each one has a card on the page.
+AgentMate knows these 16 CLIs. Each one has a card on the page.
 
 | CLI | Notes |
 | --- | --- |
@@ -34,8 +34,9 @@ AgentMate knows these 15 CLIs. Each one has a card on the page.
 | Cline CLI | Autonomous coding agent from the Cline team. |
 | Continue CLI | Open-source assistant CLI (`cn`). |
 | Pi | Minimal, extensible terminal coding agent. |
+| Muse Code CLI | Meta's coding agent for the terminal and CI. |
 
-Most of them install with `npm install -g ...`, so you need Node.js and npm on your machine for those. Aider uses `pipx`, Cursor CLI and Goose use their own install scripts.
+Most of them install with `npm install -g ...`, so you need Node.js and npm on your machine for those. Aider uses `pipx`. Cursor CLI, Goose and Muse Code use their own install scripts.
 
 ## How detection works
 

@@ -55,6 +55,7 @@ import {
   Sparkles,
   TerminalSquare,
   Trash2,
+  Undo,
   Workspace,
   Wrench,
   X,
@@ -96,6 +97,7 @@ import { useChartColors } from '@/lib/chartColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatPercent, formatTokens } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
+import { confirmDialog } from '@/stores/confirmStore';
 import {
   type DashboardChartId,
   type DashboardItemId,
@@ -712,6 +714,7 @@ export default function DashboardPage(): React.JSX.Element {
   const removeRow = useDashboardLayoutStore((s) => s.removeRow);
   const moveItem = useDashboardLayoutStore((s) => s.moveItem);
   const moveRow = useDashboardLayoutStore((s) => s.moveRow);
+  const resetToDefault = useDashboardLayoutStore((s) => s.resetToDefault);
   const [dragChartId, setDragChartId] = useState<DashboardItemId | null>(null);
   const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [cpuView, setCpuView] = useState<'total' | 'cores'>('total');
@@ -1536,9 +1539,28 @@ export default function DashboardPage(): React.JSX.Element {
           <Sparkles /> Open Prompt Builder
         </Button>
         {editing && (
+          <Button
+            variant="soft"
+            className="ml-auto"
+            onClick={async () => {
+              const confirmed = await confirmDialog({
+                title: 'Reset the dashboard?',
+                description:
+                  'Your rows, column counts and card choices go back to how a new install starts.',
+                confirmLabel: 'Reset',
+              });
+              if (!confirmed) return;
+              resetToDefault();
+              toast.success('Dashboard reset to default.');
+            }}
+          >
+            <Undo /> Reset to default
+          </Button>
+        )}
+        {editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="soft" className="ml-auto">
+              <Button variant="soft">
                 <Plus /> Add card
               </Button>
             </DropdownMenuTrigger>
@@ -1604,7 +1626,8 @@ export default function DashboardPage(): React.JSX.Element {
           <p className="w-full px-1.5 pb-0.5 text-xs leading-relaxed text-muted-foreground">
             Drag a card by its handle to move it within a row or into another one, drag a row by its
             handle to reorder rows, choose how many columns each row uses, hide cards you don't
-            want, and bring them back from "Add card".
+            want, and bring them back from "Add card". "Reset to default" starts over from the
+            layout a new install has.
           </p>
         )}
       </div>

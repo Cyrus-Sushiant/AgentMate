@@ -38,11 +38,17 @@ export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
 ];
 
 /**
- * CLIs with no readable session store (SQLite-only or no resumable id).
+ * CLIs with no readable session store (SQLite-only or no resumable id), or one not mapped yet.
  * Listed explicitly so the provider-coverage test fails loudly when a new
  * CLI is added to `CLI_REGISTRY` without a history decision.
  */
-export const HISTORY_UNSUPPORTED_CLIS: readonly string[] = ['copilot-cli', 'aider', 'goose', 'pi'];
+export const HISTORY_UNSUPPORTED_CLIS: readonly string[] = [
+  'copilot-cli',
+  'aider',
+  'goose',
+  'pi',
+  'muse-code',
+];
 
 export interface AgentHistorySession {
   provider: AgentHistoryProvider;

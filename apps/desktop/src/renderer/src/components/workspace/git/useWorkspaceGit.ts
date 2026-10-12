@@ -116,6 +116,12 @@ export interface GitActions {
   resolveWithAi: (path: string) => Promise<void>;
   abort: () => Promise<void>;
   commit: (message: string, push: boolean) => Promise<boolean>;
+  /** Stashes the working tree; `mode` picks the git flags, like VS Code's stash menu. */
+  stash: (mode: 'all' | 'keep-staged', message?: string) => Promise<void>;
+  /** Restores a stash but keeps it (`apply`) or drops it (`pop`). No ref means the newest. */
+  stashRestore: (action: 'pop' | 'apply', ref?: string) => Promise<void>;
+  /** Forgets a stash without restoring it. */
+  stashDrop: (ref: string) => Promise<void>;
 }
 
 export function useGitActions(projectId: string): GitActions {
@@ -298,6 +304,48 @@ export function useGitActions(projectId: string): GitActions {
         const firstLine = message.split('\n')[0];
         toast.success(push ? 'Committed and pushed' : 'Committed', { description: firstLine });
         return true;
+      },
+
+      stash: async (mode, message) => {
+        const result = await git.stashPush({
+          projectId,
+          includeUntracked: mode === 'all',
+          keepIndex: mode === 'keep-staged',
+          message,
+        });
+        if (result.ok) {
+          toast.success('Stashed the changes', { description: result.message });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.gitStashList(projectId) });
+        } else {
+          toast.error('Could not stash', { description: result.message });
+        }
+      },
+
+      stashRestore: async (action, ref) => {
+        const result =
+          action === 'pop'
+            ? await git.stashPop(projectId, ref)
+            : await git.stashApply(projectId, ref);
+        if (result.ok) {
+          toast.success(result.message);
+          void queryClient.invalidateQueries({ queryKey: queryKeys.gitStashList(projectId) });
+        } else {
+          toast.error(action === 'pop' ? 'Could not pop the stash' : 'Could not apply the stash', {
+            description: result.message,
+          });
+        }
+      },
+
+      stashDrop: async (ref) => {
+        const ok = ref;
+        if (!ok) return;
+        const result = await git.stashDrop(projectId, ref);
+        if (result.ok) {
+          toast.success(result.message);
+          void queryClient.invalidateQueries({ queryKey: queryKeys.gitStashList(projectId) });
+        } else {
+          toast.error('Could not drop the stash', { description: result.message });
+        }
       },
     };
   }, [projectId, queryClient]);

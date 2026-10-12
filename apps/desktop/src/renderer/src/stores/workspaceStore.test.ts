@@ -63,6 +63,7 @@ beforeEach(() => {
       activeSection: 'sourceControl',
       openSourceSections: {
         changes: true,
+        stashes: false,
         branches: false,
         commits: false,
         pullRequest: false,
@@ -860,6 +861,7 @@ describe('coming back from a saved layout', () => {
     await rehydrate();
     expect(store().gitPanel.openSourceSections).toEqual({
       changes: false,
+      stashes: false,
       branches: false,
       commits: true,
       pullRequest: false,

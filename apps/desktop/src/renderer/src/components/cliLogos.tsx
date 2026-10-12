@@ -4,6 +4,7 @@ import {
   siCursor,
   siGithubcopilot,
   siGooglegemini,
+  siMeta,
   siOpencode,
   siQwen,
 } from 'simple-icons';
@@ -49,6 +50,7 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   // The sparkle and prompt bar are holes, so inverting keeps them readable on dark.
   'freebuff-cli': { ...freebuffMark, invertOnDark: true },
   openclaude: openclaudeMark,
+  'muse-code': { path: siMeta.path, color: `#${siMeta.hex}` },
 };
 
 interface MonogramLogo {

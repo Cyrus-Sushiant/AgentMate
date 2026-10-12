@@ -171,6 +171,8 @@ import type {
   GitImageDiff,
   GitInitInput,
   GitOpResult,
+  GitStashEntry,
+  GitStashPushInput,
   GitStatus,
   GitTagInfo,
   HelpAskInput,
@@ -1528,6 +1530,21 @@ const git = {
   /** Commits only what is staged, optionally pushing the branch right after. */
   commitStaged: (projectId: string, message: string, push: boolean): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.git.commitStaged, projectId, message, push),
+  /** Stashes the working tree. `includeUntracked` is `--include-untracked`, `keepIndex` is `--keep-index`. */
+  stashPush: (input: GitStashPushInput): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.stashPush, input),
+  /** Newest stash first. Empty when nothing is stashed. */
+  stashList: (projectId: string): Promise<GitStashEntry[]> =>
+    ipcRenderer.invoke(IPC.git.stashList, projectId),
+  /** Restores the given stash (or the newest) and drops it. */
+  stashPop: (projectId: string, ref?: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.stashPop, projectId, ref),
+  /** Restores the given stash (or the newest) and keeps it. */
+  stashApply: (projectId: string, ref?: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.stashApply, projectId, ref),
+  /** Forgets the given stash without restoring it. */
+  stashDrop: (projectId: string, ref: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.git.stashDrop, projectId, ref),
   fileDiff: (
     projectId: string,
     path: string,
