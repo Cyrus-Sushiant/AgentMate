@@ -76,6 +76,39 @@ describe('HistoryRow', () => {
     expect(screen.getByText(/GPT-5-codex · high effort/)).toBeInTheDocument();
   });
 
+  it('names the model an OpenCode session ran on', () => {
+    renderUi(
+      <HistoryRow
+        session={session({
+          provider: 'opencode',
+          model: 'muse-spark-1.3-contributor-free',
+          updatedAt: Date.now(),
+        })}
+        onResume={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Muse Spark 1\.3 Contributor Free/)).toBeInTheDocument();
+  });
+
+  it('shows no model line when the CLI stores none, like FreeBuff', () => {
+    renderUi(
+      <HistoryRow
+        session={session({
+          provider: 'freebuff-cli',
+          title: 'FreeBuff ask',
+          model: null,
+          effort: null,
+          updatedAt: Date.now() - 60_000,
+        })}
+        onResume={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('FreeBuff ask')).toBeInTheDocument();
+    // The meta line is just the age: no model, no effort separator.
+    expect(screen.getByText(/ago/)).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+  });
+
   it('marks a conversation already open in a tab and drops the resume button', () => {
     renderUi(<HistoryRow session={session()} openTabId="tab-1" onResume={vi.fn()} />);
     expect(screen.getByText('Open')).toBeInTheDocument();

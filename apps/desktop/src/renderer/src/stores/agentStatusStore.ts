@@ -34,6 +34,53 @@ export function useAgentRunInfo(sessionId: string): AgentRunInfo | undefined {
   return useAgentStatusStore((s) => s.runInfos[sessionId]);
 }
 
+/**
+ * The tooltip model line for a tab, newest signal first: what the agent
+ * reports right now, what the tab was launched with, what the CLI was last
+ * run on, what the CLI opens with by default. Only Claude Code reports live
+ * (it is the only CLI with status hooks), so every other agent leans on the
+ * launch-time and configured values.
+ */
+export function tabRunLine(
+  runInfo: AgentRunInfo | undefined,
+  runLabel: string | null | undefined,
+  cliFallback: string | null,
+): string | null {
+  if (runInfo?.model || runInfo?.effort) {
+    return [
+      runInfo.model ? modelDisplayName(runInfo.model) : null,
+      runInfo.effort ? `${runInfo.effort} effort` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+  return runLabel ?? cliFallback;
+}
+
+/**
+ * The model line for a CLI whose agent never reports one: what it was last
+ * run on, else its launch default. Null when nothing is known, so the tab
+ * shows no model rather than a made-up one.
+ */
+export function useCliRunLine(cliId: string | undefined): string | null {
+  return useCliStore((s) => {
+    if (!cliId) return null;
+    const last = s.lastRunInfoByCli[cliId];
+    if (last?.model || last?.effort) {
+      return (
+        [
+          last.model ? modelDisplayName(last.model) : null,
+          last.effort ? `${last.effort} effort` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || null
+      );
+    }
+    const model = s.cliLaunchDefaults[cliId]?.model;
+    return model ? modelDisplayName(model) : null;
+  });
+}
+
 export function useAutoContinuePending(sessionId: string): AutoContinuePending | null {
   return useAgentStatusStore((s) => s.autoContinue[sessionId] ?? null);
 }

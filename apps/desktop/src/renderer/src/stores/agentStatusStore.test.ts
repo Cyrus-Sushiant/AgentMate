@@ -95,3 +95,40 @@ describe('auto-continue in the agent status store', () => {
     expect(result.current).toBeNull();
   });
 });
+
+describe('tab tooltip model line', () => {
+  it('prefers the live report, then the launch label, then the CLI fallback', async () => {
+    const { tabRunLine } = await import('./agentStatusStore');
+    expect(tabRunLine({ model: 'claude-opus-5', effort: 'high' }, 'Launch label', 'Fallback')).toBe(
+      'Opus 5 · high effort',
+    );
+    expect(tabRunLine({ effort: 'low' }, 'Launch label', 'Fallback')).toBe('low effort');
+    expect(tabRunLine({}, 'Launch label', 'Fallback')).toBe('Launch label');
+    expect(tabRunLine(undefined, undefined, 'Fallback')).toBe('Fallback');
+    expect(tabRunLine(undefined, undefined, null)).toBeNull();
+  });
+
+  it('falls back to the last run and then the launch default per CLI', async () => {
+    const status = await import('./agentStatusStore');
+    const { useCliStore } = await import('./cliStore');
+    // Agents without hooks (OpenCode, FreeBuff, …) never report live, so the
+    // tooltip shows what the CLI ran on last, else what it opens with.
+    useCliStore.setState({
+      lastRunInfoByCli: { opencode: { model: 'muse-spark', effort: 'high' } },
+      cliLaunchDefaults: { 'freebuff-cli': { model: 'deepseek-v4-flash' } },
+    });
+    const { result, rerender } = renderHook(({ cliId }) => status.useCliRunLine(cliId), {
+      initialProps: { cliId: 'opencode' as string | undefined },
+    });
+    expect(result.current).toBe('Muse Spark · high effort');
+
+    rerender({ cliId: 'freebuff-cli' });
+    expect(result.current).toBe('Deepseek V4 Flash');
+
+    rerender({ cliId: 'codex-cli' });
+    expect(result.current).toBeNull();
+
+    rerender({ cliId: undefined });
+    expect(result.current).toBeNull();
+  });
+});

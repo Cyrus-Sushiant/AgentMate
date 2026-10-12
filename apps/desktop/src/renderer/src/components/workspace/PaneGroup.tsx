@@ -36,10 +36,11 @@ import { useLauncherStore } from '@/lib/workspace/commands';
 import { resumeInputFor, statusHooksReady } from '@/lib/workspace/launch';
 import {
   isSessionBusy,
-  modelDisplayName,
+  tabRunLine,
   useAgentRunInfo,
   useAgentStatus,
   useAutoContinuePending,
+  useCliRunLine,
 } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
@@ -238,6 +239,7 @@ function PaneTab({
   const ended = useTerminalSessionStore((s) => tab.id in s.ended);
   const status = useAgentStatus(tab.id);
   const runInfo = useAgentRunInfo(tab.id);
+  const cliRunLine = useCliRunLine(tab.kind === 'terminal' ? tab.cliId : undefined);
   const [editing, setEditing] = useState(false);
   const renameRequested = useRef(false);
   // An agent tab takes the name the agent gave its task, as Orca does, once that task is done:
@@ -255,19 +257,12 @@ function PaneTab({
   }, [status, agentTitle, projectId, tab.id, setAgentTitle]);
   const label = tabLabel(tab, settledTitle);
   const attention = tab.kind === 'terminal' && !ended ? status : null;
-  // What the agent reports it runs on right now, so a /model or /effort switch mid-session
-  // shows up here. Before it reports, fall back to what the tab was launched with.
+  // What the agent runs on: the live report when it has hooks (Claude Code),
+  // else the launch label, the CLI's last run, or its launch default, so a
+  // /model or /effort switch mid-session still shows up for hooked agents and
+  // every other agent shows the model it started with.
   const runLine =
-    tab.kind !== 'terminal' || !tab.cliId
-      ? null
-      : runInfo?.model || runInfo?.effort
-        ? [
-            runInfo.model ? modelDisplayName(runInfo.model) : null,
-            runInfo.effort ? `${runInfo.effort} effort` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        : (tab.runLabel ?? null);
+    tab.kind !== 'terminal' || !tab.cliId ? null : tabRunLine(runInfo, tab.runLabel, cliRunLine);
   const tooltip =
     tab.kind === 'terminal' ? (
       <span className="flex flex-col gap-0.5">

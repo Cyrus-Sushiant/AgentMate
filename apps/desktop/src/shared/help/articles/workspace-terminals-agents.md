@@ -74,7 +74,7 @@ A shell that exits cleanly (exit code 0) closes its own tab, like closing a term
 
 An agent tab shows the CLI's logo. While an agent works on a task, the tab keeps the CLI's name. When the task is done, the tab takes the task name the agent set for itself, so several agents of the same kind do not all look alike. Rename a tab yourself by double-clicking it or choosing **Rename** in its right-click menu, and your name wins.
 
-Hover an agent tab to see its name, the CLI, the model and effort it is currently running on, its status and its folder. If you switch models in the CLI, the tooltip follows.
+Hover an agent tab to see its name, the CLI, the model and effort it is running on, its status and its folder. Agents that report back live (Claude Code) keep the model line current when you switch mid-session; every other agent shows the model it started with.
 
 When a shell ends, the pane shows a bar at the bottom: **Process exited.** (or **Process exited with code {n}.**) with **Restart** and **Close**. **Restart** starts the tab again with the same command.
 
