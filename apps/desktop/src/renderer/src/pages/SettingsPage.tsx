@@ -2,6 +2,7 @@ import type {
   AiProvider,
   AppSettings,
   MenuPosition,
+  PingIpVersion,
   PingMethod,
   StartupPage,
   ThemeMode,
@@ -94,6 +95,8 @@ import { useCliStore } from '@/stores/cliStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import {
+  DEFAULT_PING_TARGETS_IPV4,
+  DEFAULT_PING_TARGETS_IPV6,
   DEFAULT_PING_URL,
   MAX_PING_URL_INTERVAL_SECONDS,
   MIN_PING_URL_INTERVAL_SECONDS,
@@ -397,7 +400,7 @@ const SECTIONS = {
   pingTargets: {
     tab: 'network',
     title: 'Network ping targets',
-    keywords: 'ping network hosts dashboard url http generate_204 icmp status bar',
+    keywords: 'ping network hosts dashboard url http generate_204 icmp status bar ipv4 ipv6',
   },
   vault: { tab: 'vault', title: 'Vault', keywords: VAULT_KEYWORDS },
   backup: {
@@ -638,6 +641,11 @@ function MenuPositionPreview({ position }: { position: MenuPosition }): React.JS
   );
 }
 
+const PING_IP_OPTIONS: { value: PingIpVersion; label: string; hint: string }[] = [
+  { value: 'ipv4', label: 'IPv4', hint: 'Pings IPv4 addresses such as 1.1.1.1.' },
+  { value: 'ipv6', label: 'IPv6', hint: 'Pings IPv6 addresses. Use this on IPv6-only networks.' },
+];
+
 const PING_METHOD_OPTIONS: { value: PingMethod; label: string; hint: string }[] = [
   {
     value: 'icmp',
@@ -764,6 +772,10 @@ export default function SettingsPage(): React.JSX.Element {
   const setTheme = useThemeStore((s) => s.setTheme);
   const pingTargets = usePingTargetsStore((s) => s.pingTargets);
   const setPingTargets = usePingTargetsStore((s) => s.setPingTargets);
+  const pingIpVersion = usePingTargetsStore((s) => s.pingIpVersion);
+  const setPingIpVersion = usePingTargetsStore((s) => s.setPingIpVersion);
+  const pingTargetsIpv6 = usePingTargetsStore((s) => s.pingTargetsIpv6);
+  const setPingTargetsIpv6 = usePingTargetsStore((s) => s.setPingTargetsIpv6);
   const pingMethod = usePingTargetsStore((s) => s.pingMethod);
   const setPingMethod = usePingTargetsStore((s) => s.setPingMethod);
   const pingUrls = usePingTargetsStore((s) => s.pingUrls);
@@ -1013,12 +1025,14 @@ export default function SettingsPage(): React.JSX.Element {
     },
   });
 
-  const [pingTargetsText, setPingTargetsText] = useState(() => pingTargets.join(', '));
+  // The hosts editor shows the list for the chosen IP family; each family keeps its own list.
+  const activePingHosts = pingIpVersion === 'ipv6' ? pingTargetsIpv6 : pingTargets;
+  const [pingTargetsText, setPingTargetsText] = useState(() => activePingHosts.join(', '));
   const [pingTargetsDirty, setPingTargetsDirty] = useState(false);
 
   useEffect(() => {
-    if (!pingTargetsDirty) setPingTargetsText(pingTargets.join(', '));
-  }, [pingTargets, pingTargetsDirty]);
+    if (!pingTargetsDirty) setPingTargetsText(activePingHosts.join(', '));
+  }, [activePingHosts, pingTargetsDirty]);
 
   // URLs contain no commas in practice, so they share the comma-separated chip editor.
   const [pingUrlsText, setPingUrlsText] = useState(() => pingUrls.join(', '));
@@ -1039,12 +1053,26 @@ export default function SettingsPage(): React.JSX.Element {
     );
   }
 
-  function handleSavePingTargets(): void {
-    if (pingTargetsDirty) setPingTargets(splitList(pingTargetsText));
-    if (pingUrlsDirty) setPingUrls(splitList(pingUrlsText).filter(isHttpUrl));
+  function commitPingHosts(): void {
+    if (!pingTargetsDirty) return;
+    const hosts = splitList(pingTargetsText);
+    if (pingIpVersion === 'ipv6') setPingTargetsIpv6(hosts);
+    else setPingTargets(hosts);
     setPingTargetsDirty(false);
+  }
+
+  function handleSavePingTargets(): void {
+    commitPingHosts();
+    if (pingUrlsDirty) setPingUrls(splitList(pingUrlsText).filter(isHttpUrl));
     setPingUrlsDirty(false);
     toast.success('Ping targets updated.');
+  }
+
+  function handlePingIpVersionChange(version: PingIpVersion): void {
+    if (version === pingIpVersion) return;
+    // Keep edits typed for the family being left before its list is swapped out.
+    commitPingHosts();
+    setPingIpVersion(version);
   }
 
   const [projectsRootPath, setProjectsRootPath] = useState('');
@@ -2416,6 +2444,38 @@ export default function SettingsPage(): React.JSX.Element {
                     dirty={pingTargetsDirty || pingUrlsDirty}
                   >
                     <div className="space-y-4">
+                      {pingMethod !== 'http' && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">IP version</Label>
+                          <div
+                            role="radiogroup"
+                            aria-label="Ping IP version"
+                            className="flex flex-col gap-2 sm:flex-row"
+                          >
+                            {PING_IP_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                role="radio"
+                                aria-checked={pingIpVersion === option.value}
+                                onClick={() => handlePingIpVersionChange(option.value)}
+                                className={cn(
+                                  'flex flex-1 cursor-pointer flex-col rounded-lg border px-3 py-2 text-left transition-colors',
+                                  pingIpVersion === option.value
+                                    ? 'border-primary/60 bg-primary/10'
+                                    : 'border-input hover:bg-accent',
+                                )}
+                              >
+                                <div className="text-sm font-medium">{option.label}</div>
+                                <div className="text-[11px] text-muted-foreground">
+                                  {option.hint}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Method</Label>
                         <div
@@ -2446,7 +2506,24 @@ export default function SettingsPage(): React.JSX.Element {
 
                       {pingMethod !== 'http' && (
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Hosts to ping</Label>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Hosts to ping</Label>
+                            <Button
+                              variant="soft"
+                              size="sm"
+                              onClick={() => {
+                                setPingTargetsText(
+                                  (pingIpVersion === 'ipv6'
+                                    ? DEFAULT_PING_TARGETS_IPV6
+                                    : DEFAULT_PING_TARGETS_IPV4
+                                  ).join(', '),
+                                );
+                                setPingTargetsDirty(true);
+                              }}
+                            >
+                              Reset to default
+                            </Button>
+                          </div>
                           <HostChips
                             ariaLabel="Hosts to ping"
                             value={pingTargetsText}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { Monitor, Send, Upload } from '@/components/icons';
 import {
-  MacTrafficLights,
+  MacTrafficLightsSpace,
   NativeCaptionButtons,
   type WindowControlsProps,
 } from '@/components/layout/TitleBar';
@@ -87,7 +87,7 @@ export default function RemoteSessionRoute(): React.JSX.Element {
         }}
       >
         <div className="flex shrink-0 items-center gap-2">
-          {isMac && <MacTrafficLights {...controlProps} />}
+          {isMac && <MacTrafficLightsSpace />}
           <Monitor className="h-4 w-4 shrink-0 text-primary" />
           <span className="max-w-[160px] truncate text-sm font-semibold text-foreground">
             {connection?.remoteDeviceName ?? 'Remote device'}

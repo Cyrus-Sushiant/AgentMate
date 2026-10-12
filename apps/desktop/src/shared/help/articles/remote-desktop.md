@@ -3,7 +3,7 @@ title: Remote Desktop
 category: Connect
 order: 20
 summary: Sign in to Windows servers and PCs over RDP in their own window, with shared clipboard, file copy, full screen, and an AI that can do tasks on the remote desktop for you.
-keywords: rdp, remote desktop, windows server, windows, mstsc, nla, clipboard, file copy, full screen, ctrl+alt+del, certificate, reinstall, forget certificate, tls, key usage, ask ai, session window, resolution
+keywords: rdp, remote desktop, windows server, windows, mstsc, nla, clipboard, file copy, full screen, ctrl+alt+del, certificate, reinstall, forget certificate, tls, key usage, proxy, socks, ask ai, session window, resolution
 ---
 
 Remote Desktop lets you sign in to a Windows Server or Windows PC that has Remote Desktop (RDP) turned on. Each connection opens in its own window, like the Windows Remote Desktop Connection app. You can share the clipboard, copy files in both directions, go full screen, and even ask an AI to carry out a task on the remote desktop by looking at the screen and using the mouse and keyboard.
@@ -54,6 +54,9 @@ The window shows what went wrong in plain words, a short list under **What you c
 - "Security settings don't match". Edit the server and switch **Network Level Authentication** under **Display and sharing**.
 - "Couldn't set up a secure connection". The server's TLS settings may not match what AgentMate supports. If the server was just reinstalled, restart Remote Desktop Services on it.
 - "The server's certificate can't be used". See below.
+- "Couldn't connect through the proxy". A proxy is on in Settings > Network and it could not be reached, turned down the username and password, or would not open the connection. Many HTTP proxies only allow port 443, and Remote Desktop uses 3389, so a SOCKS5 proxy is usually the better fit. To connect to a server without the proxy, add its address to **Skip the proxy for**.
+
+When a proxy is on in [Settings > Network](settings.md#proxy), Remote Desktop goes through it too, both for sessions and for **Get the certificate again**. Servers on the **Skip the proxy for** list, and any your PAC script sends direct, connect straight. `<local>` only covers plain names and this computer, so add LAN ranges (for example `192.168.0.0/16`) yourself if those servers should skip the proxy.
 
 If the session ends later, the window says "Disconnected" with the reason and the same two buttons. **Reconnect** starts again with a fresh sign-in.
 

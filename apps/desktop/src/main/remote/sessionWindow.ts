@@ -4,6 +4,7 @@ import icon from '../../../resources/icon.ico?asset';
 import { IPC } from '../../shared/ipcChannels';
 import { sendToWindow } from '../ipc/send';
 import { keepWindowsHidden } from '../testMode';
+import { titleBarFrameOptions } from '../windowChrome';
 
 /**
  * The active remote-control session gets its own real, resizable/maximizable/
@@ -50,7 +51,7 @@ function createSessionWindow(): BrowserWindow {
     minWidth: 480,
     minHeight: 320,
     show: false,
-    frame: false,
+    ...titleBarFrameOptions(),
     autoHideMenuBar: true,
     backgroundColor: '#050807',
     icon,

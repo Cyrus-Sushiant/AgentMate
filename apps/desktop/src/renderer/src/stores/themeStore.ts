@@ -1,4 +1,4 @@
-import type { ThemeMode } from '@agentmat/core';
+import { isThemeMode, type ThemeMode } from '@agentmat/core';
 import { create } from 'zustand';
 
 interface ThemeState {
@@ -42,10 +42,43 @@ function applyThemeClass(theme: ThemeMode): void {
   if (next) root.classList.add(...next.split(' '));
 }
 
+/**
+ * The theme main put on the main window's URL (see mainWindowQuery in src/main/windowGlass.ts).
+ * Other windows load without it.
+ */
+export function themeFromSearch(search: string): ThemeMode | undefined {
+  const theme = new URLSearchParams(search).get('theme');
+  return isThemeMode(theme) ? theme : undefined;
+}
+
+/**
+ * Puts the theme class on <html> before React renders, so the first frame already matches the
+ * window's native tint. initTheme still runs afterwards and re-applies the same classes from
+ * settings, which changes nothing on screen.
+ */
+export function applyInitialTheme(search: string): void {
+  const theme = themeFromSearch(search);
+  if (!theme) return;
+  applyThemeClass(theme);
+  useThemeStore.setState({ theme });
+}
+
+/**
+ * Keeps the URL's theme in step with a change made here, so reloading the page (the error
+ * screen's Reload button) starts on the theme in use rather than the one the window opened with.
+ */
+function syncThemeInUrl(theme: ThemeMode): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('theme')) return;
+  url.searchParams.set('theme', theme);
+  window.history.replaceState(window.history.state, '', url);
+}
+
 export const useThemeStore = create<ThemeState>((set) => ({
   theme: 'system',
   setTheme: (theme) => {
     applyThemeClass(theme);
+    syncThemeInUrl(theme);
     set({ theme });
     void window.agentmat.settings.update({ theme });
   },

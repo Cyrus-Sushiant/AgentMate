@@ -9,7 +9,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import { FakeBrowserWindow } from '../../test/main/electronMock';
 import { invoke, invokeFrom, loadIpc, useTempUserData } from '../../test/main/ipcHarness';
-import { RdpHandshakeError } from '../rdp/handshake';
+import { type HandshakeDeps, RdpHandshakeError } from '../rdp/handshake';
 import type { RdpProxyHooks, RdpProxyTarget } from '../rdp/proxy';
 
 /**
@@ -22,6 +22,7 @@ const fakes = vi.hoisted(() => ({
   onClosed: [] as (() => void)[],
   fetchServerCertificate: vi.fn(),
   hooks: null as null | RdpProxyHooks,
+  proxyDeps: undefined as HandshakeDeps | undefined,
 }));
 
 vi.mock('../agents/rdpTaskRunner', () => ({ stopRdpTask: fakes.stopRdpTask }));
@@ -38,8 +39,9 @@ vi.mock('../rdp/sessionWindows', async () => {
 // The proxy is only here for the hooks it is given: the tests play the server's side by calling them.
 vi.mock('../rdp/proxy', () => ({
   RdpProxy: class {
-    constructor(hooks: RdpProxyHooks) {
+    constructor(hooks: RdpProxyHooks, deps?: HandshakeDeps) {
       fakes.hooks = hooks;
+      fakes.proxyDeps = deps;
     }
     async issueUrl(): Promise<string> {
       return 'ws://127.0.0.1:1/token';
@@ -247,7 +249,18 @@ describe('getting a server certificate again', () => {
 
     const result = await check();
 
-    expect(fakes.fetchServerCertificate).toHaveBeenCalledWith('10.0.0.5', 3389);
+    // The same route as the sessions, so a proxy from the Network settings applies to both.
+    expect(fakes.fetchServerCertificate).toHaveBeenCalledWith(
+      '10.0.0.5',
+      3389,
+      expect.objectContaining({ route: expect.any(Function) }),
+    );
+    const [, , deps] = fakes.fetchServerCertificate.mock.calls[0] as [
+      string,
+      number,
+      HandshakeDeps,
+    ];
+    expect(fakes.proxyDeps?.route).toBe(deps.route);
     expect(result).toEqual({ ok: true, check: { certificate: NEW_CERTIFICATE, status: 'new' } });
     expect(savedServer().certFingerprint).toBeUndefined();
   });

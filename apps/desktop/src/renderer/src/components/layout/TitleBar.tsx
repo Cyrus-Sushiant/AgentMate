@@ -1,7 +1,8 @@
+import { MAC_TRAFFIC_LIGHTS_SPACER } from '@shared/windowChrome';
 import { useEffect, useState } from 'react';
 import appIconDark from '@/assets/app-icon.png';
 import appIconLight from '@/assets/app-icon-light.png';
-import { Minus, Plus, Search, X } from '@/components/icons';
+import { Search } from '@/components/icons';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { useIsDarkMode } from '@/lib/chartColors';
 import { isTitleBarBlankDoubleClick } from '@/lib/titleBar';
@@ -10,71 +11,19 @@ import { useSearchStore } from '@/stores/searchStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { HistoryNav } from './HistoryNav';
 
-function TrafficLight({
-  color,
-  border,
-  icon: Icon,
-  onClick,
-  title,
-}: {
-  color: string;
-  border: string;
-  icon: typeof X;
-  onClick: () => void;
-  title: string;
-}): React.JSX.Element {
+/**
+ * Keeps the title bar clear for macOS's own traffic lights. The window hides only its title bar
+ * (see titleBarFrameOptions in the main process), so the OS draws the real buttons over this
+ * space, with their native look, hover glyphs and grey inactive state.
+ */
+export function MacTrafficLightsSpace(): React.JSX.Element {
   return (
-    <SimpleTooltip label={title}>
-      <button
-        type="button"
-        aria-label={title}
-        onClick={onClick}
-        className={cn(
-          'flex h-3 w-3 items-center justify-center rounded-full border shadow-[inset_0_0_2px_rgba(255,255,255,0.4),0_0_1px_rgba(0,0,0,0.2)] transition-[filter,brightness] duration-100 [-webkit-app-region:no-drag]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background',
-          'active:brightness-75 active:saturate-150',
-          color,
-          border,
-        )}
-      >
-        {/* Native macOS shows every glyph while the pointer is anywhere over the
-            traffic-light cluster, not just over the button itself — hence the shared
-            group/traffic on the container. Focus reveals them too for keyboard users. */}
-        <Icon className="h-[8px] w-[8px] text-black/60 opacity-0 transition-opacity duration-100 group-hover/traffic:opacity-100 group-focus-within/traffic:opacity-100 group-active/traffic:opacity-100 focus-visible:opacity-100" />
-      </button>
-    </SimpleTooltip>
-  );
-}
-
-export function MacTrafficLights({
-  onMinimize,
-  onMaximizeToggle,
-  onClose,
-}: WindowControlsProps): React.JSX.Element {
-  return (
-    <div className="group/traffic flex items-center gap-2 px-1 py-1.5">
-      <TrafficLight
-        color="bg-[#ff5f57]"
-        border="border-[#e0443e]/80"
-        icon={X}
-        title="Close"
-        onClick={onClose}
-      />
-      <TrafficLight
-        color="bg-[#febc2e]"
-        border="border-[#de9f22]/80"
-        icon={Minus}
-        title="Minimize"
-        onClick={onMinimize}
-      />
-      <TrafficLight
-        color="bg-[#28c840]"
-        border="border-[#1aab29]/80"
-        icon={Plus}
-        title="Maximize"
-        onClick={onMaximizeToggle}
-      />
-    </div>
+    <div
+      aria-hidden="true"
+      data-traffic-lights-space=""
+      className="h-full shrink-0"
+      style={{ width: MAC_TRAFFIC_LIGHTS_SPACER }}
+    />
   );
 }
 
@@ -188,7 +137,7 @@ export function TitleBar(): React.JSX.Element {
       }}
     >
       <div className="flex items-center gap-3">
-        {isMac && <MacTrafficLights {...controlProps} />}
+        {isMac && <MacTrafficLightsSpace />}
         <div className="flex items-center gap-2">
           <img src={isDark ? appIconDark : appIconLight} alt="" className="h-6 w-6" />
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>

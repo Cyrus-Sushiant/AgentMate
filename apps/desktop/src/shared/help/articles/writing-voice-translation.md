@@ -87,7 +87,9 @@ Right-click in any text field (including single-line inputs) to open AgentMate's
 - **Next issue (N left)** or **Go to the other issue**, to jump through the remaining problems,
 - **Check the grammar here** or **Check writing again**, which run a check on the spot when nothing has been checked yet.
 
-When there is nothing to report, the menu says "No writing issues here". Use the arrow keys and `Enter` or `Tab` to pick an item, and `Escape` to close it. Typing or deleting closes the menu.
+Below those, every text field's menu ends with **Cut**, **Copy**, **Paste** and **Select all**, each showing its usual key. An item is greyed out when it does not apply: Cut and Copy with nothing selected (and always in a password field), Paste with nothing on the clipboard. In a field with nothing to say about the writing, such as an empty one, the menu is just those four.
+
+When there is nothing to report, the menu says "No writing issues here". Use the arrow keys and `Enter` or `Tab` to pick an item, and `Escape` to close it. If the menu holds only the four edit commands, nothing is highlighted until you press an arrow key, so `Enter` and `Tab` carry on as normal. Typing or deleting closes the menu.
 
 ## Spellcheck
 

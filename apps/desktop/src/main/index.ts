@@ -115,7 +115,14 @@ import { startResetAlertWatcher, stopResetAlertWatcher } from './usage/resetAler
 import { startThresholdAlertWatcher, stopThresholdAlertWatcher } from './usage/thresholdAlerts';
 import { widgetManager } from './usage/widgetWindows';
 import { getVaultService, registerVaultIpc, startVault } from './vault';
-import { applyWindowTheme, glassWindowOptions, mainWindowGlass } from './windowGlass';
+import { titleBarFrameOptions } from './windowChrome';
+import {
+  applyWindowTheme,
+  currentWindowTheme,
+  glassWindowOptions,
+  mainWindowGlass,
+  mainWindowQuery,
+} from './windowGlass';
 
 // Chromium normally deprioritizes timers, rendering, and IPC delivery for a
 // minimized/occluded window (and Windows' own efficiency-mode throttling
@@ -202,7 +209,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: MAIN_WINDOW_MIN_SIZE.width,
     minHeight: MAIN_WINDOW_MIN_SIZE.height,
     show: false,
-    frame: false,
+    ...titleBarFrameOptions(),
     autoHideMenuBar: true,
     ...glassWindowOptions(glass, windowBackground),
     icon,
@@ -275,13 +282,13 @@ function createMainWindow(): BrowserWindow {
   // once the page is up.
   const route = takeStartupRoute();
   const hash = route === '/' ? undefined : route;
-  // The page reads `glass` before its first paint, to know whether its chrome sits on a material.
+  // The page reads these before its first paint (see mainWindowQuery).
+  const query = mainWindowQuery(glass, currentWindowTheme());
   if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(
-      `${process.env.ELECTRON_RENDERER_URL}?glass=${glass}${hash ? `#${hash}` : ''}`,
-    );
+    const search = new URLSearchParams(query).toString();
+    void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}?${search}${hash ? `#${hash}` : ''}`);
   } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash, query: { glass } });
+    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash, query });
   }
 
   return win;

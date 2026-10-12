@@ -2,10 +2,13 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  DEFAULT_PING_TARGETS_IPV6,
   DEFAULT_PING_URL,
   httpProbe,
+  isPingIpVersion,
   normalizePingUrlInterval,
   normalizePingUrls,
+  pingArgs,
   probeAll,
 } from './pingProbe';
 
@@ -87,6 +90,32 @@ describe('probeAll interval', () => {
     await probeAll(settings);
     await probeAll(settings);
     expect(hits).toBe(1);
+  });
+});
+
+describe('pingArgs', () => {
+  it('leaves the ping command on its default family for ipv4', () => {
+    expect(pingArgs('1.1.1.1', 'ipv4', true)).toEqual(['-n', '1', '-w', '1500', '1.1.1.1']);
+    expect(pingArgs('1.1.1.1', 'ipv4', false)).toEqual(['-c', '1', '-W', '2', '1.1.1.1']);
+  });
+
+  it('forces IPv6 with -6 on both Windows and POSIX ping', () => {
+    const host = '2606:4700:4700::1111';
+    expect(pingArgs(host, 'ipv6', true)).toEqual(['-6', '-n', '1', '-w', '1500', host]);
+    expect(pingArgs(host, 'ipv6', false)).toEqual(['-6', '-c', '1', '-W', '2', host]);
+  });
+});
+
+describe('IPv6 ping defaults', () => {
+  it('uses Cloudflare and Google public DNS', () => {
+    expect(DEFAULT_PING_TARGETS_IPV6).toEqual(['2606:4700:4700::1111', '2001:4860:4860::8888']);
+  });
+
+  it('accepts only the two known IP versions', () => {
+    expect(isPingIpVersion('ipv4')).toBe(true);
+    expect(isPingIpVersion('ipv6')).toBe(true);
+    expect(isPingIpVersion('ipv5')).toBe(false);
+    expect(isPingIpVersion(undefined)).toBe(false);
   });
 });
 

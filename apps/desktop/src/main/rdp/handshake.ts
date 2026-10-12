@@ -6,6 +6,7 @@ import {
   connect as tlsConnect,
 } from 'node:tls';
 import type { RdpCertificateInfo, RdpFailureInfo, RdpProxyErrorCode } from '../../shared/apiTypes';
+import { openTunnel, TunnelError, type TunnelRoute } from '../network/tunnel';
 import { tpktRemaining } from './rdcleanpath';
 
 /**
@@ -48,9 +49,15 @@ export class RdpHandshakeError extends Error implements RdpFailureInfo {
 export interface HandshakeDeps {
   netConnect: typeof netConnect;
   tlsConnect: typeof tlsConnect;
+  /**
+   * The proxy to go through, asked again for every connection so a proxy saved in between
+   * applies to the next one. Null, or no `route` at all, connects straight to the server.
+   */
+  route?: (host: string, port: number) => Promise<TunnelRoute | null>;
 }
 
-const realDeps: HandshakeDeps = { netConnect, tlsConnect };
+/** Straight to the server. The app adds its proxy settings on top of these. */
+export const directHandshakeDeps: HandshakeDeps = { netConnect, tlsConnect };
 
 export interface Handshake {
   /** The resolved IP address actually connected to. */
@@ -177,31 +184,36 @@ function attempt(
     let settled = false;
     let tcp: Socket | null = null;
     let tlsSocket: TLSSocket | null = null;
+    let route: TunnelRoute | null = null;
     let received = Buffer.alloc(0);
+    // Gives up on a proxy that is still being set up when time runs out.
+    const giveUp = new AbortController();
 
     const fail = (error: Error): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      giveUp.abort();
       tlsSocket?.destroy();
       tcp?.destroy();
       reject(error);
     };
 
-    const timer = setTimeout(
-      () =>
+    const timer = setTimeout(() => {
+      const detail = `No answer within ${CONNECT_TIMEOUT_MS / 1000} seconds`;
+      // Still setting up the proxy, so it was the proxy that kept quiet, not the server.
+      if (route && !tcp) {
         fail(
           new RdpHandshakeError(
-            'timeout',
-            `${host}:${port} did not answer in time.`,
-            `No answer within ${CONNECT_TIMEOUT_MS / 1000} seconds`,
+            'proxy-failed',
+            `The proxy at ${route.host}:${route.port} did not answer in time.`,
+            detail,
           ),
-        ),
-      CONNECT_TIMEOUT_MS,
-    );
-
-    tcp = deps.netConnect({ host, port }, () => tcp?.write(x224Request));
-    tcp.on('error', (error: NodeJS.ErrnoException) => fail(socketFailure(error, host, port)));
+        );
+        return;
+      }
+      fail(new RdpHandshakeError('timeout', `${host}:${port} did not answer in time.`, detail));
+    }, CONNECT_TIMEOUT_MS);
 
     const onData = (chunk: Buffer): void => {
       received = Buffer.concat([received, chunk]);
@@ -243,7 +255,8 @@ function attempt(
           settled = true;
           clearTimeout(timer);
           resolve({
-            address: tcp?.remoteAddress ?? host,
+            // Through a proxy the socket's far end is the proxy, not the server.
+            address: (route ? undefined : tcp?.remoteAddress) ?? host,
             x224Response: received,
             tlsSocket,
             chain: certChain(peer),
@@ -262,11 +275,89 @@ function attempt(
         ),
       );
     };
-    tcp.on('data', onData);
-    tcp.on('close', () =>
-      fail(new RdpHandshakeError('closed', `${host}:${port} closed the connection during setup.`)),
-    );
+    const watch = (socket: Socket): void => {
+      tcp = socket;
+      socket.on('error', (error: NodeJS.ErrnoException) => fail(socketFailure(error, host, port)));
+      socket.on('data', onData);
+      socket.on('close', () =>
+        fail(
+          new RdpHandshakeError('closed', `${host}:${port} closed the connection during setup.`),
+        ),
+      );
+    };
+
+    void (async () => {
+      route = (await deps.route?.(host, port)) ?? null;
+      if (settled) return;
+      if (!route) {
+        const socket = deps.netConnect({ host, port }, () => socket.write(x224Request));
+        watch(socket);
+        return;
+      }
+      let socket: Socket;
+      try {
+        socket = await openTunnel(route, host, port, deps, giveUp.signal);
+      } catch (error) {
+        fail(tunnelFailure(error, route, host, port));
+        return;
+      }
+      if (settled) {
+        socket.destroy();
+        return;
+      }
+      watch(socket);
+      socket.resume();
+      socket.write(x224Request);
+    })().catch((error: unknown) => fail(error instanceof Error ? error : new Error(String(error))));
   });
+}
+
+/** A failure on the way through the proxy, in words that say which side it was. */
+export function tunnelFailure(
+  error: unknown,
+  route: TunnelRoute,
+  host: string,
+  port: number,
+): RdpHandshakeError {
+  const proxy = `${route.host}:${route.port}`;
+  const detail = cleanTlsDetail(error instanceof Error ? error.message : String(error));
+  const reason = error instanceof TunnelError ? error.reason : 'proxy-protocol';
+  switch (reason) {
+    case 'proxy-unreachable':
+      return new RdpHandshakeError(
+        'proxy-failed',
+        `Could not reach the proxy at ${proxy}.`,
+        detail,
+      );
+    case 'proxy-auth':
+      return new RdpHandshakeError(
+        'proxy-failed',
+        route.username
+          ? `The proxy at ${proxy} turned down the username and password.`
+          : `The proxy at ${proxy} asks for a username and password.`,
+        detail,
+      );
+    case 'proxy-refused':
+      return new RdpHandshakeError(
+        'proxy-failed',
+        `The proxy at ${proxy} would not connect to ${host}:${port}.`,
+        detail,
+      );
+    case 'target-refused':
+      return new RdpHandshakeError('refused', `${host}:${port} refused the connection.`, detail);
+    case 'target-unreachable':
+      return new RdpHandshakeError(
+        'unreachable',
+        `${host} is not reachable from the proxy at ${proxy}.`,
+        detail,
+      );
+    default:
+      return new RdpHandshakeError(
+        'proxy-failed',
+        `The proxy at ${proxy} did not finish connecting to ${host}:${port}.`,
+        detail,
+      );
+  }
 }
 
 /** Failures of the retry that mean the server is not there, not that it refused the encryption. */
@@ -274,6 +365,7 @@ const GONE_ON_RETRY: ReadonlySet<RdpProxyErrorCode> = new Set([
   'host-not-found',
   'refused',
   'unreachable',
+  'proxy-failed',
 ]);
 
 /**
@@ -285,7 +377,7 @@ export async function handshake(
   host: string,
   port: number,
   x224Request: Buffer,
-  deps: HandshakeDeps = realDeps,
+  deps: HandshakeDeps = directHandshakeDeps,
 ): Promise<Handshake> {
   try {
     return { ...(await attempt(host, port, x224Request, {}, deps)), keyExchange: 'default' };

@@ -11,6 +11,7 @@ import {
 import { app, net, type Session, session } from 'electron';
 import type { ProxyStatus, ProxyTestResult } from '../../shared/apiTypes';
 import { store } from '../store';
+import { parseProxyUrl, type TunnelRoute } from './tunnel';
 
 /**
  * electron-updater does its downloads on a session of its own (its
@@ -184,6 +185,28 @@ export async function applyProxySettings(settings: ProxySettings): Promise<void>
   }
 
   restoreEnvBaseline();
+}
+
+/**
+ * The proxy a raw TCP connection to `host:port` should go through, for the features that open
+ * their own sockets (Remote Desktop). Asking the default session means the bypass list, the
+ * system settings and any PAC script all count, the same as for every request Chromium makes.
+ * Null means connect straight there: no proxy is on, or this host skips it.
+ */
+export async function resolveTunnelRoute(host: string, port: number): Promise<TunnelRoute | null> {
+  if (!isProxyActive(current) || !app.isReady()) return null;
+  const credentials = { username: current.username, password: current.password };
+  const target = `https://${host.includes(':') ? `[${host}]` : host}:${port}`;
+  let resolved: string;
+  try {
+    resolved = await session.defaultSession.resolveProxy(target);
+  } catch {
+    // A manual proxy is spelled out, so it doesn't need the resolver to be found.
+    const server = proxyServerUrl(current);
+    return server ? parseProxyUrl(server, credentials) : null;
+  }
+  const url = proxyUrlFromResolution(resolved);
+  return url ? parseProxyUrl(url, credentials) : null;
 }
 
 /** The settings the app is running with right now, for callers that route traffic themselves. */

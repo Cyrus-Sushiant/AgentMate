@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installAgentmatBridge } from '../../../test/renderer/agentmatBridge';
 import {
+  applyInitialTheme,
   initTheme,
   resolveIsDark,
   resolveTheme,
   themeClassName,
+  themeFromSearch,
   useThemeStore,
 } from './themeStore';
 
@@ -47,6 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.history.replaceState(null, '', '/');
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     writable: true,
@@ -135,5 +138,78 @@ describe('initTheme', () => {
     useThemeStore.getState().setTheme('light');
     media.emit(true);
     expect(classes()).toEqual([]);
+  });
+});
+
+describe('themeFromSearch', () => {
+  it('reads every theme main can put on the URL', () => {
+    for (const theme of ['light', 'dark', 'system', 'vscode-dark', 'vs2026'] as const) {
+      expect(themeFromSearch(`?glass=mica&theme=${theme}`)).toBe(theme);
+    }
+  });
+
+  it('ignores a missing or unknown theme', () => {
+    expect(themeFromSearch('')).toBeUndefined();
+    expect(themeFromSearch('?glass=mica')).toBeUndefined();
+    expect(themeFromSearch('?theme=solarized')).toBeUndefined();
+  });
+});
+
+describe('applyInitialTheme', () => {
+  it('paints the saved theme before the settings call has answered', () => {
+    // The settings call never answers here, the way it can stall behind a busy startup.
+    installAgentmatBridge({ 'settings.get': () => new Promise(() => undefined) });
+    void initTheme();
+    applyInitialTheme('?glass=mica&theme=dark');
+    expect(classes()).toEqual(['dark']);
+    expect(useThemeStore.getState().theme).toBe('dark');
+  });
+
+  it('adds the editor theme class as well', () => {
+    applyInitialTheme('?theme=vs2026');
+    expect(classes()).toEqual(['dark', 'theme-vs2026']);
+  });
+
+  it('resolves "system" from the system preference', () => {
+    media.matches = true;
+    applyInitialTheme('?theme=system');
+    expect(classes()).toEqual(['dark']);
+  });
+
+  it('leaves windows that open without a theme alone', () => {
+    applyInitialTheme('');
+    applyInitialTheme('?theme=solarized');
+    expect(classes()).toEqual([]);
+    expect(useThemeStore.getState().theme).toBe('system');
+  });
+
+  it('does not save anything, since the theme came from settings', () => {
+    const update = vi.fn();
+    installAgentmatBridge({ 'settings.update': update });
+    applyInitialTheme('?theme=light');
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('agrees with initTheme, so settings answering later changes nothing', async () => {
+    applyInitialTheme('?theme=vscode-dark');
+    installAgentmatBridge({ 'settings.get': async () => ({ theme: 'vscode-dark' }) });
+    await initTheme();
+    expect(classes()).toEqual(['dark', 'theme-vscode-dark']);
+  });
+});
+
+describe('theme on the URL', () => {
+  it('follows a theme change, so a reload opens on the theme in use', () => {
+    window.history.replaceState(null, '', '/?glass=mica&theme=light#/remote');
+    useThemeStore.getState().setTheme('dark');
+    expect(window.location.search).toBe('?glass=mica&theme=dark');
+    expect(window.location.hash).toBe('#/remote');
+    expect(themeFromSearch(window.location.search)).toBe('dark');
+  });
+
+  it('is not added to a window that opened without one', () => {
+    window.history.replaceState(null, '', '/#/widget/1');
+    useThemeStore.getState().setTheme('dark');
+    expect(window.location.search).toBe('');
   });
 });

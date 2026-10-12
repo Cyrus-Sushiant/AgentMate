@@ -86,6 +86,14 @@ const ADVICE: Record<RdpFailureCode, { title: string; hints: string[] }> = {
       "If neither happened, don't trust it.",
     ],
   },
+  'proxy-failed': {
+    title: "Couldn't connect through the proxy",
+    hints: [
+      'Check the proxy in Settings, under Network. Test connection there shows whether it works.',
+      'Many HTTP proxies only allow port 443, and Remote Desktop uses 3389. A SOCKS5 proxy usually allows it.',
+      "To skip the proxy for this server, add its address to the proxy's Skip the proxy for list.",
+    ],
+  },
   other: {
     title: "Couldn't connect",
     hints: ['Check the address and port, then try again.'],

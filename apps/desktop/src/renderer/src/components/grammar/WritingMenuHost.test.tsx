@@ -230,6 +230,32 @@ describe('closing and the keyboard', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
+  it('keeps Escape from reaching a dialog the field sits in', () => {
+    // A Radix dialog listens for Escape on the document from before the menu opens. Escape
+    // should put away the menu only, or whatever was typed in the dialog goes with it.
+    const dialogHeardEscape = vi.fn();
+    document.addEventListener('keydown', dialogHeardEscape, true);
+    const { bridge } = renderHost(<input aria-label="Name" />);
+    rightClick(screen.getByLabelText('Name'), payload(), bridge.$emit);
+
+    fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' });
+
+    document.removeEventListener('keydown', dialogHeardEscape, true);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(dialogHeardEscape).not.toHaveBeenCalled();
+  });
+
+  it('leaves Escape alone when no menu is open', () => {
+    const dialogHeardEscape = vi.fn();
+    document.addEventListener('keydown', dialogHeardEscape, true);
+    renderHost(<input aria-label="Name" />);
+
+    fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Escape' });
+
+    document.removeEventListener('keydown', dialogHeardEscape, true);
+    expect(dialogHeardEscape).toHaveBeenCalledTimes(1);
+  });
+
   it('closes on a click anywhere else', () => {
     const { bridge } = renderHost(
       <>

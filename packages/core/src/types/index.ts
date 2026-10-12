@@ -19,6 +19,7 @@ export const THEME_MODES = ['light', 'dark', 'system', 'vscode-dark', 'vs2026'] 
 export type ThemeMode = (typeof THEME_MODES)[number];
 
 export type PingMethod = 'icmp' | 'http' | 'auto';
+export type PingIpVersion = 'ipv4' | 'ipv6';
 export function isThemeMode(value: unknown): value is ThemeMode {
   return THEME_MODES.includes(value as ThemeMode);
 }
@@ -411,6 +412,10 @@ export interface AppSettings {
   skillRepositoryIds: string[];
   /** Hosts/IPs pinged for the dashboard's Network Status graph. */
   pingTargets: string[];
+  /** Whether the ping command uses IPv4 or IPv6. */
+  pingIpVersion: PingIpVersion;
+  /** Hosts/IPs pinged when `pingIpVersion` is `ipv6`. */
+  pingTargetsIpv6: string[];
   /** How connection quality is measured: the ping command, HTTP requests to `pingUrls`, or ping with an HTTP fallback. */
   pingMethod: PingMethod;
   /** URLs requested when `pingMethod` is `http` or `auto`. */

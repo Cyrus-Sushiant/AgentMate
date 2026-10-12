@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { PingMethod } from '@agentmat/core';
+import type { PingIpVersion, PingMethod } from '@agentmat/core';
 import type { PingResult } from '../../shared/apiTypes';
 
 const execFileAsync = promisify(execFile);
 
 export const DEFAULT_PING_URL = 'https://www.gstatic.com/generate_204';
+/** Cloudflare and Google public DNS, the same resolvers on both IP families. */
+export const DEFAULT_PING_TARGETS_IPV4 = ['1.1.1.1'];
+export const DEFAULT_PING_TARGETS_IPV6 = ['2606:4700:4700::1111', '2001:4860:4860::8888'];
 export const MAX_PING_URLS = 5;
 export const DEFAULT_PING_URL_INTERVAL_SECONDS = 5;
 export const MIN_PING_URL_INTERVAL_SECONDS = 1;
@@ -14,6 +17,10 @@ const HTTP_TIMEOUT_MS = 3000;
 
 export function isPingMethod(value: unknown): value is PingMethod {
   return value === 'icmp' || value === 'http' || value === 'auto';
+}
+
+export function isPingIpVersion(value: unknown): value is PingIpVersion {
+  return value === 'ipv4' || value === 'ipv6';
 }
 
 export function normalizePingUrlInterval(value: unknown): number {
@@ -44,9 +51,20 @@ export function normalizePingUrls(value: unknown): string[] {
   return urls.slice(0, MAX_PING_URLS);
 }
 
-export async function pingHost(host: string): Promise<PingResult> {
+/** `-6` forces the ping command onto IPv6; without it the OS picks IPv4 for literal IPv4 addresses and most hostnames. */
+export function pingArgs(host: string, ipVersion: PingIpVersion, isWin: boolean): string[] {
+  const family = ipVersion === 'ipv6' ? ['-6'] : [];
+  return isWin
+    ? [...family, '-n', '1', '-w', '1500', host]
+    : [...family, '-c', '1', '-W', '2', host];
+}
+
+export async function pingHost(
+  host: string,
+  ipVersion: PingIpVersion = 'ipv4',
+): Promise<PingResult> {
   const isWin = process.platform === 'win32';
-  const args = isWin ? ['-n', '1', '-w', '1500', host] : ['-c', '1', '-W', '2', host];
+  const args = pingArgs(host, ipVersion, isWin);
   try {
     const { stdout } = await execFileAsync('ping', args, { timeout: 3000 });
     const match = isWin ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
@@ -90,6 +108,8 @@ export async function httpProbe(url: string): Promise<PingResult> {
 
 export interface PingSettings {
   pingTargets?: string[];
+  pingIpVersion?: PingIpVersion;
+  pingTargetsIpv6?: string[];
   pingMethod?: PingMethod;
   pingUrls?: string[];
   pingUrlIntervalSeconds?: number;
@@ -122,14 +142,16 @@ export async function probeAll(
   fallbackHosts: string[] = [],
 ): Promise<PingResult[]> {
   const method = isPingMethod(settings.pingMethod) ? settings.pingMethod : 'icmp';
-  const hosts = cleanHosts(settings.pingTargets);
-  const icmpHosts = hosts.length > 0 ? hosts : fallbackHosts;
+  const ipVersion = isPingIpVersion(settings.pingIpVersion) ? settings.pingIpVersion : 'ipv4';
+  const hosts = cleanHosts(ipVersion === 'ipv6' ? settings.pingTargetsIpv6 : settings.pingTargets);
+  const icmpHosts =
+    hosts.length > 0 ? hosts : ipVersion === 'ipv6' ? DEFAULT_PING_TARGETS_IPV6 : fallbackHosts;
   const urls = normalizePingUrls(settings.pingUrls);
   const intervalSeconds = normalizePingUrlInterval(settings.pingUrlIntervalSeconds);
 
   if (method === 'http') return httpProbeThrottled(urls, intervalSeconds);
 
-  const icmp = await Promise.all(icmpHosts.map((host) => pingHost(host)));
+  const icmp = await Promise.all(icmpHosts.map((host) => pingHost(host, ipVersion)));
   if (method === 'icmp') return icmp;
 
   // Auto: only reach for HTTP when ping is blocked or unanswered.

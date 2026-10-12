@@ -5,6 +5,7 @@ import type { RdpWindowState } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { sendToWindow } from '../ipc/send';
 import { keepWindowsHidden } from '../testMode';
+import { titleBarFrameOptions } from '../windowChrome';
 
 /**
  * Each Remote Desktop session gets its own window, like Windows' Remote Desktop Connection:
@@ -14,6 +15,24 @@ import { keepWindowsHidden } from '../testMode';
 
 const windows = new Map<string, BrowserWindow>();
 let handlersRegistered = false;
+
+/**
+ * Windows keeps the Windows key and the shortcuts built on it (Win+V, Win+D, Alt+Tab) for its own
+ * shell, so the page never sees them. Chromium's Keyboard Lock hands them over, but only while the
+ * page is in HTML full screen, which the window's own full screen doesn't count as. So a full
+ * screen session window is put into both, and the page asks for the lock (useRdpKeyboardLock).
+ * HTML full screen layers on top of the window's: leaving it keeps the window full screen.
+ */
+const ENTER_HTML_FULLSCREEN =
+  'document.fullscreenElement ? undefined : document.documentElement.requestFullscreen()';
+// Chromium leaves the page in HTML full screen when the window stops being full screen.
+const EXIT_HTML_FULLSCREEN = 'document.fullscreenElement ? document.exitFullscreen() : undefined';
+
+function runInPage(window: BrowserWindow, code: string): void {
+  if (window.isDestroyed()) return;
+  // Entering full screen takes a user gesture, which a script from main is allowed to claim.
+  window.webContents.executeJavaScript(code, true).catch(() => undefined);
+}
 
 function stateOf(window: BrowserWindow): RdpWindowState {
   return { isMaximized: window.isMaximized(), isFullScreen: window.isFullScreen() };
@@ -62,7 +81,7 @@ export function openRdpWindow(options: OpenRdpWindowOptions): BrowserWindow {
     minWidth: 640,
     minHeight: 400,
     show: false,
-    frame: false,
+    ...titleBarFrameOptions(),
     autoHideMenuBar: true,
     backgroundColor: '#050807',
     title: options.title,
@@ -88,8 +107,14 @@ export function openRdpWindow(options: OpenRdpWindowOptions): BrowserWindow {
   };
   window.on('maximize', sendState);
   window.on('unmaximize', sendState);
-  window.on('enter-full-screen', sendState);
-  window.on('leave-full-screen', sendState);
+  window.on('enter-full-screen', () => {
+    sendState();
+    runInPage(window, ENTER_HTML_FULLSCREEN);
+  });
+  window.on('leave-full-screen', () => {
+    sendState();
+    runInPage(window, EXIT_HTML_FULLSCREEN);
+  });
 
   window.on('closed', () => {
     windows.delete(options.sessionId);

@@ -1,30 +1,46 @@
-import type { PingMethod } from '@agentmat/core';
+import type { PingIpVersion, PingMethod } from '@agentmat/core';
 import { create } from 'zustand';
 
 export const DEFAULT_PING_URL = 'https://www.gstatic.com/generate_204';
 export const DEFAULT_PING_URL_INTERVAL_SECONDS = 5;
 export const MIN_PING_URL_INTERVAL_SECONDS = 1;
 export const MAX_PING_URL_INTERVAL_SECONDS = 300;
+export const DEFAULT_PING_TARGETS_IPV4 = ['1.1.1.1'];
+export const DEFAULT_PING_TARGETS_IPV6 = ['2606:4700:4700::1111', '2001:4860:4860::8888'];
 
 interface PingTargetsState {
   pingTargets: string[];
+  pingIpVersion: PingIpVersion;
+  pingTargetsIpv6: string[];
   pingMethod: PingMethod;
   pingUrls: string[];
   pingUrlIntervalSeconds: number;
   setPingTargets: (targets: string[]) => void;
+  setPingIpVersion: (version: PingIpVersion) => void;
+  setPingTargetsIpv6: (targets: string[]) => void;
   setPingMethod: (method: PingMethod) => void;
   setPingUrls: (urls: string[]) => void;
   setPingUrlIntervalSeconds: (seconds: number) => void;
 }
 
 export const usePingTargetsStore = create<PingTargetsState>((set) => ({
-  pingTargets: ['1.1.1.1'],
+  pingTargets: [...DEFAULT_PING_TARGETS_IPV4],
+  pingIpVersion: 'ipv4',
+  pingTargetsIpv6: [...DEFAULT_PING_TARGETS_IPV6],
   pingMethod: 'icmp',
   pingUrls: [DEFAULT_PING_URL],
   pingUrlIntervalSeconds: DEFAULT_PING_URL_INTERVAL_SECONDS,
   setPingTargets: (targets) => {
     set({ pingTargets: targets });
     void window.agentmat.settings.update({ pingTargets: targets });
+  },
+  setPingIpVersion: (version) => {
+    set({ pingIpVersion: version });
+    void window.agentmat.settings.update({ pingIpVersion: version });
+  },
+  setPingTargetsIpv6: (targets) => {
+    set({ pingTargetsIpv6: targets });
+    void window.agentmat.settings.update({ pingTargetsIpv6: targets });
   },
   setPingMethod: (method) => {
     set({ pingMethod: method });
@@ -43,7 +59,9 @@ export const usePingTargetsStore = create<PingTargetsState>((set) => ({
 export async function initPingTargets(): Promise<void> {
   const settings = await window.agentmat.settings.get();
   usePingTargetsStore.setState({
-    pingTargets: settings.pingTargets ?? ['1.1.1.1'],
+    pingTargets: settings.pingTargets ?? [...DEFAULT_PING_TARGETS_IPV4],
+    pingIpVersion: settings.pingIpVersion ?? 'ipv4',
+    pingTargetsIpv6: settings.pingTargetsIpv6 ?? [...DEFAULT_PING_TARGETS_IPV6],
     pingMethod: settings.pingMethod ?? 'icmp',
     pingUrls: settings.pingUrls ?? [DEFAULT_PING_URL],
     pingUrlIntervalSeconds: settings.pingUrlIntervalSeconds ?? DEFAULT_PING_URL_INTERVAL_SECONDS,

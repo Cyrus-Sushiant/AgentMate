@@ -323,6 +323,63 @@ describe('getProxyStatus', () => {
   });
 });
 
+describe('resolveTunnelRoute', () => {
+  it('asks Chromium where the host goes and hands back the proxy with its credentials', async () => {
+    const { applyProxySettings, resolveTunnelRoute } = await loadProxy();
+    const { session } = await import('electron');
+    const resolve = vi
+      .spyOn(session.defaultSession, 'resolveProxy')
+      .mockResolvedValue('SOCKS5 10.0.0.1:1080');
+    await applyProxySettings(
+      manual({ protocol: 'socks5', port: 1080, username: 'me', password: 'pw' }),
+    );
+
+    await expect(resolveTunnelRoute('rdp.example', 3389)).resolves.toEqual({
+      protocol: 'socks5',
+      host: '10.0.0.1',
+      port: 1080,
+      username: 'me',
+      password: 'pw',
+    });
+    // IPv6 servers are bracketed, or the URL Chromium is asked about would not parse.
+    await resolveTunnelRoute('fe80::1', 3389);
+    expect(resolve).toHaveBeenLastCalledWith('https://[fe80::1]:3389');
+  });
+
+  it('goes direct for a host the bypass list or PAC script skips', async () => {
+    const { applyProxySettings, resolveTunnelRoute } = await loadProxy();
+    const { session } = await import('electron');
+    vi.spyOn(session.defaultSession, 'resolveProxy').mockResolvedValue('DIRECT');
+    await applyProxySettings({ ...defaultProxySettings(), mode: 'system' });
+
+    await expect(resolveTunnelRoute('192.168.1.5', 3389)).resolves.toBeNull();
+  });
+
+  it('goes direct without asking when no proxy is on', async () => {
+    const { applyProxySettings, resolveTunnelRoute } = await loadProxy();
+    const { session } = await import('electron');
+    const resolve = vi.spyOn(session.defaultSession, 'resolveProxy');
+    await applyProxySettings(defaultProxySettings());
+    resolve.mockClear();
+
+    await expect(resolveTunnelRoute('rdp.example', 3389)).resolves.toBeNull();
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('still uses a manual proxy when the resolver fails', async () => {
+    const { applyProxySettings, resolveTunnelRoute } = await loadProxy();
+    const { session } = await import('electron');
+    vi.spyOn(session.defaultSession, 'resolveProxy').mockRejectedValue(new Error('no session'));
+    await applyProxySettings(manual());
+
+    await expect(resolveTunnelRoute('rdp.example', 3389)).resolves.toMatchObject({
+      protocol: 'http',
+      host: '10.0.0.1',
+      port: 8080,
+    });
+  });
+});
+
 describe('installProxyFetch', () => {
   it('leaves fetch on Node while the proxy is off', async () => {
     server = await startHttpServer((_request, response) => json(response, { via: 'node' }));

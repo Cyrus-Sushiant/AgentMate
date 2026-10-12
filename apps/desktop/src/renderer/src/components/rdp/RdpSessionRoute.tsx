@@ -15,7 +15,7 @@ import {
   X,
 } from '@/components/icons';
 import {
-  MacTrafficLights,
+  MacTrafficLightsSpace,
   NativeCaptionButtons,
   type WindowControlsProps,
 } from '@/components/layout/TitleBar';
@@ -41,6 +41,7 @@ import { RdpAgentStatusBar } from './RdpAgentStatusBar';
 import { RdpAskAiDialog } from './RdpAskAiDialog';
 import { RdpFailureCard } from './RdpFailureCard';
 import { useRdpAgentBridge } from './useRdpAgentBridge';
+import { useRdpKeyboardLock } from './useRdpKeyboardLock';
 import { type RdpPhase, type RdpTransfer, useRdpSession } from './useRdpSession';
 
 const HIDE_BAR_DELAY_MS = 1200;
@@ -176,6 +177,7 @@ export default function RdpSessionRoute(): React.JSX.Element {
 
   const { phase, options } = session;
   const connected = phase.kind === 'connected';
+  useRdpKeyboardLock(connected);
   // Files travel over the clipboard channel, so they need clipboard sharing on.
   const fileTransfer = (options?.clipboard && options.fileTransfer) ?? false;
   const fixedResolution = options != null && options.resolution !== 'fitWindow';
@@ -269,7 +271,7 @@ export default function RdpSessionRoute(): React.JSX.Element {
         label={
           windowState.isFullScreen
             ? 'Leave full screen (Ctrl+Alt+Break)'
-            : 'Full screen (Ctrl+Alt+Break)'
+            : 'Full screen (Ctrl+Alt+Break). Windows key shortcuts like Win+V then go to the server.'
         }
         onClick={() => void window.agentmat.rdpWindow.fullscreenToggle()}
       >
@@ -308,7 +310,7 @@ export default function RdpSessionRoute(): React.JSX.Element {
           }}
         >
           <div className="flex min-w-0 shrink items-center gap-2">
-            {isMac && <MacTrafficLights {...controlProps} />}
+            {isMac && <MacTrafficLightsSpace />}
             <Monitor className="h-4 w-4 shrink-0 text-primary" />
             <span className="truncate text-sm font-semibold">{session.nickname}</span>
             <Badge variant={badge.variant} className="shrink-0 gap-1.5">

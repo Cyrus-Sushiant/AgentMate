@@ -5,12 +5,12 @@ import { renderWithProviders } from '../../../../test/renderer/renderWithProvide
 import { TitleBar } from './TitleBar';
 
 /**
- * The title bar is the window's only chrome: the frame is hidden, so if these buttons stop
- * reaching the bridge the window cannot be minimized, maximized or closed at all. Which set of
- * controls is drawn depends on the platform, hence the two groups below.
+ * On Windows and Linux the title bar is the window's only chrome: the frame is hidden, so if these
+ * buttons stop reaching the bridge the window cannot be minimized, maximized or closed at all.
+ * macOS keeps its native traffic lights, hence the two groups below.
  *
- * Neither set carries an accessible name (the label lives in a hover tooltip and the glyph is
- * aria-hidden), so the controls are found by the glyph or icon they draw. Worth fixing in the
+ * The caption buttons carry no accessible name (the label lives in a hover tooltip and the glyph
+ * is aria-hidden), so they are found by the glyph they draw. Worth fixing in the
  * component one day; the tests are written against what ships today.
  */
 
@@ -22,13 +22,6 @@ function captionButton(glyph: string): HTMLElement {
 }
 
 const GLYPH = { minimize: '', maximize: '', restore: '', close: '' };
-
-/** A macOS traffic light, found by the icon inside it. */
-function trafficLight(container: HTMLElement, icon: string): HTMLElement {
-  const button = container.querySelector(`svg[data-icon="${icon}"]`)?.closest('button');
-  if (!button) throw new Error(`No traffic light with the "${icon}" icon`);
-  return button;
-}
 
 describe('TitleBar on Windows and Linux', () => {
   it('shows the app name and the search box', async () => {
@@ -95,22 +88,17 @@ describe('TitleBar on Windows and Linux', () => {
 });
 
 describe('TitleBar on macOS', () => {
-  it('draws the traffic lights instead of the caption buttons, wired to the same calls', async () => {
-    const { bridge, user, container } = renderWithProviders(<TitleBar />, {
+  it('leaves room for the native traffic lights and draws no window buttons of its own', async () => {
+    const { container } = renderWithProviders(<TitleBar />, {
       bridge: { platform: 'darwin' },
     });
 
+    // macOS draws the real close, minimize and zoom buttons over the bar; the page only keeps
+    // the space clear for them.
+    expect(container.querySelector('[data-traffic-lights-space]')).toBeTruthy();
     expect(screen.queryByText(GLYPH.close)).toBeNull();
-
-    // Native glyphs: xmark/minus/plus, revealed as a group on cluster hover.
-    expect(container.querySelector('.group\\/traffic')).toBeTruthy();
-
-    await user.click(trafficLight(container, 'minus'));
-    await user.click(trafficLight(container, 'plus'));
-    await user.click(trafficLight(container, 'xmark'));
-
-    expect(bridge.$fn('window.minimize')).toHaveBeenCalled();
-    expect(bridge.$fn('window.maximizeToggle')).toHaveBeenCalled();
-    expect(bridge.$fn('window.close')).toHaveBeenCalled();
+    expect(screen.queryByText(GLYPH.minimize)).toBeNull();
+    expect(container.querySelector('svg[data-icon="xmark"]')).toBeNull();
+    expect(await screen.findByText('Search projects, history, skills…')).toBeTruthy();
   });
 });

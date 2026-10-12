@@ -15,6 +15,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import { withRdpDefaults } from '../../shared/rdpDefaults';
 import { stopRdpTask } from '../agents/rdpTaskRunner';
+import { resolveTunnelRoute } from '../network/proxy';
 import { keepAwake } from '../power/keepAwake';
 import { type ClipboardFileSet, readClipboardFiles } from '../rdp/clipboardFiles';
 import {
@@ -25,7 +26,12 @@ import {
   prepareEntry,
   writeChunk,
 } from '../rdp/downloads';
-import { fetchServerCertificate, toFailureInfo } from '../rdp/handshake';
+import {
+  directHandshakeDeps,
+  fetchServerCertificate,
+  type HandshakeDeps,
+  toFailureInfo,
+} from '../rdp/handshake';
 import { RdpProxy, type RdpProxyTarget } from '../rdp/proxy';
 import { formatDestination } from '../rdp/rdcleanpath';
 import { closeAllRdpWindows, openRdpWindow } from '../rdp/sessionWindows';
@@ -107,38 +113,48 @@ function send(session: RdpSession, channel: string, payload: unknown): void {
   sendToContents(session.owner, channel, payload);
 }
 
-const proxy = new RdpProxy({
-  onCertificateFirstSeen: (target, cert) => {
-    const session = sessions.get(target.sessionId);
-    if (session) void updateServer(session.serverId, pinCertificate(cert));
+/**
+ * Sessions and certificate checks both go through the proxy from the Network settings when one
+ * is on, so a certificate checked here is the one the session will see.
+ */
+const handshakeDeps: HandshakeDeps = { ...directHandshakeDeps, route: resolveTunnelRoute };
+
+const proxy = new RdpProxy(
+  {
+    onCertificateFirstSeen: (target, cert) => {
+      const session = sessions.get(target.sessionId);
+      if (session) void updateServer(session.serverId, pinCertificate(cert));
+    },
+    onCertificateMismatch: (target, cert) => {
+      const session = sessions.get(target.sessionId);
+      if (!session) return;
+      session.pendingCertificate = cert;
+      const prompt: RdpCertificatePrompt = {
+        sessionId: session.sessionId,
+        host: target.host,
+        expectedFingerprint: target.expectedFingerprint ?? '',
+        actualFingerprint: cert.fingerprint,
+        subject: cert.subject,
+        issuer: cert.issuer,
+        validTo: cert.validTo,
+      };
+      send(session, IPC.rdp.onCertificatePrompt, prompt);
+    },
+    onConnected: (target) => {
+      const session = sessions.get(target.sessionId);
+      if (!session) return;
+      // Connected, so there is no certificate left to ask about.
+      session.pendingCertificate = null;
+      void updateServer(session.serverId, (s) => ({ ...s, lastConnectedAt: Date.now() }));
+    },
+    onError: (target, failure) => {
+      const session = sessions.get(target.sessionId);
+      if (session)
+        send(session, IPC.rdp.onProxyError, { sessionId: session.sessionId, ...failure });
+    },
   },
-  onCertificateMismatch: (target, cert) => {
-    const session = sessions.get(target.sessionId);
-    if (!session) return;
-    session.pendingCertificate = cert;
-    const prompt: RdpCertificatePrompt = {
-      sessionId: session.sessionId,
-      host: target.host,
-      expectedFingerprint: target.expectedFingerprint ?? '',
-      actualFingerprint: cert.fingerprint,
-      subject: cert.subject,
-      issuer: cert.issuer,
-      validTo: cert.validTo,
-    };
-    send(session, IPC.rdp.onCertificatePrompt, prompt);
-  },
-  onConnected: (target) => {
-    const session = sessions.get(target.sessionId);
-    if (!session) return;
-    // Connected, so there is no certificate left to ask about.
-    session.pendingCertificate = null;
-    void updateServer(session.serverId, (s) => ({ ...s, lastConnectedAt: Date.now() }));
-  },
-  onError: (target, failure) => {
-    const session = sessions.get(target.sessionId);
-    if (session) send(session, IPC.rdp.onProxyError, { sessionId: session.sessionId, ...failure });
-  },
-});
+  handshakeDeps,
+);
 
 function syncPowerSaveBlocker(): void {
   keepAwake.setBusy('rdp', sessions.size > 0);
@@ -279,7 +295,7 @@ export function registerRdpHandlers(): void {
 
       let certificate: RdpCertificateInfo;
       try {
-        certificate = await fetchServerCertificate(server.host, server.port);
+        certificate = await fetchServerCertificate(server.host, server.port, handshakeDeps);
       } catch (error) {
         return { ok: false, failure: toFailureInfo(error, server.host, server.port) };
       }

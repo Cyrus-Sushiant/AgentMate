@@ -1,6 +1,6 @@
 import { X509Certificate } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { createServer, connect as netConnect } from 'node:net';
+import { type AddressInfo, createServer, connect as netConnect, type Socket } from 'node:net';
 import { type ConnectionOptions, type TLSSocket, connect as tlsConnect } from 'node:tls';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
@@ -233,6 +233,164 @@ describe('handshake', () => {
       expect(failure.message).toBe(`127.0.0.1:${port} does not look like a Remote Desktop server.`);
     } finally {
       web.close();
+    }
+  });
+});
+
+/**
+ * Remote Desktop opened its socket straight to the server even with a proxy turned on in the
+ * Network settings. A plain HTTP CONNECT proxy on loopback stands in for the user's.
+ */
+async function startConnectProxy(): Promise<{
+  port: number;
+  requests: string[];
+  close: () => void;
+}> {
+  const requests: string[] = [];
+  const proxy = createServer((client) => {
+    client.on('error', () => undefined);
+    let head = '';
+    const onData = (chunk: Buffer): void => {
+      head += chunk.toString('latin1');
+      if (!head.includes('\r\n\r\n')) return;
+      client.off('data', onData);
+      client.pause();
+      const authority = head.match(/^CONNECT (\S+) HTTP/)?.[1] ?? '';
+      requests.push(authority);
+      const target = Number(authority.slice(authority.lastIndexOf(':') + 1));
+      const upstream = netConnect({ host: '127.0.0.1', port: target }, () => {
+        client.write('HTTP/1.1 200 Connection established\r\n\r\n');
+        client.pipe(upstream);
+        upstream.pipe(client);
+        client.resume();
+      });
+      upstream.on('error', () => client.destroy());
+      client.on('close', () => upstream.destroy());
+    };
+    client.on('data', onData);
+  });
+  await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+  return {
+    port: (proxy.address() as AddressInfo).port,
+    requests,
+    close: () => proxy.close(),
+  };
+}
+
+function viaProxy(port: number, base: HandshakeDeps = { netConnect, tlsConnect }) {
+  const asked: string[] = [];
+  const deps: HandshakeDeps = {
+    ...base,
+    route: async (host, target) => {
+      asked.push(`${host}:${target}`);
+      return { protocol: 'http', host: '127.0.0.1', port, username: '', password: '' };
+    },
+  };
+  return { deps, asked };
+}
+
+describe('handshake through a proxy', () => {
+  it('reaches the server through the proxy and reports the server, not the proxy, as the address', async () => {
+    const server = await serve(signing);
+    const proxy = await startConnectProxy();
+    const { deps, asked } = viaProxy(proxy.port);
+
+    try {
+      const result = await handshake('localhost', server.port, request, deps);
+      result.tlsSocket.destroy();
+
+      expect(asked).toEqual([`localhost:${server.port}`]);
+      expect(proxy.requests).toEqual([`localhost:${server.port}`]);
+      expect(result.address).toBe('localhost');
+      expect(result.cert.fingerprint).toBe(new X509Certificate(signing.cert).fingerprint256);
+    } finally {
+      proxy.close();
+    }
+  });
+
+  it('asks for the route again for the retry with RSA key exchange', async () => {
+    const server = await serve(windows);
+    const proxy = await startConnectProxy();
+    const { deps: standInDeps } = standIn('refuse-key-usage-then-allow-rsa');
+    const { deps, asked } = viaProxy(proxy.port, standInDeps);
+
+    try {
+      const result = await handshake('127.0.0.1', server.port, request, deps);
+      result.tlsSocket.destroy();
+
+      expect(result.keyExchange).toBe('rsa');
+      expect(asked).toHaveLength(2);
+      expect(proxy.requests).toHaveLength(2);
+      expect(server.connections()).toBe(2);
+    } finally {
+      proxy.close();
+    }
+  });
+
+  it('goes straight to the server when the route says to skip the proxy', async () => {
+    const server = await serve(signing);
+    const deps: HandshakeDeps = { netConnect, tlsConnect, route: async () => null };
+
+    const result = await handshake('127.0.0.1', server.port, request, deps);
+    result.tlsSocket.destroy();
+
+    expect(result.address).toBe('127.0.0.1');
+    expect(server.connections()).toBe(1);
+  });
+
+  it('blames the proxy, not the server, when the proxy is not there', async () => {
+    const proxy = await startConnectProxy();
+    proxy.close();
+    const { deps } = viaProxy(proxy.port);
+
+    const failure = (await handshake('rdp.example', 3389, request, deps).catch(
+      (error: unknown) => error,
+    )) as RdpHandshakeError;
+
+    expect(failure.code).toBe('proxy-failed');
+    expect(failure.message).toBe(`Could not reach the proxy at 127.0.0.1:${proxy.port}.`);
+    expect(failure.detail).toMatch(/ECONNREFUSED/);
+  });
+
+  it('blames the proxy when it is the one that never answers', async () => {
+    const accepted: Socket[] = [];
+    const silent = createServer((socket) => {
+      accepted.push(socket);
+      socket.on('error', () => undefined);
+    });
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+    const { port } = silent.address() as AddressInfo;
+    const { deps } = viaProxy(port);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+      const pending = handshake('rdp.example', 3389, request, deps).catch(
+        (error: unknown) => error,
+      );
+      await vi.waitFor(() => expect(accepted).toHaveLength(1), { interval: 5 });
+      vi.advanceTimersByTime(15_000);
+      const failure = (await pending) as RdpHandshakeError;
+
+      expect(failure.code).toBe('proxy-failed');
+      expect(failure.message).toBe(`The proxy at 127.0.0.1:${port} did not answer in time.`);
+    } finally {
+      vi.useRealTimers();
+      for (const socket of accepted) socket.destroy();
+      silent.close();
+    }
+  });
+
+  it('checks the certificate through the proxy as well', async () => {
+    const server = await serve(signing);
+    const proxy = await startConnectProxy();
+    const { deps } = viaProxy(proxy.port);
+
+    try {
+      const cert = await fetchServerCertificate('127.0.0.1', server.port, deps);
+      expect(cert.fingerprint).toBe(new X509Certificate(signing.cert).fingerprint256);
+      expect(proxy.requests).toEqual([`127.0.0.1:${server.port}`]);
+    } finally {
+      proxy.close();
     }
   });
 });

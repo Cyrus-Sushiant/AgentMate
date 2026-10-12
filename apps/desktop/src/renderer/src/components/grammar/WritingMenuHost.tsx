@@ -466,6 +466,9 @@ export function WritingMenuHost(): React.JSX.Element | null {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        // A dialog the field sits in listens for Escape on the document, so this
+        // has to stop here: Escape puts away the menu and nothing under it.
+        event.stopPropagation();
         close();
         return;
       }
@@ -498,8 +501,10 @@ export function WritingMenuHost(): React.JSX.Element | null {
       // Editing the text moves the issue out from under the recorded offsets.
       if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete') close();
     };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
+    // On the window rather than the document, which is one step earlier in the
+    // capture phase, so it also gets in ahead of a dialog's own Escape handler.
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [menu, items, highlighted, runItem, close]);
 
   useEffect(() => {

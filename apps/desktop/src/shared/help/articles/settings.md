@@ -182,7 +182,7 @@ This card waits for **Save changes**. See [Notifications and Telegram](notificat
 
 ### Proxy
 
-**Proxy** controls how AgentMate reaches the internet: the AI providers, skill and package registries, Telegram, update checks, and the CLIs and git commands it runs for you. Choose **No proxy**, **System proxy** (follow this machine, PAC scripts included) or **Manual proxy** (HTTP, HTTPS, SOCKS5 or SOCKS4 with host, port, optional username and password, and a **Skip the proxy for** list). **Test connection** checks the setup, and **Save** applies it. Terminals that are already open keep the old setting until you reopen them. This card waits for a save.
+**Proxy** controls how AgentMate reaches the internet: the AI providers, skill and package registries, Telegram, update checks, Remote Desktop connections, and the CLIs and git commands it runs for you. Choose **No proxy**, **System proxy** (follow this machine, PAC scripts included) or **Manual proxy** (HTTP, HTTPS, SOCKS5 or SOCKS4 with host, port, optional username and password, and a **Skip the proxy for** list). **Test connection** checks the setup, and **Save** applies it. Terminals that are already open keep the old setting until you reopen them. This card waits for a save.
 
 ### Network ping targets
 

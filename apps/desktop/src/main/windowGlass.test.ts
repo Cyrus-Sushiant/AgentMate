@@ -9,8 +9,14 @@ vi.mock('node:os', async (importOriginal) => {
   return { ...actual, release: () => osState.release };
 });
 
-const { applyWindowTheme, glassWindowOptions, mainWindowGlass, supportsBackgroundMaterial } =
-  await import('./windowGlass');
+const {
+  applyWindowTheme,
+  currentWindowTheme,
+  glassWindowOptions,
+  mainWindowGlass,
+  mainWindowQuery,
+  supportsBackgroundMaterial,
+} = await import('./windowGlass');
 
 /** Runs `work` as if on `platform` with this OS release, the way os.release() reports it. */
 function on<Result>(platform: NodeJS.Platform, release: string, work: () => Result) {
@@ -80,5 +86,28 @@ describe('applyWindowTheme', () => {
       applyWindowTheme(dark);
       expect(nativeTheme.themeSource).toBe('dark');
     }
+  });
+});
+
+describe('currentWindowTheme', () => {
+  it('is the theme last applied, so a window opened later gets the current one', () => {
+    applyWindowTheme('vs2026');
+    expect(currentWindowTheme()).toBe('vs2026');
+    applyWindowTheme('light');
+    expect(currentWindowTheme()).toBe('light');
+  });
+});
+
+describe('mainWindowQuery', () => {
+  it('hands the page both the material and the theme', () => {
+    // The page paints its theme from this before the settings call answers. Dropping it brings
+    // back a light page on a dark Mica tint for as long as that call takes.
+    expect(mainWindowQuery('mica', 'dark')).toEqual({ glass: 'mica', theme: 'dark' });
+    expect(mainWindowQuery('none', 'system')).toEqual({ glass: 'none', theme: 'system' });
+  });
+
+  it('builds a URL the page reads the same way', () => {
+    const search = new URLSearchParams(mainWindowQuery('vibrancy', 'vscode-dark')).toString();
+    expect(search).toBe('glass=vibrancy&theme=vscode-dark');
   });
 });

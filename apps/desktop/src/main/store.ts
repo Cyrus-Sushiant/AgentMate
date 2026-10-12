@@ -79,8 +79,11 @@ import type {
 import { referencedAttachmentFiles, removeOrphanAttachments } from './blueprintFileStore';
 import { blueprintRevisionDb } from './blueprintRevisionDb';
 import {
+  DEFAULT_PING_TARGETS_IPV4,
+  DEFAULT_PING_TARGETS_IPV6,
   DEFAULT_PING_URL,
   DEFAULT_PING_URL_INTERVAL_SECONDS,
+  isPingIpVersion,
   isPingMethod,
   normalizePingUrlInterval,
   normalizePingUrls,
@@ -143,7 +146,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   startupPage: 'last',
   projectsRootPath: null,
   skillRepositoryIds: [],
-  pingTargets: ['1.1.1.1'],
+  pingTargets: [...DEFAULT_PING_TARGETS_IPV4],
+  pingIpVersion: 'ipv4',
+  pingTargetsIpv6: [...DEFAULT_PING_TARGETS_IPV6],
   pingMethod: 'icmp',
   pingUrls: [DEFAULT_PING_URL],
   pingUrlIntervalSeconds: DEFAULT_PING_URL_INTERVAL_SECONDS,
@@ -289,6 +294,10 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetCardView: normalizeDesktopPetCardView(settings.desktopPetCardView),
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
+    pingIpVersion: isPingIpVersion(settings.pingIpVersion) ? settings.pingIpVersion : 'ipv4',
+    pingTargetsIpv6: Array.isArray(settings.pingTargetsIpv6)
+      ? settings.pingTargetsIpv6.filter((host) => typeof host === 'string')
+      : [...DEFAULT_PING_TARGETS_IPV6],
     pingMethod: isPingMethod(settings.pingMethod) ? settings.pingMethod : 'icmp',
     pingUrls: normalizePingUrls(settings.pingUrls),
     pingUrlIntervalSeconds: normalizePingUrlInterval(settings.pingUrlIntervalSeconds),

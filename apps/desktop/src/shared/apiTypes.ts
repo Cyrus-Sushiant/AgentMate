@@ -2328,6 +2328,8 @@ export type RdpProxyErrorCode =
   | 'tls-failed'
   | 'tls-key-usage'
   | 'certificate-changed'
+  /** The proxy from the Network settings could not be reached or would not connect. */
+  | 'proxy-failed'
   | 'other';
 
 /** A reason the proxy gave up. `message` is one plain sentence; `detail` is for support. */
