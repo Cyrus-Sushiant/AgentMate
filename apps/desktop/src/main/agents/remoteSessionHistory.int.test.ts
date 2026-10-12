@@ -142,7 +142,7 @@ describe.skipIf(!docker)('remote AI history against OpenSSH', () => {
       const result = await connection.exec(PROBE_COMMAND, { timeoutMs: 15_000 });
 
       expect(result.exitCode).toBe(0);
-      expect(parseRemoteProbe(result.stdout)).toEqual({
+      expect(parseRemoteProbe(result.stdout)).toMatchObject({
         home: HOME,
         claudeConfigDir: null,
         codexHome: null,
@@ -159,7 +159,7 @@ describe.skipIf(!docker)('remote AI history against OpenSSH', () => {
       const result = await listRemoteAgentHistory('test-server', { pool });
 
       expect(result.home).toBe(HOME);
-      expect(result.clis).toEqual({ claude: true, codex: true });
+      expect(result.clis).toMatchObject({ claude: true, codex: true });
       expect(result.sessions.map((s) => [s.provider, s.id, s.cwd, s.firstPrompt])).toEqual([
         [
           'claude-code',

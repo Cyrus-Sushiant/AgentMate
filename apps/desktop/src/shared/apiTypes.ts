@@ -2060,13 +2060,23 @@ export interface SshAttachResult {
   sessionId: string;
 }
 
-/** Every Claude Code and Codex conversation stored on a saved server, newest first. */
+/** Every supported CLI conversation stored on a saved server, newest first. */
 export interface SshConversationsResult {
   sessions: AgentHistorySession[];
   /** The login user's home folder on the server, or null when it could not be found. */
   home: string | null;
   /** Which agent CLIs the server has, so resuming can be offered only where it can work. */
-  clis: { claude: boolean; codex: boolean };
+  clis: {
+    claude: boolean;
+    codex: boolean;
+    gemini: boolean;
+    cursor: boolean;
+    continue: boolean;
+    grok: boolean;
+    cline: boolean;
+    opencode: boolean;
+    qwen: boolean;
+  };
 }
 
 export interface SshVaultStatus {

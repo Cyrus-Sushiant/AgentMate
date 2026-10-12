@@ -161,17 +161,17 @@ Several features hand text to a running agent: **Add to {agent}** in the file ex
 
 ## Agent sessions
 
-The **Agent sessions** tab lists past Claude Code and Codex conversations that were started in this project's folder, newest first, under **Today**, **Yesterday**, **This week**, **This month** and **Older**.
+The **Agent sessions** tab lists past conversations from every supported CLI (Claude Code, Codex, Gemini, Cursor, Continue, Grok, Cline and more) that were started in this project's folder, newest first, under **Today**, **Yesterday**, **This week**, **This month** and **Older**.
 
-- Click a conversation to resume it in a new tab (`claude --resume` or `codex resume`, with your usual launch defaults). The tab's tooltip starts with **Resumed:** and the conversation's title.
+- Click a conversation to resume it in a new tab (each CLI's own resume command, with your usual launch defaults). The tab's tooltip starts with **Resumed:** and the conversation's title.
 - A conversation that is already running in a tab shows an **Open** badge. Clicking it jumps to that tab instead of starting a second one.
 - Hover a row for **Copy conversation id** and **Resume in a new tab**, and for details such as the first and last prompt, the model and effort it ran on, and the git branch.
-- **Search conversations** filters by title, prompt, branch, model or id. When both Claude and Codex conversations exist, an **All / Claude / Codex** switch appears.
+- **Search conversations** filters by title, prompt, branch, model or id. When conversations from several agents exist, an agent switch (All / Claude / Codex / …) appears.
 - Runs started by tools (such as `claude -p`) are hidden. Click **Show {n} runs started by tools** to include them.
 - The refresh button in the panel's tab strip (**Refresh sessions**) reloads the list. It also updates on its own every 20 seconds.
 - With none yet, the tab says **No conversations yet**.
 
-An agent tab whose shell did not survive AgentMate closing (a reboot or a crash) resumes its conversation by itself when you come back, for Claude Code and Codex tabs that had a conversation going.
+An agent tab whose shell did not survive AgentMate closing (a reboot or a crash) resumes its conversation by itself when you come back, for tabs whose CLI reports a conversation going.
 
 ## Fix with AI
 

@@ -75,7 +75,7 @@ export const IPC = {
     hostKeyStatus: 'ssh:hostKeyStatus',
     // (serverId, fingerprint): trusts the presented key, provided it is still that fingerprint
     trustHostKey: 'ssh:trustHostKey',
-    // (serverId) -> SshConversationsResult: every Claude Code and Codex conversation on the server
+    // (serverId) -> SshConversationsResult: every supported CLI conversation on the server
     conversations: 'ssh:conversations',
     onData: 'ssh:onData',
     onExit: 'ssh:onExit',
@@ -1134,7 +1134,7 @@ export const IPC = {
     runInfos: 'agents:runInfos',
     // The model and effort each CLI was last actually running on, kept across restarts
     lastRunInfoByCli: 'agents:lastRunInfoByCli',
-    // (projectId) -> AgentHistorySession[]: past Claude Code and Codex conversations in its folder
+    // (projectId) -> AgentHistorySession[]: past conversations from every supported CLI in its folder
     history: 'agents:history',
     // main -> renderer: AgentRunInfoMap of sessions whose model or effort just changed
     onRunInfo: 'agents:onRunInfo',

@@ -159,6 +159,13 @@ describe('HistoryToolbar', () => {
     });
     expect(handlers.onQueryChange).toHaveBeenCalledWith('login');
   });
+
+  it('lists every provider present, not just Claude and Codex', () => {
+    // Regression test: the filter must grow with new history providers.
+    renderToolbar(['claude-code', 'gemini-cli', 'cursor-cli', 'codex']);
+    const labels = screen.getAllByRole('radio').map((r) => r.textContent);
+    expect(labels).toEqual(['All', 'Claude', 'Codex', 'Cursor', 'Gemini']);
+  });
 });
 
 describe('HistoryDayGroups', () => {

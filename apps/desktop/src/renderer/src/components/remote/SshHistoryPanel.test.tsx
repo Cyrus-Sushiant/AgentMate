@@ -73,11 +73,23 @@ const nowhere = session({
   updatedAt: Date.now() - 4 * HOUR,
 });
 
+const ALL_CLIS: SshConversationsResult['clis'] = {
+  claude: true,
+  codex: true,
+  gemini: true,
+  cursor: true,
+  continue: true,
+  grok: true,
+  cline: true,
+  opencode: true,
+  qwen: true,
+};
+
 function result(overrides: Partial<SshConversationsResult> = {}): SshConversationsResult {
   return {
     sessions: [appNewest, appOlder, apiOnly, nowhere],
     home: '/home/dev',
-    clis: { claude: true, codex: true },
+    clis: { ...ALL_CLIS },
     ...overrides,
   };
 }
@@ -133,7 +145,7 @@ describe('SshHistoryPanel', () => {
     renderPanel(result({ sessions: [] }));
 
     expect(
-      await screen.findByText('No Claude Code or Codex conversations on this server yet.'),
+      await screen.findByText('No agent conversations on this server yet.'),
     ).toBeInTheDocument();
   });
 
@@ -206,7 +218,7 @@ describe('SshHistoryPanel', () => {
   it('warns about a CLI a login shell could not find, but still lets it resume', async () => {
     // The probe runs in a login shell; a PATH set only in .bashrc still works for the resume.
     const { user } = renderPanel(
-      result({ sessions: [apiOnly], clis: { claude: false, codex: false } }),
+      result({ sessions: [apiOnly], clis: { ...ALL_CLIS, claude: false, codex: false } }),
     );
 
     await screen.findByText('Migrate the api schema');
@@ -263,7 +275,7 @@ describe('SshHistoryPanel', () => {
     openRemoteResume.mockImplementation(() => 'tab-open');
     const success = vi.spyOn(toast, 'success');
     const { user, onOpenChange } = renderPanel(
-      result({ sessions: [appNewest], clis: { claude: false, codex: true } }),
+      result({ sessions: [appNewest], clis: { ...ALL_CLIS, claude: false, codex: true } }),
     );
 
     const row = (await screen.findByText('Fix the login flow')).closest('button');

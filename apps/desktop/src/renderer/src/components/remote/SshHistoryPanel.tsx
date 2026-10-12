@@ -45,7 +45,7 @@ import { openRemoteResume } from '@/lib/workspace/launch';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 /**
- * A side sheet with every Claude Code and Codex conversation stored on a saved server, by the
+ * A side sheet with every supported CLI conversation stored on a saved server, by the
  * folder it ran in. Resuming one opens an SSH tab in the terminal drawer that `cd`s there and
  * runs the CLI's resume command. The server is asked only on open and on Refresh: each ask is
  * an SSH round trip, so there is no polling.
@@ -54,7 +54,14 @@ import { useTerminalStore } from '@/stores/terminalStore';
 /** The command each agent runs as on the server. */
 const CLI_COMMAND: Record<HistoryProvider, string> = {
   'claude-code': 'claude',
+  openclaude: 'openclaude',
   codex: 'codex',
+  'gemini-cli': 'gemini',
+  'qwen-cli': 'qwen',
+  'cursor-cli': 'cursor-agent',
+  'continue-cli': 'cn',
+  'grok-cli': 'grok',
+  'cline-cli': 'cline',
 };
 
 const UNKNOWN_FOLDER = 'Unknown folder';
@@ -172,9 +179,18 @@ function HistorySheet({
   const hiddenCount = backgroundCount(sessions, provider);
   // The probe runs in a login shell, so a CLI on a PATH set only in .bashrc reads as missing
   // while the interactive resume shell would still find it. Warn, never block.
-  const missingClis = data
-    ? [...providers].filter((p) => !(p === 'codex' ? data.clis.codex : data.clis.claude))
-    : [];
+  const CLI_PRESENT: Record<HistoryProvider, (clis: NonNullable<typeof data>['clis']) => boolean> = {
+    'claude-code': (clis) => clis.claude,
+    openclaude: () => true,
+    codex: (clis) => clis.codex,
+    'gemini-cli': (clis) => clis.gemini,
+    'qwen-cli': (clis) => clis.qwen,
+    'cursor-cli': (clis) => clis.cursor,
+    'continue-cli': (clis) => clis.continue,
+    'grok-cli': (clis) => clis.grok,
+    'cline-cli': (clis) => clis.cline,
+  };
+  const missingClis = data ? [...providers].filter((p) => !CLI_PRESENT[p](data.clis)) : [];
   const summary =
     data && sessions.length > 0
       ? [
@@ -245,7 +261,7 @@ function HistorySheet({
               {server.nickname}
             </DialogPrimitive.Title>
             <DialogPrimitive.Description className="truncate text-xs text-muted-foreground">
-              <span className="sr-only">Claude Code and Codex conversations on </span>
+              <span className="sr-only">Agent conversations on </span>
               <span className="font-mono">
                 {server.username}@{server.host}
                 {server.port === 22 ? '' : `:${server.port}`}
@@ -393,7 +409,7 @@ function FolderSection({
     <section className="px-2">
       <div className="sticky top-0 z-10 bg-popover pt-1">
         <SimpleTooltip
-          label={group.folder ?? 'Claude Code or Codex did not record where these ran'}
+          label={group.folder ?? 'The CLI did not record where these ran'}
           align="start"
         >
           <button
@@ -483,13 +499,10 @@ function EmptyState(): React.JSX.Element {
       </div>
       <div className="space-y-1">
         <p className="text-sm font-medium">
-          No Claude Code or Codex conversations on this server yet.
+          No agent conversations on this server yet.
         </p>
         <p className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground">
-          They show up here after you run{' '}
-          <code className="rounded bg-foreground/[0.06] px-1 font-mono text-[11px]">claude</code> or{' '}
-          <code className="rounded bg-foreground/[0.06] px-1 font-mono text-[11px]">codex</code>{' '}
-          over SSH on it.
+          They show up here after you run an agent CLI over SSH on it.
         </p>
       </div>
     </div>

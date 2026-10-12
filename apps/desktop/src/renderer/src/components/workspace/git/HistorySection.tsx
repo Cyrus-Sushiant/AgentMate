@@ -41,7 +41,7 @@ function useOpenConversations(projectId: string): Map<string, string> {
 }
 
 /**
- * Past Claude Code and Codex conversations started in the project's folder. Clicking one
+ * Past conversations from every supported CLI started in the project's folder. Clicking one
  * resumes it in a new tab, or jumps to the tab where it is already running.
  */
 export function HistorySection({ project }: { project: Project }): React.JSX.Element {
@@ -81,7 +81,7 @@ export function HistorySection({ project }: { project: Project }): React.JSX.Ele
       <PanelNotice
         icon={History}
         title="No conversations yet"
-        body="Claude Code and Codex sessions started in this folder show up here, ready to resume."
+        body="Agent sessions started in this folder show up here, ready to resume."
       />
     );
   }

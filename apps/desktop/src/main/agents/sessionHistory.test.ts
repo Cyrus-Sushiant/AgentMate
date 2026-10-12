@@ -336,6 +336,134 @@ describe('collectHistory for Codex', () => {
   });
 });
 
+describe('collectHistory for every CLI', () => {
+  const geminiChat = (id: string) =>
+    jsonl(
+      { sessionId: id, startTime: '2026-10-07T04:30:07.225Z', kind: 'main' },
+      {
+        $set: {
+          messages: [{ id: 'm1', type: 'user', content: [{ text: 'Gemini fix it' }] }],
+        },
+      },
+    );
+
+  function tree(): Record<string, FakeFile> {
+    return {
+      [`${claudeDir}/-work-app/a.jsonl`]: {
+        content: claudeTranscript('/work/app', 'Claude here'),
+        mtimeMs: 10,
+      },
+      [`${codexDir}/rollout-1.jsonl`]: {
+        content: codexRollout('x1', '/work/app', 'Codex here'),
+        mtimeMs: 20,
+      },
+      '/home/me/.openclaude/projects/-work-app/o.jsonl': {
+        content: claudeTranscript('/work/app', 'OpenClaude here'),
+        mtimeMs: 30,
+      },
+      '/home/me/.gemini/tmp/agentmate/.project_root': {
+        content: '/work/app',
+        mtimeMs: 1,
+      },
+      '/home/me/.gemini/tmp/agentmate/chats/session-2026-10-07T04-30-g1.jsonl': {
+        content: geminiChat('g1'),
+        mtimeMs: 40,
+      },
+      '/home/me/.qwen/tmp/agentmate/.project_root': {
+        content: '/work/app',
+        mtimeMs: 1,
+      },
+      '/home/me/.qwen/tmp/agentmate/chats/session-2026-10-07T04-30-q1.jsonl': {
+        content: geminiChat('q1'),
+        mtimeMs: 50,
+      },
+      '/home/me/.cursor/chats/ws1/c1/meta.json': {
+        content: JSON.stringify({ cwd: '/work/app', title: 'Cursor work' }),
+        mtimeMs: 60,
+      },
+      '/home/me/.cursor/chats/ws1/c1/prompt_history.json': {
+        content: JSON.stringify(['Cursor fix it']),
+        mtimeMs: 61,
+      },
+      '/home/me/.continue/sessions/n1.json': {
+        content: JSON.stringify({
+          sessionId: 'n1',
+          title: 'Continue work',
+          workspaceDirectory: 'file:///work/app',
+          history: [{ message: { role: 'user', content: [{ type: 'text', text: 'Continue fix it' }] } }],
+        }),
+        mtimeMs: 70,
+      },
+      '/home/me/.grok/sessions/%2Fwork%2Fapp/gs1/chat_history.jsonl': {
+        content: jsonl({ type: 'user', content: [{ type: 'text', text: '<user_query>Grok fix it</user_query>' }] }),
+        mtimeMs: 80,
+      },
+      '/home/me/.cline/data/sessions/111/claude.json': {
+        content: JSON.stringify({
+          session_id: 'cl1',
+          cwd: '/work/app',
+          prompt: 'Cline fix it',
+          model: 'deepseek/deepseek-v4-flash',
+          started_at: '2026-08-03T10:35:03.621Z',
+        }),
+        mtimeMs: 90,
+      },
+    };
+  }
+
+  it('lists sessions from every supported CLI in one folder', async () => {
+    const sessions = await collectHistory(fakeFs(tree()), { folder: '/work/app' });
+    expect(sessions.map((s) => [s.provider, s.firstPrompt]).sort()).toEqual(
+      [
+        ['claude-code', 'Claude here'],
+        ['cline-cli', 'Cline fix it'],
+        ['codex', 'Codex here'],
+        ['continue-cli', 'Continue fix it'],
+        ['cursor-cli', 'Cursor fix it'],
+        ['gemini-cli', 'Gemini fix it'],
+        ['grok-cli', 'Grok fix it'],
+        ['openclaude', 'OpenClaude here'],
+        ['qwen-cli', 'Gemini fix it'],
+      ].sort(),
+    );
+    // Every session resolves to the requested folder (directly or via sidecar).
+    for (const session of sessions) {
+      expect(session.cwd === null || session.cwd === '/work/app').toBe(true);
+    }
+  });
+
+  it('hides other folders without hiding sessions with no recorded folder', async () => {
+    const files = tree();
+    files['/home/me/.continue/sessions/other.json'] = {
+      content: JSON.stringify({
+        sessionId: 'other',
+        title: 'Elsewhere',
+        workspaceDirectory: 'file:///elsewhere',
+        history: [{ message: { role: 'user', content: [{ type: 'text', text: 'Not here' }] } }],
+      }),
+      mtimeMs: 95,
+    };
+    const sessions = await collectHistory(fakeFs(files), { folder: '/work/app' });
+    expect(sessions.some((s) => s.id === 'other')).toBe(false);
+    expect(sessions.length).toBeGreaterThan(0);
+  });
+
+  it('returns every folder when no folder is given', async () => {
+    const sessions = await collectHistory(fakeFs(tree()));
+    expect(sessions.map((s) => s.provider).sort()).toEqual(
+      ['claude-code', 'cline-cli', 'codex', 'continue-cli', 'cursor-cli', 'gemini-cli', 'grok-cli', 'openclaude', 'qwen-cli'].sort(),
+    );
+  });
+
+  it('resolves the provider for each stored session (no silent Claude-only fallback)', async () => {
+    // Regression test for the reported bug: history must not collapse to claude-code.
+    const sessions = await collectHistory(fakeFs(tree()), { folder: '/work/app' });
+    const providers = new Set(sessions.map((s) => s.provider));
+    expect(providers.has('claude-code')).toBe(true);
+    expect(providers.size).toBeGreaterThan(2);
+  });
+});
+
 describe('localHistoryFs', () => {
   it('lists entries with sizes and reads byte ranges', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'history-'));

@@ -4,16 +4,27 @@ import type { SshConnection } from '../ssh/connection';
 import { getSshPool } from '../ssh/sharedPool';
 import { collectHistory, type HistoryFs } from './sessionHistory';
 
-// Claude Code and Codex conversations stored on a saved server. One command finds the home
-// folder, where the CLIs keep their history and which CLIs are installed; the transcripts are
-// then read over SFTP by the same collectHistory that lists this machine's history.
+// Conversations from every supported CLI stored on a saved server. One command finds the
+// home folder, where the CLIs keep their history and which CLIs are installed; the
+// transcripts are then read over SFTP by the same collectHistory that lists this machine's
+// history.
 
 /** What the probe found. Null or false wherever it could not tell. */
 export interface RemoteProbe {
   home: string | null;
   claudeConfigDir: string | null;
   codexHome: string | null;
-  clis: { claude: boolean; codex: boolean };
+  clis: {
+    claude: boolean;
+    codex: boolean;
+    gemini: boolean;
+    cursor: boolean;
+    continue: boolean;
+    grok: boolean;
+    cline: boolean;
+    opencode: boolean;
+    qwen: boolean;
+  };
 }
 
 /** The part of an SSH connection the history reader uses. */
@@ -69,6 +80,14 @@ export const PROBE_COMMAND = `sh -lc '${[
   `am_has() { command -v "$1" >/dev/null 2>&1 && return 0; for d in ${CLI_FOLDERS}; do [ -x "$d/$1" ] && return 0; done; return 1; }`,
   'am_has claude && echo __AM_CLAUDE=1',
   'am_has codex && echo __AM_CODEX=1',
+  'am_has gemini && echo __AM_GEMINI=1',
+  'am_has cursor-agent && echo __AM_CURSOR=1',
+  'am_has cn && echo __AM_CONTINUE=1',
+  'am_has grok && echo __AM_GROK=1',
+  'am_has cline && echo __AM_CLINE=1',
+  'am_has opencode && echo __AM_OPENCODE=1',
+  'am_has qwen && echo __AM_QWEN=1',
+  'am_has openclaude && echo __AM_OPENCLAUDE=1',
   'echo __AM_END',
 ].join('; ')}'`;
 
@@ -88,7 +107,17 @@ export function parseRemoteProbe(stdout: string): RemoteProbe {
     home: value('HOME'),
     claudeConfigDir: value('CLAUDE_CONFIG_DIR'),
     codexHome: value('CODEX_HOME'),
-    clis: { claude: values.get('CLAUDE') === '1', codex: values.get('CODEX') === '1' },
+    clis: {
+      claude: values.get('CLAUDE') === '1',
+      codex: values.get('CODEX') === '1',
+      gemini: values.get('GEMINI') === '1',
+      cursor: values.get('CURSOR') === '1',
+      continue: values.get('CONTINUE') === '1',
+      grok: values.get('GROK') === '1',
+      cline: values.get('CLINE') === '1',
+      opencode: values.get('OPENCODE') === '1',
+      qwen: values.get('QWEN') === '1',
+    },
   };
 }
 
@@ -96,7 +125,17 @@ const NOTHING_FOUND: RemoteProbe = {
   home: null,
   claudeConfigDir: null,
   codexHome: null,
-  clis: { claude: false, codex: false },
+  clis: {
+    claude: false,
+    codex: false,
+    gemini: false,
+    cursor: false,
+    continue: false,
+    grok: false,
+    cline: false,
+    opencode: false,
+    qwen: false,
+  },
 };
 
 /**
@@ -161,7 +200,7 @@ export function sftpHistoryFs(
 }
 
 /**
- * Every Claude Code and Codex conversation on a saved server, newest first, with the server's
+ * Every supported CLI conversation on a saved server, newest first, with the server's
  * home folder and which CLIs it has. Connection failures come through as they are, so a changed
  * host key or a locked vault keeps the code the renderer looks for.
  */

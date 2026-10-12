@@ -90,7 +90,17 @@ const probe = (overrides: Partial<RemoteProbe> = {}): RemoteProbe => ({
   home: '/home/me',
   claudeConfigDir: null,
   codexHome: null,
-  clis: { claude: false, codex: false },
+  clis: {
+    claude: false,
+    codex: false,
+    gemini: false,
+    cursor: false,
+    continue: false,
+    grok: false,
+    cline: false,
+    opencode: false,
+    qwen: false,
+  },
   ...overrides,
 });
 
@@ -113,7 +123,17 @@ describe('parseRemoteProbe', () => {
       home: '/home/me',
       claudeConfigDir: '/home/me/.claude-work',
       codexHome: '/opt/codex',
-      clis: { claude: true, codex: true },
+      clis: {
+        claude: true,
+        codex: true,
+        gemini: false,
+        cursor: false,
+        continue: false,
+        grok: false,
+        cline: false,
+        opencode: false,
+        qwen: false,
+      },
     });
   });
 
@@ -124,7 +144,43 @@ describe('parseRemoteProbe', () => {
       home: '/root',
       claudeConfigDir: null,
       codexHome: null,
-      clis: { claude: false, codex: false },
+      clis: {
+        claude: false,
+        codex: false,
+        gemini: false,
+        cursor: false,
+        continue: false,
+        grok: false,
+        cline: false,
+        opencode: false,
+        qwen: false,
+      },
+    });
+  });
+
+  it('reads every probed CLI flag', () => {
+    const stdout = [
+      '__AM_HOME=/home/me',
+      '__AM_GEMINI=1',
+      '__AM_CURSOR=1',
+      '__AM_CONTINUE=1',
+      '__AM_GROK=1',
+      '__AM_CLINE=1',
+      '__AM_OPENCODE=1',
+      '__AM_QWEN=1',
+      '__AM_END',
+    ].join('\n');
+    const probe = parseRemoteProbe(stdout);
+    expect(probe.clis).toMatchObject({
+      gemini: true,
+      cursor: true,
+      continue: true,
+      grok: true,
+      cline: true,
+      opencode: true,
+      qwen: true,
+      claude: false,
+      codex: false,
     });
   });
 
@@ -145,7 +201,17 @@ describe('parseRemoteProbe', () => {
       home: '/home/me',
       claudeConfigDir: null,
       codexHome: null,
-      clis: { claude: false, codex: true },
+      clis: {
+        claude: false,
+        codex: true,
+        gemini: false,
+        cursor: false,
+        continue: false,
+        grok: false,
+        cline: false,
+        opencode: false,
+        qwen: false,
+      },
     });
   });
 
@@ -156,7 +222,17 @@ describe('parseRemoteProbe', () => {
       home: '/home/me',
       claudeConfigDir: null,
       codexHome: '/x',
-      clis: { claude: true, codex: false },
+      clis: {
+        claude: true,
+        codex: false,
+        gemini: false,
+        cursor: false,
+        continue: false,
+        grok: false,
+        cline: false,
+        opencode: false,
+        qwen: false,
+      },
     });
   });
 
@@ -165,7 +241,17 @@ describe('parseRemoteProbe', () => {
       home: null,
       claudeConfigDir: null,
       codexHome: null,
-      clis: { claude: false, codex: false },
+      clis: {
+        claude: false,
+        codex: false,
+        gemini: false,
+        cursor: false,
+        continue: false,
+        grok: false,
+        cline: false,
+        opencode: false,
+        qwen: false,
+      },
     });
   });
 });
@@ -283,7 +369,7 @@ describe('listRemoteAgentHistory', () => {
       expect.objectContaining({ timeoutMs: expect.any(Number) }),
     );
     expect(result.home).toBe('/home/me');
-    expect(result.clis).toEqual({ claude: true, codex: false });
+    expect(result.clis).toMatchObject({ claude: true, codex: false });
     expect(result.sessions.map((s) => [s.provider, s.id, s.cwd, s.firstPrompt])).toEqual([
       ['claude-code', '11111111-aaaa', '/srv/app', 'Fix the deploy'],
       ['codex', 'cx1', '/srv/app', 'Tune nginx'],
@@ -319,7 +405,7 @@ describe('listRemoteAgentHistory', () => {
     const result = await listRemoteAgentHistory('srv-1', fakePool(connection));
 
     expect(result.home).toBe('/home/me');
-    expect(result.clis).toEqual({ claude: false, codex: false });
+    expect(result.clis).toMatchObject({ claude: false, codex: false });
     expect(result.sessions).toHaveLength(3);
   });
 
@@ -339,7 +425,7 @@ describe('listRemoteAgentHistory', () => {
     const result = await listRemoteAgentHistory('srv-1', fakePool(connection));
 
     expect(result.sessions).toHaveLength(3);
-    expect(result.clis).toEqual({ claude: false, codex: false });
+    expect(result.clis).toMatchObject({ claude: false, codex: false });
   });
 
   it('hands the connection back when the listing fails', async () => {

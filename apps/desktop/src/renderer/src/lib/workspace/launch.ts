@@ -192,12 +192,39 @@ export function launchAgentTab(
 /** The CLI that owns each kind of saved conversation. */
 export const HISTORY_CLI_ID: Record<AgentHistoryProvider, string> = {
   'claude-code': 'claude-code',
+  openclaude: 'openclaude',
   codex: 'codex-cli',
+  'gemini-cli': 'gemini-cli',
+  'qwen-cli': 'qwen-cli',
+  'cursor-cli': 'cursor-cli',
+  'continue-cli': 'continue-cli',
+  'grok-cli': 'grok-cli',
+  'cline-cli': 'cline-cli',
 };
 
 /**
- * Opens a tab that picks a past conversation back up: `claude --resume <id>` or
- * `codex resume <id>`, with the user's usual arguments.
+ * Whether a saved conversation can be resumed from a fresh tab. Only Codex
+ * uses a positional `resume <id>`; every other supported CLI resumes with
+ * `--resume <id>`. Providers without a known resume spelling return null and
+ * the UI disables the resume action with a reason.
+ */
+export function resumeArgsFor(provider: AgentHistoryProvider, id: string): {
+  runArgs?: string[];
+  leadingArgs?: string[];
+} | null {
+  if (provider === 'codex') return { leadingArgs: ['resume', id] };
+  return { runArgs: ['--resume', id] };
+}
+
+/** Why a conversation cannot be resumed right now, if at all. */
+export function resumeDisabledReasonFor(session: Pick<AgentHistorySession, 'provider'>): string | null {
+  return resumeArgsFor(session.provider, 'x') ? null : `Resume is not supported for ${session.provider} yet.`;
+}
+
+/**
+ * Opens a tab that picks a past conversation back up: `claude --resume <id>`,
+ * `codex resume <id>`, `gemini --resume <id>`, and so on, with the user's
+ * usual arguments.
  */
 export function launchResumeTab(
   project: Project,
@@ -207,10 +234,12 @@ export function launchResumeTab(
   const cliId = HISTORY_CLI_ID[session.provider];
   const cli = getCliDefinition(cliId);
   const shell = defaultNewSession().shell;
-  const command =
-    session.provider === 'codex'
-      ? agentCommand(cliId, shell, [], ['resume', session.id])
-      : agentCommand(cliId, shell, ['--resume', session.id]);
+  const resume = resumeArgsFor(session.provider, session.id);
+  if (!resume) {
+    toast.error(`Resume is not supported for ${session.provider} yet.`);
+    return null;
+  }
+  const command = agentCommand(cliId, shell, resume.runArgs ?? [], resume.leadingArgs ?? []);
   if (!cli || !command) {
     toast.error('Unknown CLI.');
     return null;
@@ -244,10 +273,8 @@ export function remoteResumeCommand(
   session: Pick<AgentHistorySession, 'provider' | 'id' | 'cwd'>,
   launchDefaults?: CliLaunchDefault,
 ): string | null {
-  const resume =
-    session.provider === 'codex'
-      ? { leadingArgs: ['resume', session.id] }
-      : { runArgs: ['--resume', session.id] };
+  const resume = resumeArgsFor(session.provider, session.id);
+  if (!resume) return null;
   const command = buildAgentLaunchCommand({
     cliId: HISTORY_CLI_ID[session.provider],
     shellKind: 'posix',
@@ -301,7 +328,7 @@ export function openRemoteResume(
   });
 }
 
-/** The conversation a resume command picks up (`claude --resume <id>`, `codex resume <id>`). */
+/** The conversation a resume command picks up (`--resume <id>`, or `resume <id>` for Codex). */
 export function resumedConversationId(launchInput: string | undefined): string | null {
   return launchInput?.match(/(?:--resume|resume)\s+'?"?([0-9a-zA-Z-]{8,})/)?.[1] ?? null;
 }
@@ -318,12 +345,15 @@ export async function statusHooksReady(cliId: string | undefined): Promise<void>
 export function resumeInputFor(tab: WorkspaceTerminalTab): string | null {
   const id = tab.conversationId ?? resumedConversationId(tab.launchInput);
   if (!id) return null;
-  const command =
-    tab.cliId === HISTORY_CLI_ID['claude-code']
-      ? agentCommand(tab.cliId, tab.shell, ['--resume', id])
-      : tab.cliId === HISTORY_CLI_ID.codex
-        ? agentCommand(tab.cliId, tab.shell, [], ['resume', id])
-        : null;
+  // Map the tab's CLI back to its history provider; unknown CLIs cannot resume.
+  if (!tab.cliId) return null;
+  const entry = (Object.entries(HISTORY_CLI_ID) as [AgentHistoryProvider, string][]).find(
+    ([, cliId]) => cliId === tab.cliId,
+  );
+  if (!entry) return null;
+  const resume = resumeArgsFor(entry[0], id);
+  if (!resume) return null;
+  const command = agentCommand(tab.cliId, tab.shell, resume.runArgs ?? [], resume.leadingArgs ?? []);
   return command ? `${command}\r` : null;
 }
 

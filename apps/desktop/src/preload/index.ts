@@ -551,7 +551,7 @@ const ssh = {
   trustHostKey: (serverId: string, fingerprint: string): Promise<void> =>
     ipcRenderer.invoke(IPC.ssh.trustHostKey, serverId, fingerprint),
   /**
-   * Every Claude Code and Codex conversation stored on a saved server, read over SFTP. Rejects
+   * Every supported CLI conversation stored on a saved server, read over SFTP. Rejects
    * with an `sshErrorCode` of 'host-key-changed' or 'vault-locked' when those stand in the way.
    */
   conversations: (serverId: string): Promise<SshConversationsResult> =>

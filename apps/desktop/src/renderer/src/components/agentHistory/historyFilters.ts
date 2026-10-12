@@ -10,7 +10,14 @@ export type ProviderFilter = 'all' | HistoryProvider;
 
 export const PROVIDER_LABEL: Record<HistoryProvider, string> = {
   'claude-code': 'Claude',
+  openclaude: 'OpenClaude',
   codex: 'Codex',
+  'gemini-cli': 'Gemini',
+  'qwen-cli': 'Qwen',
+  'cursor-cli': 'Cursor',
+  'continue-cli': 'Continue',
+  'grok-cli': 'Grok',
+  'cline-cli': 'Cline',
 };
 
 export interface HistoryFilter {

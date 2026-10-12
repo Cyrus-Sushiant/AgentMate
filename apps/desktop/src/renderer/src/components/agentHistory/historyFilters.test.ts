@@ -187,7 +187,21 @@ describe('displayPath', () => {
 });
 
 describe('PROVIDER_LABEL', () => {
-  it('names both providers', () => {
-    expect(PROVIDER_LABEL).toEqual({ 'claude-code': 'Claude', codex: 'Codex' });
+  it('names every history provider', async () => {
+    const { AGENT_HISTORY_PROVIDERS } = await import('@agentmat/core');
+    expect(Object.keys(PROVIDER_LABEL).sort()).toEqual([...AGENT_HISTORY_PROVIDERS].sort());
+    expect(PROVIDER_LABEL['claude-code']).toBe('Claude');
+    expect(PROVIDER_LABEL.codex).toBe('Codex');
+  });
+
+  it('filters each provider independently', async () => {
+    const { AGENT_HISTORY_PROVIDERS } = await import('@agentmat/core');
+    for (const provider of AGENT_HISTORY_PROVIDERS) {
+      const sessions = [session({ id: `${provider}-1`, provider })];
+      expect(filterSessions(sessions, { ...all, provider }).map((s) => s.id)).toEqual([
+        `${provider}-1`,
+      ]);
+      expect(backgroundCount(sessions, provider)).toBe(0);
+    }
   });
 });

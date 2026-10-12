@@ -44,7 +44,7 @@ describe('SshServersPanel', () => {
 
     expect(await screen.findByRole('dialog', { name: 'prod' })).toBeInTheDocument();
     expect(
-      await screen.findByText('No Claude Code or Codex conversations on this server yet.'),
+      await screen.findByText('No agent conversations on this server yet.'),
     ).toBeInTheDocument();
     expect(bridge.$fn('ssh.conversations')).toHaveBeenCalledWith(server.id);
     expect(useTerminalStore.getState().sessions).toHaveLength(0);
@@ -94,7 +94,7 @@ describe('SshServersPanel', () => {
     await user.click(within(unlock).getByRole('button', { name: 'Unlock' }));
 
     expect(
-      await screen.findByText('No Claude Code or Codex conversations on this server yet.'),
+      await screen.findByText('No agent conversations on this server yet.'),
     ).toBeInTheDocument();
     expect(conversations).toHaveBeenCalledTimes(2);
     expect(useTerminalStore.getState().sessions).toHaveLength(0);

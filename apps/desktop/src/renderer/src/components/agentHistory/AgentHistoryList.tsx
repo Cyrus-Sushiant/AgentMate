@@ -196,7 +196,7 @@ export function HistoryToolbar({
           aria-label="Agent"
           className="flex shrink-0 items-center rounded-md bg-foreground/[0.05] p-0.5"
         >
-          {(['all', 'claude-code', 'codex'] as const).map((value) => (
+          {(['all', ...[...providers].sort()] as const).map((value) => (
             <button
               key={value}
               type="button"

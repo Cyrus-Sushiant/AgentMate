@@ -110,7 +110,7 @@ Each row shows `user@host:port`, the sign-in method and when you last connected.
 
 | Button | What it does |
 | --- | --- |
-| **AI history on this server** (clock icon) | Opens a side sheet with the Claude Code and Codex conversations stored on that server. |
+| **AI history on this server** (clock icon) | Opens a side sheet with the agent CLI conversations stored on that server. |
 | **Connect** | Opens an SSH terminal tab for the server. |
 | **Edit this server** | Opens the edit form. |
 | **Remove this server** | Removes it after you confirm. You can add it again with the same details. |
@@ -135,7 +135,7 @@ The first time you connect to a server, AgentMate saves its host key fingerprint
 
 ### AI history on a server
 
-The clock button opens a sheet named after the server. It lists the conversations Claude Code and Codex have stored on that machine, grouped by folder and day. Search them, filter by tool, show or hide background runs, and click one to resume it in a new SSH tab (AgentMate changes into that folder and runs the tool's resume command). The server is asked only when you open the sheet or click **Refresh**. If a tool is not installed on the server, a warning chip says so.
+The clock button opens a sheet named after the server. It lists the conversations every supported agent CLI has stored on that machine, grouped by folder and day. Search them, filter by tool, show or hide background runs, and click one to resume it in a new SSH tab (AgentMate changes into that folder and runs the tool's resume command). The server is asked only when you open the sheet or click **Refresh**. If a tool is not installed on the server, a warning chip says so.
 
 ### Ask AI in an SSH terminal
 

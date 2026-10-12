@@ -80,7 +80,7 @@ export function registerAgentHandlers(): void {
     IPC.agents.history,
     async (_event, projectId: unknown): Promise<AgentHistorySession[]> => {
       if (typeof projectId !== 'string') return [];
-      // Claude Code and Codex file conversations by folder, so a worktree has its own.
+      // CLIs file conversations by folder, so a worktree has its own.
       const project = await findProjectScope(projectId);
       return project ? listAgentHistory(project.folderPath) : [];
     },

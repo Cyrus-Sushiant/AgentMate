@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import { CLI_REGISTRY } from '../cli/registry.js';
 import {
+  AGENT_HISTORY_PROVIDERS,
   claudeProjectDirName,
   codexRolloutMeta,
+  HISTORY_UNSUPPORTED_CLIS,
   promptPreview,
   sameFolder,
   summarizeClaudeTranscript,
+  summarizeClineSession,
   summarizeCodexRollout,
+  summarizeContinueSession,
+  summarizeCursorSession,
+  summarizeGeminiChat,
+  summarizeGrokChat,
+  type AgentHistoryProvider,
 } from './sessionHistory.js';
 
 const line = (value: unknown): string => JSON.stringify(value);
@@ -165,5 +174,183 @@ describe('codex rollouts', () => {
   it('flags exec runs', () => {
     const exec = line({ type: 'session_meta', payload: { id: 'x', originator: 'codex_exec' } });
     expect(codexRolloutMeta(exec)?.background).toBe(true);
+  });
+});
+
+describe('gemini chats', () => {
+  const meta = line({
+    sessionId: 'a80d26e5',
+    projectHash: 'abc',
+    startTime: '2026-10-07T04:30:07.225Z',
+    lastUpdated: '2026-10-07T04:30:07.225Z',
+    kind: 'main',
+  });
+  const setup = line({
+    $set: {
+      messages: [
+        {
+          id: '1',
+          timestamp: '2026-10-07T04:30:07.226Z',
+          type: 'user',
+          content: [{ text: '<session_context>\nworkspace stuff' }],
+        },
+      ],
+    },
+  });
+  const ask = (text: string) =>
+    line({ $set: { messages: [{ id: '2', type: 'user', content: [{ text }] }] } });
+
+  it('skips the setup context and reads the real prompt', () => {
+    const summary = summarizeGeminiChat('fallback', [meta, setup, ask('Fix the login')], []);
+    expect(summary).toMatchObject({ id: 'a80d26e5', firstPrompt: 'Fix the login' });
+  });
+
+  it('tracks first and last prompts across head and tail', () => {
+    const summary = summarizeGeminiChat('fallback', [meta, ask('First')], [ask('Second')]);
+    expect(summary).toMatchObject({ firstPrompt: 'First', lastPrompt: 'Second' });
+  });
+
+  it('falls back to the file id and returns null when empty', () => {
+    // Setup context alone is not a conversation.
+    expect(summarizeGeminiChat('file-id', [meta, setup], [])).toBeNull();
+    expect(summarizeGeminiChat('file-id', [meta], [])).toBeNull();
+    // Without a sessionId line the file name becomes the id.
+    const noId = summarizeGeminiChat('file-id', [ask('Hello')], []);
+    expect(noId).toMatchObject({ id: 'file-id', firstPrompt: 'Hello' });
+  });
+});
+
+describe('continue sessions', () => {
+  const doc = (overrides = {}) =>
+    JSON.stringify({
+      sessionId: '17cd8930',
+      title: 'hi',
+      workspaceDirectory: 'file:///e%3A/BitIron/VPN-App',
+      history: [
+        { message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } },
+        { message: { role: 'assistant', content: '' } },
+      ],
+      ...overrides,
+    });
+
+  it('reads id, title, folder and prompt', () => {
+    const summary = summarizeContinueSession('fallback', [doc()], []);
+    expect(summary).toMatchObject({
+      id: '17cd8930',
+      title: 'hi',
+      firstPrompt: 'hi',
+      cwd: 'e:/BitIron/VPN-App',
+    });
+  });
+
+  it('returns null when there is no prompt and no title', () => {
+    expect(
+      summarizeContinueSession('x', [JSON.stringify({ sessionId: 'x' })], []),
+    ).toBeNull();
+  });
+});
+
+describe('cursor sessions', () => {
+  it('reads cwd, title and prompts from meta plus prompt history', () => {
+    const summary = summarizeCursorSession(
+      'chat-id',
+      ['{"cwd":"E:\\\\AgentMate","title":"Commit Lint Fixer"}', '["Fix the flaky tests","And lint"]'],
+      [],
+    );
+    expect(summary).toMatchObject({
+      id: 'chat-id',
+      cwd: 'E:\\AgentMate',
+      title: 'Commit Lint Fixer',
+      firstPrompt: 'Fix the flaky tests',
+      lastPrompt: 'And lint',
+    });
+  });
+
+  it('returns null when there is nothing to show', () => {
+    expect(summarizeCursorSession('x', ['{}'], [])).toBeNull();
+  });
+});
+
+describe('cline sessions', () => {
+  it('reads id, folder, prompt and model', () => {
+    const summary = summarizeClineSession(
+      'fallback',
+      [
+        JSON.stringify({
+          session_id: '1785753303611_qbtqw',
+          cwd: 'E:\\MyWebSite',
+          prompt: '<user_input mode="act">Add the effect</user_input>',
+          model: 'deepseek/deepseek-v4-flash',
+          started_at: '2026-08-03T10:35:03.621Z',
+        }),
+      ],
+      [],
+    );
+    expect(summary).toMatchObject({
+      id: '1785753303611_qbtqw',
+      firstPrompt: 'Add the effect',
+      cwd: 'E:\\MyWebSite',
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  });
+
+  it('returns null without a prompt', () => {
+    expect(summarizeClineSession('x', [JSON.stringify({ session_id: 'x' })], [])).toBeNull();
+  });
+});
+
+describe('grok chats', () => {
+  const user = (text: string) =>
+    line({ type: 'user', content: [{ type: 'text', text }] });
+  const assistant = line({ type: 'assistant', content: 'OK', model_id: 'grok-4.6' });
+
+  it('reads the <user_query> ask and the model', () => {
+    const summary = summarizeGrokChat('sid', [user('<user_query>\nReply with exactly: OK\n</user_query>'), assistant], []);
+    expect(summary).toMatchObject({
+      id: 'sid',
+      firstPrompt: 'Reply with exactly: OK',
+      model: 'grok-4.6',
+    });
+  });
+
+  it('skips scaffolding messages', () => {
+    expect(summarizeGrokChat('sid', [user('<user_info>\nOS: windows\n</user_info>')], [])).toBeNull();
+  });
+});
+
+describe('history provider coverage', () => {
+  it('accounts for every CLI in the registry', () => {
+    const covered = new Set<string>([...AGENT_HISTORY_PROVIDERS, ...HISTORY_UNSUPPORTED_CLIS]);
+    // `codex` provider reads the `codex-cli` CLI's store.
+    covered.add('codex-cli');
+    const missing = CLI_REGISTRY.map((cli) => cli.id).filter((id) => !covered.has(id));
+    expect(missing).toEqual([]);
+  });
+
+  it('keeps provider ids distinct and unsupported ids disjoint', () => {
+    const providers = [...AGENT_HISTORY_PROVIDERS] as string[];
+    expect(new Set(providers).size).toBe(providers.length);
+    const overlap = (HISTORY_UNSUPPORTED_CLIS as readonly string[]).filter((id) =>
+      (providers as string[]).includes(id),
+    );
+    expect(overlap).toEqual([]);
+  });
+
+  it('only maps codex provider to a differently-named CLI', () => {
+    const sameNamed: Record<string, string> = {
+      'claude-code': 'claude-code',
+      openclaude: 'openclaude',
+      'gemini-cli': 'gemini-cli',
+      'qwen-cli': 'qwen-cli',
+      'cursor-cli': 'cursor-cli',
+      'continue-cli': 'continue-cli',
+      'grok-cli': 'grok-cli',
+      'cline-cli': 'cline-cli',
+    };
+    for (const provider of AGENT_HISTORY_PROVIDERS) {
+      if (provider === 'codex') continue;
+      expect(sameNamed[provider as string]).toBe(provider as string);
+    }
+    expect('codex' as AgentHistoryProvider).toBe('codex');
   });
 });

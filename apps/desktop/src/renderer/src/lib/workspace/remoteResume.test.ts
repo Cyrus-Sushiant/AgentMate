@@ -110,6 +110,39 @@ describe('remoteResumeCommand', () => {
     const codex = remoteResumeCommand(conversation({ provider: 'codex', id: '0199aabb-cc' }));
     expect(resumedConversationId(codex ?? undefined)).toBe('0199aabb-cc');
   });
+
+  it('resumes every provider with its own CLI command', () => {
+    // Regression test: adding a history provider must add its resume command too.
+    const cases: { provider: AgentHistorySession['provider']; contains: string }[] = [
+      { provider: 'claude-code', contains: 'claude' },
+      { provider: 'openclaude', contains: 'openclaude' },
+      { provider: 'codex', contains: 'codex resume' },
+      { provider: 'gemini-cli', contains: 'gemini' },
+      { provider: 'qwen-cli', contains: 'qwen' },
+      { provider: 'cursor-cli', contains: 'cursor-agent' },
+      { provider: 'continue-cli', contains: 'cn' },
+      { provider: 'grok-cli', contains: 'grok' },
+      { provider: 'cline-cli', contains: 'cline' },
+    ];
+    for (const { provider, contains } of cases) {
+      const command = remoteResumeCommand(conversation({ provider, id: 'sess-0102' }));
+      expect(command, provider).toContain(contains);
+      expect(command, provider).toContain('sess-0102');
+      expect(resumedConversationId(command ?? undefined), provider).toBe('sess-0102');
+    }
+  });
+
+  it('maps every history provider to a known CLI', async () => {
+    const { AGENT_HISTORY_PROVIDERS } = await import('@agentmat/core');
+    const { HISTORY_CLI_ID } = await import('./launch');
+    const { CLI_REGISTRY } = await import('@agentmat/core');
+    const ids = new Set(CLI_REGISTRY.map((cli) => cli.id));
+    for (const provider of AGENT_HISTORY_PROVIDERS) {
+      const cliId = HISTORY_CLI_ID[provider];
+      expect(cliId, provider).toBeTruthy();
+      expect(ids.has(cliId), provider).toBe(true);
+    }
+  });
 });
 
 describe('openRemoteResume', () => {

@@ -132,7 +132,7 @@ export const queryKeys = {
   sshAgentHistory: (sessionId: string) => ['ssh-agent-history', sessionId] as const,
   /** A Remote Desktop session's AI task history, refetched as the running task reports progress. */
   rdpAgentHistory: (sessionId: string) => ['rdp-agent-history', sessionId] as const,
-  /** The Claude Code and Codex conversations stored on a saved server. */
+  /** The agent CLI conversations stored on a saved server. */
   sshConversations: (serverId: string) => ['ssh-conversations', serverId] as const,
   sshVaultStatus: ['ssh-vault-status'] as const,
   rdpServers: ['rdp-servers'] as const,
