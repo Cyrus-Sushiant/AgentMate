@@ -79,6 +79,7 @@ describe('the edit section of the field menu', () => {
 
     rightClick(screen.getByLabelText('Name'), payload(), bridge.$emit);
 
+    expect(screen.getByRole('menu')).toBeInTheDocument();
     expect(screen.queryByText('Writing check')).not.toBeInTheDocument();
     expect(screen.queryByText('No writing issues here')).not.toBeInTheDocument();
   });
@@ -114,11 +115,32 @@ describe('the edit section of the field menu', () => {
   it.each([
     ['a read-only box', <input key="r" readOnly data-testid="target" />],
     ['a checkbox', <input key="c" type="checkbox" data-testid="target" />],
-    ['plain text', <p key="p" data-testid="target">Not a field</p>],
+    [
+      'plain text',
+      <p key="p" data-testid="target">
+        Not a field
+      </p>,
+    ],
   ])('stays closed on %s', (_label, field) => {
     const { bridge } = renderHost(field);
 
     rightClick(screen.getByTestId('target'), payload(), bridge.$emit);
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('opens once for a field and not for the one right-clicked after it', () => {
+    // The menu belongs to the click that made it: a later click on something else closes it.
+    const { bridge } = renderHost(
+      <>
+        <input aria-label="Name" />
+        <p>Some text</p>
+      </>,
+    );
+    rightClick(screen.getByLabelText('Name'), payload(), bridge.$emit);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByText('Some text'));
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
@@ -226,6 +248,7 @@ describe('closing and the keyboard', () => {
     const { bridge } = renderHost(<input aria-label="Name" />);
     rightClick(screen.getByLabelText('Name'), payload(), bridge.$emit);
 
+    expect(screen.getByRole('menu')).toBeInTheDocument();
     expect(document.querySelector('[data-highlighted]')).toBeNull();
     fireEvent.keyDown(screen.getByLabelText('Name'), { key: 'Enter' });
 
@@ -327,7 +350,10 @@ describe('the grammar check', () => {
 
     rightClick(screen.getByLabelText('Name'), payload(), bridge.$emit);
 
-    expect(await screen.findByText('No writing issues here')).toBeInTheDocument();
+    // A clean check leaves the "check again" button where the issues would have been.
+    expect(
+      await screen.findByRole('menuitem', { name: 'Check writing again' }),
+    ).toBeInTheDocument();
     expect(bridge.$fn('grammar.check')).toHaveBeenCalledTimes(1);
     expect(item('Copy')).toBeInTheDocument();
   });

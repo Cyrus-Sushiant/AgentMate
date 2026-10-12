@@ -1,0 +1,17 @@
+diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
+index 1ec12f796a822c78fba9ad7f6448c3987e325c23..78f5e2c2f38b583345d8d8a11238a744ccbb4c5f 100644
+--- a/lib/unixTerminal.js
++++ b/lib/unixTerminal.js
+@@ -28,8 +28,10 @@ var native = utils_1.loadNativeModule('pty');
+ var pty = native.module;
+ var helperPath = native.dir + '/spawn-helper';
+ helperPath = path.resolve(__dirname, helperPath);
+-helperPath = helperPath.replace('app.asar', 'app.asar.unpacked');
+-helperPath = helperPath.replace('node_modules.asar', 'node_modules.asar.unpacked');
++// Only a path inside the archive is redirected. One already under app.asar.unpacked (a
++// process running in plain Node mode loads node-pty from there) must stay as it is.
++helperPath = helperPath.replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked');
++helperPath = helperPath.replace(/node_modules\.asar(?=[\\/])/, 'node_modules.asar.unpacked');
+ var DEFAULT_FILE = 'sh';
+ var DEFAULT_NAME = 'xterm';
+ var DESTROY_SOCKET_TIMEOUT_MS = 200;

@@ -3,13 +3,20 @@ import type { GrammarIssue } from '@shared/grammar';
 
 export type TextField = HTMLTextAreaElement | HTMLInputElement;
 
+/** The kinds of `<input>` you type into. A checkbox, a slider or a color well is not one. */
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
+
 export function isEditableTextField(node: EventTarget | null): node is TextField {
   if (!(node instanceof HTMLTextAreaElement) && !(node instanceof HTMLInputElement)) return false;
   if (node.readOnly || node.disabled) return false;
+  if (node instanceof HTMLInputElement && !TEXT_INPUT_TYPES.has(node.type)) return false;
   // xterm keeps a hidden textarea over the cursor to receive keystrokes. It is
   // editable as far as the DOM is concerned, but the terminal owns right-click
   // (copy/paste), and there is no document there to check.
-  return node.closest('.xterm') === null;
+  if (node.closest('.xterm') !== null) return false;
+  // Monaco does the same, and draws its own right-click menu for the code. Only
+  // that textarea is left out: the find box beside it is an ordinary box.
+  return !(node.classList.contains('inputarea') && node.closest('.monaco-editor') !== null);
 }
 
 /**

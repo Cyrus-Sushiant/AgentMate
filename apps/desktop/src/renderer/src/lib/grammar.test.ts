@@ -61,6 +61,40 @@ describe('isEditableTextField', () => {
     expect(isEditableTextField(helper)).toBe(false);
   });
 
+  it('takes every kind of box you type text or numbers into', () => {
+    for (const type of ['text', 'search', 'url', 'tel', 'email', 'password', 'number']) {
+      const input = document.createElement('input');
+      input.type = type;
+      document.body.appendChild(input);
+      expect(isEditableTextField(input), type).toBe(true);
+    }
+    // An input with no type at all is a text box.
+    expect(isEditableTextField(document.createElement('input'))).toBe(true);
+  });
+
+  it('refuses an input that is not for typing text', () => {
+    for (const type of ['checkbox', 'radio', 'range', 'color', 'file', 'button', 'submit']) {
+      const input = document.createElement('input');
+      input.type = type;
+      document.body.appendChild(input);
+      expect(isEditableTextField(input), type).toBe(false);
+    }
+  });
+
+  it('refuses the hidden textarea Monaco keeps over its cursor, but not its other boxes', () => {
+    // Monaco draws its own right-click menu for the code. The find box beside it is an
+    // ordinary box that has no menu of its own.
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    const input = document.createElement('textarea');
+    input.className = 'inputarea';
+    const find = document.createElement('textarea');
+    editor.append(input, find);
+    document.body.appendChild(editor);
+    expect(isEditableTextField(input)).toBe(false);
+    expect(isEditableTextField(find)).toBe(true);
+  });
+
   it('refuses anything that is not a text field', () => {
     expect(isEditableTextField(null)).toBe(false);
     expect(isEditableTextField(document.createElement('div'))).toBe(false);

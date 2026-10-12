@@ -13,6 +13,10 @@
  * package files to its shared store). When the bit cannot be restored the spawn fails fast
  * with the helper's path and the reason, instead of the cryptic posix_spawnp line.
  *
+ * The same line also shows up when node-pty spawns through a helper path that does not exist.
+ * Stock 1.1.0 did that in every packaged pty host, because it rewrote the app.asar.unpacked path
+ * the host loads it from to app.asar.unpacked.unpacked. patches/node-pty@1.1.0.patch fixes that.
+ *
  * Only macOS spawns through the helper (other platforms use forkpty or ConPTY), so everywhere
  * else this is a no-op. Pure apart from the default filesystem probes, which tests inject, the
  * same way resolveRipgrepPath takes its `resolve` and `exists`.

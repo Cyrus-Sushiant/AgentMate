@@ -163,7 +163,9 @@ export class PtySessionManager {
     const rows = options.rows ?? 24;
     // On macOS every spawn goes through node-pty's spawn-helper, which version 1.1.0 ships
     // without the execute bit. Check (and repair) it before touching the shell, so a broken
-    // helper fails fast naming its path instead of the cryptic "posix_spawnp failed".
+    // helper fails fast naming its path instead of the cryptic "posix_spawnp failed". (The
+    // other cause of that line, node-pty pointing at a helper path that does not exist, is
+    // fixed in patches/node-pty@1.1.0.patch.)
     const helper = ensureSpawnHelper();
     if (helper.detail) this.log(helper.detail);
     if (!helper.ok) throw new Error(helper.detail);

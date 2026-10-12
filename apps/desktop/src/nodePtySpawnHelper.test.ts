@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -61,5 +62,43 @@ describe.skipIf(process.platform === 'win32')('node-pty spawn-helper', () => {
     for (const helper of helpers) {
       expect(statSync(helper).mode & EXECUTABLE, helper).toBe(EXECUTABLE);
     }
+  });
+});
+
+/**
+ * node-pty finds spawn-helper beside its binding and swaps `app.asar` for `app.asar.unpacked`,
+ * since a program cannot run from inside the archive. The packaged pty host runs in plain Node
+ * mode and loads node-pty from app.asar.unpacked already, so the stock swap turned the path into
+ * `app.asar.unpacked.unpacked` and every macOS release terminal failed with "posix_spawnp
+ * failed". patches/node-pty@1.1.0.patch makes the swap leave an unpacked path alone.
+ */
+describe('node-pty spawn-helper path', () => {
+  // Runs the installed node-pty's own rewrite lines on a sample path.
+  function rewrite(helperPath: string): string {
+    const require = createRequire(join(__dirname, '..', 'package.json'));
+    const source = readFileSync(
+      join(dirname(require.resolve('node-pty/package.json')), 'lib', 'unixTerminal.js'),
+      'utf8',
+    );
+    const lines = source
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('helperPath = helperPath.replace('));
+    expect(lines.length).toBeGreaterThan(0);
+    return new Function('helperPath', `${lines.join('\n')}\nreturn helperPath;`)(helperPath);
+  }
+
+  const resources = '/Applications/AgentMate.app/Contents/Resources';
+  const helper = 'node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper';
+
+  it('points a node-pty loaded from the archive at the unpacked helper', () => {
+    expect(rewrite(`${resources}/app.asar/${helper}`)).toBe(
+      `${resources}/app.asar.unpacked/${helper}`,
+    );
+  });
+
+  it('keeps the path of a node-pty loaded from app.asar.unpacked', () => {
+    expect(rewrite(`${resources}/app.asar.unpacked/${helper}`)).toBe(
+      `${resources}/app.asar.unpacked/${helper}`,
+    );
   });
 });

@@ -166,6 +166,7 @@ overrides:
   dompurify: '>=3.4.12'
 
 patchedDependencies:
+  node-pty@1.1.0: 6ce8e18d9a5690dbff1b80a6a967e303f6f4fae4abf6773d40e434054b069927
   react-native-webrtc: 64f197c5d3490892ddfc4872a81c2959c7a8d991a773fb89d30440ec263baabc
 
 importers:
@@ -303,7 +304,7 @@ importers:
         version: 0.56.0
       node-pty:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=6ce8e18d9a5690dbff1b80a6a967e303f6f4fae4abf6773d40e434054b069927)
       postman-collection:
         specifier: 5.3.1
         version: 5.3.1
@@ -13707,7 +13708,7 @@ snapshots:
 
   node-oauth1@1.3.0: {}
 
-  node-pty@1.1.0:
+  node-pty@1.1.0(patch_hash=6ce8e18d9a5690dbff1b80a6a967e303f6f4fae4abf6773d40e434054b069927):
     dependencies:
       node-addon-api: 7.1.1
 
