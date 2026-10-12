@@ -64,6 +64,7 @@ const CLI_COMMAND: Record<HistoryProvider, string> = {
   'grok-cli': 'grok',
   'cline-cli': 'cline',
   opencode: 'opencode',
+  'freebuff-cli': 'freebuff',
 };
 
 const UNKNOWN_FOLDER = 'Unknown folder';
@@ -194,6 +195,7 @@ function HistorySheet({
       'grok-cli': (clis) => clis.grok,
       'cline-cli': (clis) => clis.cline,
       opencode: (clis) => clis.opencode,
+      'freebuff-cli': (clis) => clis.freebuff,
     };
   const missingClis = data ? [...providers].filter((p) => !CLI_PRESENT[p](data.clis)) : [];
   const summary =

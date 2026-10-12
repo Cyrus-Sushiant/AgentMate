@@ -19,6 +19,7 @@ export const PROVIDER_LABEL: Record<HistoryProvider, string> = {
   'grok-cli': 'Grok',
   'cline-cli': 'Cline',
   opencode: 'OpenCode',
+  'freebuff-cli': 'FreeBuff',
 };
 
 export interface HistoryFilter {

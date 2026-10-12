@@ -180,19 +180,21 @@ describe('HistoryToolbar', () => {
   it('lists every provider present with counts, busiest first', async () => {
     // Regression test: the filter must grow with new history providers.
     renderToolbar(
-      ['claude-code', 'gemini-cli', 'cursor-cli', 'codex', 'opencode'],
+      ['claude-code', 'gemini-cli', 'cursor-cli', 'codex', 'opencode', 'freebuff-cli'],
       new Map([
         ['claude-code', 1],
         ['gemini-cli', 5],
         ['cursor-cli', 2],
         ['codex', 1],
         ['opencode', 3],
+        ['freebuff-cli', 4],
       ]),
     );
     const items = await openMenu();
     expect(items.map((r) => r.textContent)).toEqual([
-      'All agents12',
+      'All agents16',
       'Gemini5',
+      'FreeBuff4',
       'OpenCode3',
       'Cursor2',
       'Claude1',

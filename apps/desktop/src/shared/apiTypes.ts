@@ -2076,6 +2076,7 @@ export interface SshConversationsResult {
     cline: boolean;
     opencode: boolean;
     qwen: boolean;
+    freebuff: boolean;
   };
 }
 

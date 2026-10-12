@@ -201,14 +201,15 @@ export const HISTORY_CLI_ID: Record<AgentHistoryProvider, string> = {
   'grok-cli': 'grok-cli',
   'cline-cli': 'cline-cli',
   opencode: 'opencode',
+  'freebuff-cli': 'freebuff-cli',
 };
 
 /**
  * Whether a saved conversation can be resumed from a fresh tab. Codex uses a
- * positional `resume <id>` and OpenCode a `--session <id>` flag; every other
- * supported CLI resumes with `--resume <id>`. Providers without a known
- * resume spelling return null and the UI disables the resume action with a
- * reason.
+ * positional `resume <id>`, OpenCode a `--session <id>` flag and FreeBuff a
+ * `--continue <id>` flag; every other supported CLI resumes with
+ * `--resume <id>`. Providers without a known resume spelling return null and
+ * the UI disables the resume action with a reason.
  */
 export function resumeArgsFor(
   provider: AgentHistoryProvider,
@@ -219,6 +220,7 @@ export function resumeArgsFor(
 } | null {
   if (provider === 'codex') return { leadingArgs: ['resume', id] };
   if (provider === 'opencode') return { leadingArgs: ['--session', id] };
+  if (provider === 'freebuff-cli') return { leadingArgs: ['--continue', id] };
   return { runArgs: ['--resume', id] };
 }
 
@@ -340,10 +342,14 @@ export function openRemoteResume(
 
 /**
  * The conversation a resume command picks up (`--resume <id>`, `resume <id>`
- * for Codex, `--session <id>` for OpenCode, whose ids contain underscores).
+ * for Codex, `--session <id>` for OpenCode, `--continue <id>` for FreeBuff).
  */
 export function resumedConversationId(launchInput: string | undefined): string | null {
-  return launchInput?.match(/(?:--resume|resume|--session)\s+'?"?([0-9a-zA-Z_-]{8,})/)?.[1] ?? null;
+  return (
+    launchInput?.match(
+      /(?:--resume|resume|--session|--continue|continue)\s+'?"?([0-9a-zA-Z_-]{8,})/,
+    )?.[1] ?? null
+  );
 }
 
 /** Settles once the status hook lookup for this CLI (if one was started) is done. */

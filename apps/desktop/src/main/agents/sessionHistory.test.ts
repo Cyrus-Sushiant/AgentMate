@@ -113,6 +113,39 @@ function codexRollout(id: string, cwd: string, prompt: string, extraMeta = ''): 
   );
 }
 
+const freebuffMessages = (...contents: [variant: string, content: string][]) =>
+  JSON.stringify(
+    contents.map(([variant, content], i) => ({
+      id: `m${i + 1}`,
+      variant,
+      content,
+      timestamp: `2026-10-12T07:3${i}:00.000Z`,
+    })),
+  );
+
+/** A chat dir pair whose sidecar matches the transcript, so the preview path is covered. */
+function freebuffChat(
+  dir: string,
+  chatId: string,
+  firstPrompt: string,
+  mtimeMs: number,
+  extra: [variant: string, content: string][] = [],
+): Record<string, FakeFile> {
+  const messages = freebuffMessages(['user', firstPrompt], ...extra);
+  return {
+    [`${dir}/chats/${chatId}/chat-messages.json`]: { content: messages, mtimeMs },
+    [`${dir}/chats/${chatId}/chat-meta.json`]: {
+      content: JSON.stringify({
+        messageCount: 1 + extra.length,
+        firstPrompt,
+        messagesSize: Buffer.byteLength(messages),
+        messagesMtimeMs: mtimeMs,
+      }),
+      mtimeMs,
+    },
+  };
+}
+
 const claudeDir = '/home/me/.claude/projects';
 const codexDir = '/home/me/.codex/sessions/2026/09/01';
 
@@ -364,6 +397,8 @@ describe('collectHistory for every CLI', () => {
       },
     );
 
+  const freebuffAppDir = '/home/me/.config/manicode/projects/app';
+
   function tree(): Record<string, FakeFile> {
     return {
       [`${claudeDir}/-work-app/a.jsonl`]: {
@@ -435,6 +470,10 @@ describe('collectHistory for every CLI', () => {
         content: 'SQLite format 3\0fake',
         mtimeMs: 1,
       },
+      ...freebuffChat(freebuffAppDir, '2026-10-12T07-30-00-000Z', 'FreeBuff fix it', 120, [
+        ['ai', 'On it'],
+        ['user', 'FreeBuff follow-up'],
+      ]),
     };
   }
 
@@ -478,6 +517,7 @@ describe('collectHistory for every CLI', () => {
         ['cursor-cli', 'Cursor fix it'],
         ['gemini-cli', 'Gemini fix it'],
         ['grok-cli', 'Grok fix it'],
+        ['freebuff-cli', 'FreeBuff fix it'],
         ['openclaude', 'OpenClaude here'],
         ['opencode', 'OpenCode fix it'],
         ['qwen-cli', 'Gemini fix it'],
@@ -487,6 +527,12 @@ describe('collectHistory for every CLI', () => {
     for (const session of sessions) {
       expect(session.cwd === null || session.cwd === '/work/app').toBe(true);
     }
+    const freebuff = sessions.find((s) => s.provider === 'freebuff-cli');
+    expect(freebuff).toMatchObject({
+      id: '2026-10-12T07-30-00-000Z',
+      lastPrompt: 'FreeBuff follow-up',
+      cwd: null,
+    });
     const opencode = sessions.find((s) => s.provider === 'opencode');
     expect(opencode).toMatchObject({
       id: 'ses_aaa',
@@ -527,6 +573,7 @@ describe('collectHistory for every CLI', () => {
         'codex',
         'continue-cli',
         'cursor-cli',
+        'freebuff-cli',
         'gemini-cli',
         'grok-cli',
         'openclaude',
@@ -542,6 +589,7 @@ describe('collectHistory for every CLI', () => {
     const providers = new Set(sessions.map((s) => s.provider));
     expect(providers.has('claude-code')).toBe(true);
     expect(providers.has('opencode')).toBe(true);
+    expect(providers.has('freebuff-cli')).toBe(true);
     expect(providers.size).toBeGreaterThan(2);
   });
 });
@@ -728,6 +776,96 @@ describe('collectHistory for OpenCode', () => {
     await collectHistory(fs, { folder: '/work/app' });
     // Sessions list is re-read, but the cached prompts are not.
     expect(queryDb.mock.calls.length).toBeLessThan(callsAfterFirst * 2);
+  });
+});
+
+describe('collectHistory for FreeBuff', () => {
+  const projects = '/home/me/.config/manicode/projects';
+
+  it('matches folders by basename and reads prompts via the sidecar', async () => {
+    const fs = fakeFs({
+      ...freebuffChat(`${projects}/app`, 'chat-app-1', 'App ask', 10),
+      ...freebuffChat(`${projects}/other`, 'chat-other-1', 'Other ask', 20),
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions.map((s) => [s.provider, s.id, s.firstPrompt])).toEqual([
+      ['freebuff-cli', 'chat-app-1', 'App ask'],
+    ]);
+    expect(sessions[0]).toMatchObject({ cwd: null, updatedAt: 10 });
+
+    clearHistoryCaches();
+    const other = await collectHistory(fs, { folder: 'E:\\srv\\other' });
+    expect(other.map((s) => s.id)).toEqual(['chat-other-1']);
+  });
+
+  it('follows FREEBUFF_CONFIG_DIR', async () => {
+    const fs = fakeFs(freebuffChat('/cfg/fb/projects/app', 'chat-cfg-1', 'Cfg ask', 5), {
+      env: { FREEBUFF_CONFIG_DIR: '/cfg/fb' },
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions.map((s) => s.id)).toEqual(['chat-cfg-1']);
+  });
+
+  it('falls back to the transcript when the sidecar is stale', async () => {
+    const messages = JSON.stringify([
+      { id: 'm1', variant: 'user', content: 'Transcript ask', timestamp: '2026-10-12T07:30:00Z' },
+    ]);
+    const fs = fakeFs({
+      [`${projects}/app/chats/chat-stale-1/chat-messages.json`]: { content: messages, mtimeMs: 7 },
+      [`${projects}/app/chats/chat-stale-1/chat-meta.json`]: {
+        // Bound to an older snapshot of the transcript.
+        content: JSON.stringify({
+          messageCount: 1,
+          firstPrompt: 'Stale preview',
+          messagesSize: 1,
+          messagesMtimeMs: 1,
+        }),
+        mtimeMs: 7,
+      },
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions.map((s) => [s.id, s.firstPrompt])).toEqual([
+      ['chat-stale-1', 'Transcript ask'],
+    ]);
+  });
+
+  it('skips chats without a readable transcript', async () => {
+    const fs = fakeFs({
+      // Meta but no messages file.
+      [`${projects}/app/chats/chat-nomsgs/chat-meta.json`]: {
+        content: JSON.stringify({
+          messageCount: 2,
+          firstPrompt: 'Ghost',
+          messagesSize: 10,
+          messagesMtimeMs: 1,
+        }),
+        mtimeMs: 3,
+      },
+      // Corrupt messages file.
+      [`${projects}/app/chats/chat-broken/chat-messages.json`]: {
+        content: '[{"variant":"user","content":',
+        mtimeMs: 4,
+      },
+      ...freebuffChat(`${projects}/app`, 'chat-good-1', 'Good ask', 5),
+    });
+    const sessions = await collectHistory(fs, { folder: '/work/app' });
+    expect(sessions.map((s) => s.id)).toEqual(['chat-good-1']);
+  });
+
+  it('caches chats until their transcript changes', async () => {
+    const files = freebuffChat(`${projects}/app`, 'chat-cache-1', 'Cached ask', 6);
+    const fs = fakeFs(files);
+    await collectHistory(fs, { folder: '/work/app' });
+    expect(fs.reads.length).toBeGreaterThan(0);
+
+    fs.reads.length = 0;
+    const again = await collectHistory(fs, { folder: '/work/app' });
+    expect(again.map((s) => s.firstPrompt)).toEqual(['Cached ask']);
+    expect(fs.reads).toEqual([]);
+  });
+
+  it('returns nothing when no project dir exists', async () => {
+    await expect(collectHistory(fakeFs({}), { folder: '/work/app' })).resolves.toEqual([]);
   });
 });
 

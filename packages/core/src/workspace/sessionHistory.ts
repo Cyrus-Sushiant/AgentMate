@@ -19,7 +19,8 @@ export type AgentHistoryProvider =
   | 'continue-cli'
   | 'grok-cli'
   | 'cline-cli'
-  | 'opencode';
+  | 'opencode'
+  | 'freebuff-cli';
 
 /** Every provider `collectHistory` reads. Add a reader in main when extending. */
 export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
@@ -33,6 +34,7 @@ export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
   'grok-cli',
   'cline-cli',
   'opencode',
+  'freebuff-cli',
 ];
 
 /**
@@ -40,13 +42,7 @@ export const AGENT_HISTORY_PROVIDERS: readonly AgentHistoryProvider[] = [
  * Listed explicitly so the provider-coverage test fails loudly when a new
  * CLI is added to `CLI_REGISTRY` without a history decision.
  */
-export const HISTORY_UNSUPPORTED_CLIS: readonly string[] = [
-  'copilot-cli',
-  'aider',
-  'goose',
-  'pi',
-  'freebuff-cli',
-];
+export const HISTORY_UNSUPPORTED_CLIS: readonly string[] = ['copilot-cli', 'aider', 'goose', 'pi'];
 
 export interface AgentHistorySession {
   provider: AgentHistoryProvider;
@@ -648,6 +644,105 @@ function opencodeModel(raw: string | null): string | null {
     /* not JSON: fall through */
   }
   return raw || null;
+}
+
+/** FreeBuff's per-project data dir holds one folder per project, named for its basename. */
+export function freebuffProjectDirName(cwd: string): string {
+  const trimmed = cwd.replace(/[\\/]+$/, '');
+  const base = trimmed.split(/[\\/]/).pop() ?? trimmed;
+  return base || trimmed;
+}
+
+/** FreeBuff's `chat-meta.json` sidecar, binding a prompt preview to its transcript. */
+export interface FreebuffChatMeta {
+  messageCount: number;
+  firstPrompt: string;
+  messagesSize: number;
+  messagesMtimeMs: number;
+}
+
+export function parseFreebuffMeta(text: string): FreebuffChatMeta | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const record = parsed as Record<string, unknown>;
+  if (
+    typeof record.messageCount !== 'number' ||
+    typeof record.firstPrompt !== 'string' ||
+    typeof record.messagesSize !== 'number' ||
+    typeof record.messagesMtimeMs !== 'number'
+  ) {
+    return null;
+  }
+  return {
+    messageCount: record.messageCount,
+    firstPrompt: record.firstPrompt,
+    messagesSize: record.messagesSize,
+    messagesMtimeMs: record.messagesMtimeMs,
+  };
+}
+
+function freebuffUserTexts(source: string, limit = 50): string[] {
+  const out: string[] = [];
+  const re = /"variant"\s*:\s*"user"[\s\S]{0,2000}?"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(source)) !== null) {
+    try {
+      const text = JSON.parse(`"${match[1]}"`) as string;
+      const preview = promptPreview(text);
+      if (preview) out.push(preview);
+    } catch {
+      /* partial write */
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Summarizes a FreeBuff chat. The sidecar's first prompt wins when it still
+ * matches the transcript it was written for (same size and mtime); otherwise
+ * the transcript's first and last user messages are read from the chunks.
+ * FreeBuff stores no folder, title or model per chat, so those stay null.
+ */
+export function summarizeFreebuffChat(
+  fallbackId: string,
+  meta: FreebuffChatMeta | null,
+  messagesSize: number,
+  messagesMtimeMs: number,
+  head: string[],
+  tail: string[],
+): SessionSummary | null {
+  const fresh =
+    meta !== null && meta.messagesSize === messagesSize && meta.messagesMtimeMs === messagesMtimeMs;
+  const headTexts = freebuffUserTexts(head.join('\n'));
+  const tailTexts = freebuffUserTexts(tail.join('\n'));
+  const metaPrompt = fresh ? promptPreview(meta.firstPrompt) : null;
+  // The CLI writes '(empty chat)' when a chat has no user message yet.
+  const usableMeta =
+    metaPrompt && metaPrompt !== '(empty chat)' && metaPrompt !== '(unreadable chat)'
+      ? metaPrompt
+      : null;
+  const firstPrompt = usableMeta ?? headTexts[0] ?? null;
+  if (!firstPrompt) return null;
+  const last =
+    tailTexts.length > 0 ? tailTexts[tailTexts.length - 1] : headTexts[headTexts.length - 1];
+  return {
+    id: fallbackId,
+    title: null,
+    firstPrompt,
+    lastPrompt: last && last !== firstPrompt ? last : null,
+    cwd: null,
+    gitBranch: null,
+    model: null,
+    effort: null,
+    startedAt: null,
+    background: false,
+  };
 }
 
 /**

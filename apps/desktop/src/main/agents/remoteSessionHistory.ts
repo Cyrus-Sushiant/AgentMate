@@ -24,6 +24,7 @@ export interface RemoteProbe {
     cline: boolean;
     opencode: boolean;
     qwen: boolean;
+    freebuff: boolean;
   };
 }
 
@@ -88,6 +89,7 @@ export const PROBE_COMMAND = `sh -lc '${[
   'am_has opencode && echo __AM_OPENCODE=1',
   'am_has qwen && echo __AM_QWEN=1',
   'am_has openclaude && echo __AM_OPENCLAUDE=1',
+  'am_has freebuff && echo __AM_FREEBUFF=1',
   'echo __AM_END',
 ].join('; ')}'`;
 
@@ -117,6 +119,7 @@ export function parseRemoteProbe(stdout: string): RemoteProbe {
       cline: values.get('CLINE') === '1',
       opencode: values.get('OPENCODE') === '1',
       qwen: values.get('QWEN') === '1',
+      freebuff: values.get('FREEBUFF') === '1',
     },
   };
 }
@@ -135,6 +138,7 @@ const NOTHING_FOUND: RemoteProbe = {
     cline: false,
     opencode: false,
     qwen: false,
+    freebuff: false,
   },
 };
 

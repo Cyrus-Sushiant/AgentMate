@@ -5,8 +5,11 @@ import {
   type AgentHistoryProvider,
   claudeProjectDirName,
   codexRolloutMeta,
+  type FreebuffChatMeta,
+  freebuffProjectDirName,
   HISTORY_UNSUPPORTED_CLIS,
   type OpencodeSessionRow,
+  parseFreebuffMeta,
   promptPreview,
   sameFolder,
   summarizeClaudeTranscript,
@@ -14,6 +17,7 @@ import {
   summarizeCodexRollout,
   summarizeContinueSession,
   summarizeCursorSession,
+  summarizeFreebuffChat,
   summarizeGeminiChat,
   summarizeGrokChat,
   summarizeOpencodeSession,
@@ -326,6 +330,67 @@ describe('grok chats', () => {
   });
 });
 
+describe('freebuff chats', () => {
+  const userMsg = (content: string) =>
+    line({ id: 'm1', variant: 'user', content, timestamp: '2026-10-12T07:30:00.000Z' });
+  const aiMsg = (content: string) =>
+    line({ id: 'm2', variant: 'ai', content, timestamp: '2026-10-12T07:31:00.000Z' });
+  const meta = (overrides: Partial<FreebuffChatMeta> = {}): FreebuffChatMeta => ({
+    messageCount: 3,
+    firstPrompt: 'Fix the login',
+    messagesSize: 100,
+    messagesMtimeMs: 200,
+    ...overrides,
+  });
+
+  it('names the project dir after the folder basename', () => {
+    expect(freebuffProjectDirName('E:\\AgentMate')).toBe('AgentMate');
+    expect(freebuffProjectDirName('/work/app/')).toBe('app');
+  });
+
+  it('parses the sidecar and rejects misshapen ones', () => {
+    expect(parseFreebuffMeta(JSON.stringify(meta()))).toEqual(meta());
+    expect(parseFreebuffMeta('not json')).toBeNull();
+    expect(parseFreebuffMeta(JSON.stringify({ messageCount: 1 }))).toBeNull();
+  });
+
+  it('prefers a fresh sidecar prompt', () => {
+    const summary = summarizeFreebuffChat('chat-1', meta(), 100, 200, [userMsg('Other')], []);
+    expect(summary).toMatchObject({ id: 'chat-1', firstPrompt: 'Fix the login' });
+  });
+
+  it('falls back to the transcript when the sidecar is stale', () => {
+    const summary = summarizeFreebuffChat(
+      'chat-1',
+      meta(),
+      999,
+      200,
+      [userMsg('Transcript ask')],
+      [],
+    );
+    expect(summary?.firstPrompt).toBe('Transcript ask');
+  });
+
+  it('reads first and last user prompts across head and tail', () => {
+    const summary = summarizeFreebuffChat(
+      'chat-1',
+      null,
+      0,
+      0,
+      [userMsg('First'), aiMsg('Working on it')],
+      [userMsg('Follow-up')],
+    );
+    expect(summary).toMatchObject({ firstPrompt: 'First', lastPrompt: 'Follow-up' });
+  });
+
+  it('skips assistant-only and empty transcripts', () => {
+    expect(summarizeFreebuffChat('chat-1', null, 0, 0, [aiMsg('Hi')], [])).toBeNull();
+    expect(
+      summarizeFreebuffChat('chat-1', meta({ firstPrompt: '(empty chat)' }), 100, 200, [], []),
+    ).toBeNull();
+  });
+});
+
 describe('opencode sessions', () => {
   const row = (overrides: Partial<OpencodeSessionRow> = {}): OpencodeSessionRow => ({
     id: 'ses_abc123',
@@ -403,6 +468,7 @@ describe('history provider coverage', () => {
       'grok-cli': 'grok-cli',
       'cline-cli': 'cline-cli',
       opencode: 'opencode',
+      'freebuff-cli': 'freebuff-cli',
     };
     for (const provider of AGENT_HISTORY_PROVIDERS) {
       if (provider === 'codex') continue;

@@ -161,7 +161,7 @@ Several features hand text to a running agent: **Add to {agent}** in the file ex
 
 ## Agent sessions
 
-The **Agent sessions** tab lists past conversations from every supported CLI (Claude Code, Codex, Gemini, Cursor, Continue, Grok, Cline, OpenCode and more) that were started in this project's folder, newest first, under **Today**, **Yesterday**, **This week**, **This month** and **Older**.
+The **Agent sessions** tab lists past conversations from every supported CLI (Claude Code, Codex, Gemini, Cursor, Continue, Grok, Cline, OpenCode, FreeBuff and more) that were started in this project's folder, newest first, under **Today**, **Yesterday**, **This week**, **This month** and **Older**.
 
 - Click a conversation to resume it in a new tab (each CLI's own resume command, with your usual launch defaults). The tab's tooltip starts with **Resumed:** and the conversation's title.
 - A conversation that is already running in a tab shows an **Open** badge. Clicking it jumps to that tab instead of starting a second one.

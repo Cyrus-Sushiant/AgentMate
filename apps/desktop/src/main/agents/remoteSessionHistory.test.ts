@@ -100,6 +100,7 @@ const probe = (overrides: Partial<RemoteProbe> = {}): RemoteProbe => ({
     cline: false,
     opencode: false,
     qwen: false,
+    freebuff: false,
   },
   ...overrides,
 });
@@ -133,6 +134,7 @@ describe('parseRemoteProbe', () => {
         cline: false,
         opencode: false,
         qwen: false,
+        freebuff: false,
       },
     });
   });
@@ -154,6 +156,7 @@ describe('parseRemoteProbe', () => {
         cline: false,
         opencode: false,
         qwen: false,
+        freebuff: false,
       },
     });
   });
@@ -168,6 +171,7 @@ describe('parseRemoteProbe', () => {
       '__AM_CLINE=1',
       '__AM_OPENCODE=1',
       '__AM_QWEN=1',
+      '__AM_FREEBUFF=1',
       '__AM_END',
     ].join('\n');
     const probe = parseRemoteProbe(stdout);
@@ -179,6 +183,7 @@ describe('parseRemoteProbe', () => {
       cline: true,
       opencode: true,
       qwen: true,
+      freebuff: true,
       claude: false,
       codex: false,
     });
@@ -211,6 +216,7 @@ describe('parseRemoteProbe', () => {
         cline: false,
         opencode: false,
         qwen: false,
+        freebuff: false,
       },
     });
   });
@@ -232,6 +238,7 @@ describe('parseRemoteProbe', () => {
         cline: false,
         opencode: false,
         qwen: false,
+        freebuff: false,
       },
     });
   });
@@ -251,6 +258,7 @@ describe('parseRemoteProbe', () => {
         cline: false,
         opencode: false,
         qwen: false,
+        freebuff: false,
       },
     });
   });

@@ -124,6 +124,7 @@ describe('remoteResumeCommand', () => {
       { provider: 'grok-cli', contains: 'grok' },
       { provider: 'cline-cli', contains: 'cline' },
       { provider: 'opencode', contains: 'opencode --session' },
+      { provider: 'freebuff-cli', contains: 'freebuff --continue' },
     ];
     for (const { provider, contains } of cases) {
       const command = remoteResumeCommand(conversation({ provider, id: 'sess-0102' }));

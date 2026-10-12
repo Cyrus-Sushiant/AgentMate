@@ -83,6 +83,7 @@ const ALL_CLIS: SshConversationsResult['clis'] = {
   cline: true,
   opencode: true,
   qwen: true,
+  freebuff: true,
 };
 
 function result(overrides: Partial<SshConversationsResult> = {}): SshConversationsResult {

@@ -7,7 +7,10 @@ import {
   type AgentHistorySession,
   claudeProjectDirName,
   codexRolloutMeta,
+  type FreebuffChatMeta,
+  freebuffProjectDirName,
   type OpencodeSessionRow,
+  parseFreebuffMeta,
   promptPreview,
   type SessionSummary,
   sameFolder,
@@ -16,6 +19,7 @@ import {
   summarizeCodexRollout,
   summarizeContinueSession,
   summarizeCursorSession,
+  summarizeFreebuffChat,
   summarizeGeminiChat,
   summarizeGrokChat,
   summarizeOpencodeSession,
@@ -29,7 +33,8 @@ import Database from 'better-sqlite3';
 // `.project_root`; Cursor meta.json + prompt_history.json; Continue one JSON per
 // session; Grok chat_history.jsonl under a url-encoded folder dir; Cline one JSON
 // per session; OpenCode rows in a SQLite store queried for metadata plus the first
-// and last user prompt. Only the first and last chunk of a file is read, and the
+// and last user prompt; FreeBuff chats under a per-project dir with a sidecar
+// preview. Only the first and last chunk of a file is read, and the
 // result is cached against the file's size and mtime, so listing again is nearly free.
 //
 // The reading goes through a small HistoryFs, so the same logic lists this machine's history
@@ -885,6 +890,91 @@ async function opencodeSession(
   return toSession('opencode', candidate.file, summary);
 }
 
+// --- FreeBuff -------------------------------------------------------------------
+
+interface FreebuffCandidate extends FileInfo {
+  /** The chat dir name, which is the id the CLI resumes by. */
+  chatId: string;
+  metaPath: string | null;
+}
+
+async function freebuffRoots(fs: HistoryFs, home: string): Promise<string[]> {
+  const roots: string[] = [];
+  const override = await fs.env('FREEBUFF_CONFIG_DIR');
+  if (override) roots.push(override);
+  roots.push(fs.join(home, '.config', 'manicode'));
+  return [...new Set(roots)];
+}
+
+/**
+ * FreeBuff chats live under a per-project dir named for the folder's basename:
+ * `<config>/projects/<basename>/chats/<chatId>/chat-messages.json`, with a
+ * tiny `chat-meta.json` sidecar preview. The transcript holds no folder, so a
+ * folder query matches on the basename and the session's cwd stays unknown.
+ */
+async function freebuffChats(
+  fs: HistoryFs,
+  home: string,
+  settings: Settings,
+): Promise<FreebuffCandidate[]> {
+  const out: FreebuffCandidate[] = [];
+  const wanted =
+    settings.folder === undefined ? null : freebuffProjectDirName(settings.folder).toLowerCase();
+  for (const root of await freebuffRoots(fs, home)) {
+    const projects = (await listDir(fs, fs.join(root, 'projects'))).filter((e) => e.isDirectory);
+    const matching = projects.filter(
+      (entry) =>
+        wanted === null ||
+        (fs.caseInsensitive ? entry.name.toLowerCase() === wanted : entry.name === wanted),
+    );
+    // Basename matching is case-sensitive on disk even where folder matching
+    // is not, so fall back to a loose match before giving up on the folder.
+    const dirs =
+      matching.length > 0 || wanted === null
+        ? matching
+        : projects.filter((entry) => entry.name.toLowerCase() === wanted);
+    await mapLimit(dirs, settings.concurrency, async (project) => {
+      const chatsDir = fs.join(root, 'projects', project.name, 'chats');
+      const chats = (await listDir(fs, chatsDir)).filter((e) => e.isDirectory);
+      await mapLimit(chats, settings.concurrency, async (chat) => {
+        const dir = fs.join(chatsDir, chat.name);
+        const entries = await listDir(fs, dir);
+        const messages = entries.find((e) => e.isFile && e.name === 'chat-messages.json');
+        if (!messages) return;
+        const meta = entries.find((e) => e.isFile && e.name === 'chat-meta.json');
+        out.push({
+          ...fileInfo(fs, dir, messages),
+          chatId: chat.name,
+          metaPath: meta ? fs.join(dir, meta.name) : null,
+        });
+      });
+    });
+  }
+  return out;
+}
+
+async function freebuffSession(
+  fs: HistoryFs,
+  file: FreebuffCandidate,
+  settings: Settings,
+): Promise<AgentHistorySession | null> {
+  const summary = await summarize(fs, file, async (f) => {
+    let meta: FreebuffChatMeta | null = null;
+    if (file.metaPath) {
+      try {
+        // The sidecar is a few hundred bytes; one small read covers it whole.
+        meta = parseFreebuffMeta(await fs.readRange(file.metaPath, 0, 4096));
+      } catch {
+        meta = null;
+      }
+    }
+    const { head, tail } = await readHeadAndTail(fs, f, settings);
+    return summarizeFreebuffChat(file.chatId, meta, f.size, f.mtimeMs, head, tail);
+  });
+  if (!summary) return null;
+  return toSession('freebuff-cli', file, summary);
+}
+
 // --- All ---------------------------------------------------------------------
 
 /**
@@ -918,6 +1008,7 @@ export async function collectHistory(
     grokCandidates,
     clineCandidates,
     opencodeSessions,
+    freebuffCandidates,
   ] = await Promise.all([
     claudeFiles(fs, home, settings).catch(() => []),
     openclaudeFiles(fs, home, settings).catch(() => []),
@@ -929,11 +1020,20 @@ export async function collectHistory(
     grokFiles(fs, home, settings).catch(() => []),
     clineFiles(fs, home, settings).catch(() => []),
     opencodeCandidates(fs, home, settings).catch(() => []),
+    freebuffChats(fs, home, settings).catch(() => []),
   ]);
   type Picked =
-    | { provider: Exclude<AgentHistoryProvider, 'opencode'>; file: FileInfo; cwd?: string | null }
-    | { provider: Exclude<AgentHistoryProvider, 'opencode'>; file: CursorCandidate }
-    | { provider: 'opencode'; file: FileInfo; row: OpencodeSessionRow; dbPath: string };
+    | {
+        provider: Exclude<AgentHistoryProvider, 'opencode' | 'freebuff-cli'>;
+        file: FileInfo;
+        cwd?: string | null;
+      }
+    | {
+        provider: Exclude<AgentHistoryProvider, 'opencode' | 'freebuff-cli'>;
+        file: CursorCandidate;
+      }
+    | { provider: 'opencode'; file: FileInfo; row: OpencodeSessionRow; dbPath: string }
+    | { provider: 'freebuff-cli'; file: FreebuffCandidate };
   const picked: Picked[] = [
     ...claudeCandidates.map((file) => ({ provider: 'claude-code' as const, file })),
     ...openclaudeCandidates.map((file) => ({ provider: 'openclaude' as const, file })),
@@ -945,6 +1045,7 @@ export async function collectHistory(
     ...grokCandidates.map((file) => ({ provider: 'grok-cli' as const, file })),
     ...clineCandidates.map((file) => ({ provider: 'cline-cli' as const, file })),
     ...opencodeSessions.map((candidate) => ({ provider: 'opencode' as const, ...candidate })),
+    ...freebuffCandidates.map((file) => ({ provider: 'freebuff-cli' as const, file })),
   ]
     .sort((a, b) => b.file.mtimeMs - a.file.mtimeMs)
     .slice(0, settings.limit);
@@ -983,6 +1084,8 @@ export async function collectHistory(
         return clineSession(fs, item.file, settings);
       case 'opencode':
         return opencodeSession(fs, item, settings);
+      case 'freebuff-cli':
+        return freebuffSession(fs, item.file, settings);
     }
   });
   let sessions = read.filter((s): s is AgentHistorySession => s !== null);
