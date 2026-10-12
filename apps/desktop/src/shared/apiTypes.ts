@@ -31,6 +31,7 @@ import type {
   SkillAuditFinding,
   SkillAuditVerdict,
   UsageProviderConfig,
+  UsageTokens,
   VaultEntryType,
   VaultImportFormat,
   WorktreeInfo,
@@ -244,6 +245,23 @@ export interface LastRunInfo {
 
 /** CLI id to what it was last actually running on. */
 export type LastRunInfoByCli = Record<string, LastRunInfo>;
+
+/**
+ * What one past conversation used, read from the agent's own log. `unsupported` is an agent that
+ * does not record tokens; `unavailable` is a conversation whose log is not on this machine or
+ * could not be read.
+ */
+export type AgentSessionUsage =
+  | {
+      status: 'ok';
+      tokens: UsageTokens;
+      /** Estimated from the catalog prices, or null when no model in the run has one. */
+      costUsd: number | null;
+      /** Some of the tokens ran on a model with no price, so `costUsd` is a lower bound. */
+      costPartial: boolean;
+    }
+  | { status: 'unsupported' }
+  | { status: 'unavailable' };
 
 /** What a terminal found on the clipboard: text, or paths (copied files, a screenshot saved to
  * disk). Read in the main process, which sees formats the renderer cannot and needs no focus. */

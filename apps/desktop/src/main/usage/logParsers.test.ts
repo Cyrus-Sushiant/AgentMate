@@ -343,11 +343,24 @@ describe('Codex logs', () => {
         at: now - HOUR_MS,
         model: 'test-model',
         input: 600,
-        output: 75,
+        output: 50,
         cacheRead: 400,
         cacheWrite: 0,
       },
     ]);
+  });
+
+  it('does not add reasoning tokens to the output count, they are already inside it', async () => {
+    // Codex logs total_tokens as input + output, with reasoning a share of the output.
+    writeCodexLog('rollout.jsonl', [
+      codexTurnContext('test-model', now - 2 * HOUR_MS),
+      codexTokenCount({ at: now - HOUR_MS, input: 100, cached: 0, output: 80, reasoning: 60 }),
+    ]);
+
+    const [entry] = (await scanCodex()).entries;
+
+    expect(entry.output).toBe(80);
+    expect(entry.input + entry.cacheRead + entry.output).toBe(180);
   });
 
   it('applies the model from the turn context to the events that follow', async () => {

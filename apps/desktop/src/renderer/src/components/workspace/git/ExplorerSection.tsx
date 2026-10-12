@@ -777,7 +777,8 @@ export function ExplorerSection({
             onKeyDown={onKeyDown}
             onContextMenu={(event) => {
               const target = event.target as HTMLElement;
-              // The name box keeps the text field's own right-click behavior.
+              // The name box stops its own right-clicks before they get here, so it keeps the
+              // text field menu. This only catches any other input that ends up in the tree.
               if (target.closest('input')) {
                 event.preventDefault();
                 return;

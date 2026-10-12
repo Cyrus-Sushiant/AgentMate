@@ -99,7 +99,12 @@ export function HistorySection({ project }: { project: Project }): React.JSX.Ele
         counts={counts}
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-        <HistoryDayGroups sessions={visible} openIds={openConversations} onResume={resume} />
+        <HistoryDayGroups
+          sessions={visible}
+          openIds={openConversations}
+          onResume={resume}
+          showUsage
+        />
         {visible.length === 0 ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
             {query.trim() || provider !== 'all'

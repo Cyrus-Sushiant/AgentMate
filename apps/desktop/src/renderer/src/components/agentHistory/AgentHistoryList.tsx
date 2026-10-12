@@ -2,6 +2,7 @@ import type { AgentHistorySession } from '@agentmat/core';
 import { toast } from 'sonner';
 import { CliLogo } from '@/components/cliLogos';
 import { ChevronDown, Copy, GitBranch, Play, Search } from '@/components/icons';
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,7 @@ import {
   PROVIDER_LABEL,
   type ProviderFilter,
 } from './historyFilters';
+import { SessionUsageMenu } from './SessionUsageMenu';
 
 /**
  * The rows, toolbar and placeholders of an AI conversation history list. Presentational only:
@@ -39,6 +41,11 @@ export interface HistoryRowProps {
   onResume: (session: AgentHistorySession) => void;
   /** Why the conversation cannot be resumed right now. Set, it turns the resume actions off. */
   resumeDisabledReason?: string | null;
+  /**
+   * Right-clicking the row shows the tokens and cost the conversation used. Off for a
+   * conversation on another machine, whose log this one cannot read.
+   */
+  showUsage?: boolean;
 }
 
 export function HistoryRow({
@@ -46,6 +53,7 @@ export function HistoryRow({
   openTabId,
   onResume,
   resumeDisabledReason,
+  showUsage,
 }: HistoryRowProps): React.JSX.Element {
   const blocked = Boolean(resumeDisabledReason);
   const headline = session.title ?? session.firstPrompt ?? 'Untitled conversation';
@@ -92,7 +100,7 @@ export function HistoryRow({
     </div>
   );
 
-  return (
+  const row = (
     <div className="group/history relative mx-1">
       <SimpleTooltip label={details} side="left">
         {/* Not `disabled`: a disabled trigger never opens its tooltip, and the details still
@@ -169,6 +177,15 @@ export function HistoryRow({
         )}
       </span>
     </div>
+  );
+
+  if (!showUsage) return row;
+  // The trigger is the whole row, so a right-click on the hover buttons opens the menu too.
+  return (
+    <ContextMenu modal={false}>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+      <SessionUsageMenu session={session} />
+    </ContextMenu>
   );
 }
 
@@ -273,6 +290,8 @@ export interface HistoryDayGroupsProps {
   openIds: ReadonlyMap<string, string>;
   onResume: (session: AgentHistorySession) => void;
   resumeDisabledReason?: (session: AgentHistorySession) => string | null;
+  /** Offer the tokens and cost menu on every row, see `HistoryRowProps.showUsage`. */
+  showUsage?: boolean;
 }
 
 /** History rows under Today, Yesterday, This week and so on. */
@@ -281,6 +300,7 @@ export function HistoryDayGroups({
   openIds,
   onResume,
   resumeDisabledReason,
+  showUsage,
 }: HistoryDayGroupsProps): React.JSX.Element {
   const groups = groupByDay(sessions, new Date());
   return (
@@ -297,6 +317,7 @@ export function HistoryDayGroups({
               openTabId={openIds.get(session.id)}
               onResume={onResume}
               resumeDisabledReason={resumeDisabledReason?.(session)}
+              showUsage={showUsage}
             />
           ))}
         </div>

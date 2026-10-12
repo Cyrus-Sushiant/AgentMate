@@ -3,7 +3,7 @@ title: Terminals and agents
 category: Workspace
 order: 20
 summary: Start AI agent CLIs and shells in Workspace panes, follow their status, and use copy, paste, images, links and past conversations.
-keywords: terminal, agent, claude code, codex, cli, shell, powershell, status, needs input, auto-continue, paste image, screenshot, resume, history, fix with ai, notifications, rtl, persian, launch defaults, agent order
+keywords: terminal, agent, claude code, codex, cli, shell, powershell, status, needs input, auto-continue, paste image, screenshot, resume, history, token usage, cost, fix with ai, notifications, rtl, persian, launch defaults, agent order
 route: /workspace
 ---
 
@@ -166,6 +166,7 @@ The **Agent sessions** tab lists past conversations from every supported CLI (Cl
 - Click a conversation to resume it in a new tab (each CLI's own resume command, with your usual launch defaults). The tab's tooltip starts with **Resumed:** and the conversation's title.
 - A conversation that is already running in a tab shows an **Open** badge. Clicking it jumps to that tab instead of starting a second one.
 - Hover a row for **Copy conversation id** and **Resume in a new tab**, and for details such as the first and last prompt, the model and effort it ran on, and the git branch.
+- Right-click a row to see how many tokens the conversation used and what that cost. The menu shows the total, the estimated cost, and the split into input, output, cache read and cache write. It works for Claude Code, OpenClaude, Codex and OpenCode; the other agents do not keep token counts. For Claude Code the total includes the subagents it started. The cost is an estimate from the model's list price, shown with a **+** when some of the run used a model with no known price.
 - **Search conversations** filters by title, prompt, branch, model or id. When conversations from several agents exist, an agent menu next to the search shows each agent with its conversation count, busiest first.
 - Runs started by tools (such as `claude -p`) are hidden. Click **Show {n} runs started by tools** to include them.
 - The refresh button in the panel's tab strip (**Refresh sessions**) reloads the list. It also updates on its own every 20 seconds.

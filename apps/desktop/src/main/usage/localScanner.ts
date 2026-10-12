@@ -23,7 +23,8 @@ import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
 // doesn't re-read hundreds of MB of transcripts.
 
 // 2: Codex files also keep their full rate-limit snapshot (`limits`).
-const CACHE_VERSION = 2;
+// 3: Codex output no longer counts reasoning tokens twice, so cached Codex events were wrong.
+const CACHE_VERSION = 3;
 const WORKER_TIMEOUT_MS = 120_000;
 
 interface CacheFile {

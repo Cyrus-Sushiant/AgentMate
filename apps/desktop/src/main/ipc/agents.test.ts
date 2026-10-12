@@ -16,6 +16,11 @@ vi.mock('../ptyHost/hostLauncher', () => ({ connectToHost: async () => null }));
 const history = vi.hoisted(() => ({ listAgentHistory: vi.fn(async () => []) }));
 vi.mock('../agents/sessionHistory', () => history);
 
+const sessionUsage = vi.hoisted(() => ({
+  readSessionUsage: vi.fn(async () => ({ status: 'unavailable' })),
+}));
+vi.mock('../agents/sessionUsage', () => sessionUsage);
+
 vi.mock('../ptyHost/sessionManager', () => ({
   PtySessionManager: class {
     createOrAttach(): unknown {
@@ -122,5 +127,27 @@ describe('agent history', () => {
     expect(history.listAgentHistory).toHaveBeenLastCalledWith('C:/code/app.worktrees/feat');
     await invoke(IPC.agents.history, 'p1');
     expect(history.listAgentHistory).toHaveBeenLastCalledWith('C:/code/app');
+  });
+});
+
+describe('agent session usage', () => {
+  it('reads the usage of the conversation the renderer names, by agent and id', async () => {
+    const usage = { status: 'unsupported' };
+    sessionUsage.readSessionUsage.mockResolvedValueOnce(usage);
+
+    expect(await invoke(IPC.agents.sessionUsage, 'gemini-cli', 'abc-123')).toEqual(usage);
+    expect(sessionUsage.readSessionUsage).toHaveBeenLastCalledWith('gemini-cli', 'abc-123');
+  });
+
+  it('turns away arguments that are not strings without reading anything', async () => {
+    sessionUsage.readSessionUsage.mockClear();
+
+    expect(await invoke(IPC.agents.sessionUsage, 'codex', { path: 'C:/secret' })).toEqual({
+      status: 'unavailable',
+    });
+    expect(await invoke(IPC.agents.sessionUsage, undefined, 'abc')).toEqual({
+      status: 'unavailable',
+    });
+    expect(sessionUsage.readSessionUsage).not.toHaveBeenCalled();
   });
 });

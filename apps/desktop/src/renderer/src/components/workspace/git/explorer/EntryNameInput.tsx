@@ -91,6 +91,10 @@ export function EntryNameInput({
         onChange={(event) => setValue(event.target.value)}
         onClick={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
+        // The tree around this box opens the file menu on a right-click, by cancelling the
+        // event. A cancelled right-click never reaches the main process, which is where the
+        // field menu (Cut, Copy, Paste, Select all) comes from, so it has to stop here.
+        onContextMenu={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           event.stopPropagation();
           if (event.key === 'Enter') {

@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { installAgentmatBridge } from '../../../../test/renderer/agentmatBridge';
+import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 import {
   BackgroundToggle,
   HistoryDayGroups,
@@ -152,6 +153,96 @@ describe('HistoryRow', () => {
     renderUi(<HistoryRow session={session({ id: 'copy-me-123' })} onResume={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy conversation id' }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('copy-me-123');
+  });
+});
+
+describe('HistoryRow usage menu', () => {
+  const tokens = {
+    input: 1_200,
+    output: 3_400,
+    cacheRead: 2_500_000,
+    cacheWrite: 80_000,
+    total: 2_584_600,
+  };
+
+  function renderRow(
+    answer: unknown,
+    overrides: Partial<AgentHistorySession> = {},
+    showUsage = true,
+  ) {
+    return renderWithProviders(
+      <HistoryRow
+        session={session({ title: 'Costly one', ...overrides })}
+        onResume={vi.fn()}
+        showUsage={showUsage}
+      />,
+      { bridge: { 'agents.sessionUsage': answer } },
+    );
+  }
+
+  it('shows the tokens used and the estimated cost on a right-click', async () => {
+    const { bridge } = renderRow({ status: 'ok', tokens, costUsd: 3.456, costPartial: false });
+    // The details are fetched when the menu opens, not for every row in the list.
+    expect(() => bridge.$fn('agents.sessionUsage')).toThrow();
+
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+
+    expect(await screen.findByText('Token usage')).toBeInTheDocument();
+    expect(await screen.findByText('2.58M')).toBeInTheDocument();
+    expect(screen.getByText('$3.46')).toBeInTheDocument();
+    expect(screen.getByText('1.2K')).toBeInTheDocument();
+    expect(screen.getByText('3.4K')).toBeInTheDocument();
+    expect(screen.getByText('2.50M')).toBeInTheDocument();
+    expect(screen.getByText('80.0K')).toBeInTheDocument();
+    expect(bridge.$fn('agents.sessionUsage')).toHaveBeenCalledWith('claude-code', 'aaaaaaaa-0001');
+  });
+
+  it('opens from the hover buttons too, since the whole row is the trigger', async () => {
+    renderRow({ status: 'ok', tokens, costUsd: 1, costPartial: false });
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Copy conversation id' }));
+    expect(await screen.findByText('Token usage')).toBeInTheDocument();
+  });
+
+  it('marks a cost that only covers the models with a price', async () => {
+    renderRow({ status: 'ok', tokens, costUsd: 1, costPartial: true });
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(await screen.findByText('$1.00+')).toBeInTheDocument();
+    expect(screen.getByText(/Some models have no known price/)).toBeInTheDocument();
+  });
+
+  it('says so when no model in the run has a price', async () => {
+    renderRow({ status: 'ok', tokens, costUsd: null, costPartial: false });
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(await screen.findByText('Not priced')).toBeInTheDocument();
+    expect(screen.getByText(/No price is known/)).toBeInTheDocument();
+  });
+
+  it('shows no cost worry for a conversation that used nothing', async () => {
+    const empty = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+    renderRow({ status: 'ok', tokens: empty, costUsd: null, costPartial: false });
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(await screen.findByText('$0.00')).toBeInTheDocument();
+    expect(screen.queryByText(/No price is known/)).not.toBeInTheDocument();
+  });
+
+  it('names an agent that keeps no token counts', async () => {
+    renderRow({ status: 'unsupported' }, { provider: 'gemini-cli' });
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(await screen.findByText('Gemini does not record token usage.')).toBeInTheDocument();
+  });
+
+  it('says when the conversation log could not be read', async () => {
+    renderRow({ status: 'unavailable' });
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(
+      await screen.findByText('The log for this conversation could not be read.'),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no menu on a row that did not ask for one', () => {
+    renderRow({ status: 'unavailable' }, {}, false);
+    fireEvent.contextMenu(screen.getByText('Costly one'));
+    expect(screen.queryByText('Token usage')).not.toBeInTheDocument();
   });
 });
 

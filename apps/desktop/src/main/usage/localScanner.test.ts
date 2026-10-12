@@ -146,7 +146,7 @@ describe('scanLocalProvider for Codex', () => {
       { key: 'month', label: 'Monthly', percent: 21, resetAt: null },
     ]);
     const saved = JSON.parse(readFileSync(join(paths.userData, 'usage-scan-cache.json'), 'utf-8'));
-    expect(saved.version).toBe(2);
+    expect(saved.version).toBe(3);
     expect(saved.providers.codex[file].limits.planType).toBe('free');
   });
 });

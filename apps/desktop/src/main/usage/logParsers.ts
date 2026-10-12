@@ -88,7 +88,7 @@ export type LocalLogProvider = 'claude-code' | 'codex';
 
 // --- file discovery -------------------------------------------------------
 
-interface LogFile {
+export interface LogFile {
   path: string;
   mtimeMs: number;
   size: number;
@@ -99,7 +99,7 @@ interface LogFile {
  * older than `sinceMs`. A file untouched for over a month cannot hold an event
  * inside our retention horizon. A missing root resolves to an empty list.
  */
-async function collectLogFiles(root: string, sinceMs: number): Promise<LogFile[]> {
+export async function collectLogFiles(root: string, sinceMs: number): Promise<LogFile[]> {
   const out: LogFile[] = [];
   async function recur(dir: string): Promise<void> {
     let dirents;
@@ -305,7 +305,9 @@ function parseCodexLine(line: string, state: FileScanState): void {
   if (delta) {
     const input = delta.input_tokens ?? 0;
     const cached = delta.cached_input_tokens ?? 0;
-    const output = (delta.output_tokens ?? 0) + (delta.reasoning_output_tokens ?? 0);
+    // `reasoning_output_tokens` is a share of `output_tokens`, not on top of it: every logged
+    // turn has total_tokens = input_tokens + output_tokens. Adding it again counted it twice.
+    const output = delta.output_tokens ?? 0;
     if (input + cached + output > 0) {
       state.entries.push({
         at,
@@ -351,6 +353,31 @@ const PARSERS: Record<
 };
 
 /**
+ * Bring one file's scan state up to date: untouched since `prev` reuses it as is, a file that
+ * only grew streams just the appended bytes, and a new or truncated one is read from the start.
+ * Null when the file cannot be read (gone mid-scan), so the caller can skip it.
+ */
+export async function scanLogFile(
+  provider: LocalLogProvider,
+  file: LogFile,
+  prev: FileScanState | undefined,
+): Promise<FileScanState | null> {
+  if (prev && prev.mtimeMs === file.mtimeMs && prev.size === file.size) return prev;
+  const resumable = prev !== undefined && file.size >= prev.offset ? prev : null;
+  const state: FileScanState = resumable
+    ? { ...resumable, mtimeMs: file.mtimeMs, size: file.size }
+    : { offset: 0, mtimeMs: file.mtimeMs, size: file.size, entries: [] };
+  try {
+    state.offset = await readNewLines(file.path, resumable?.offset ?? 0, (l) =>
+      PARSERS[provider].line(l, state),
+    );
+  } catch {
+    return null;
+  }
+  return state;
+}
+
+/**
  * Scan a provider's logs, reusing `cache` so only newly-appended bytes are read.
  * Returns the merged entries, the newest quota window, and the cache to persist.
  */
@@ -367,27 +394,9 @@ export async function scanProviderLogs(
 
   for (const root of parser.roots()) {
     for (const file of await collectLogFiles(root, sinceMs)) {
-      const prev: FileScanState | undefined = cache[file.path];
-      let state: FileScanState;
-
-      if (prev && prev.mtimeMs === file.mtimeMs && prev.size === file.size) {
-        // Untouched since the last scan, reuse what we already extracted.
-        state = prev;
-      } else {
-        // Appended to: stream only the new tail. New file, or one that was
-        // truncated/rotated behind our offset: read it from the start.
-        const resumable = prev !== undefined && file.size >= prev.offset ? prev : null;
-        state = resumable
-          ? { ...resumable, mtimeMs: file.mtimeMs, size: file.size }
-          : { offset: 0, mtimeMs: file.mtimeMs, size: file.size, entries: [] };
-        try {
-          state.offset = await readNewLines(file.path, resumable?.offset ?? 0, (l) =>
-            parser.line(l, state),
-          );
-        } catch {
-          continue; // unreadable / vanished mid-scan; skip rather than fail it all
-        }
-      }
+      // Unreadable / vanished mid-scan: skip it rather than fail the whole scan.
+      const state = await scanLogFile(provider, file, cache[file.path]);
+      if (!state) continue;
 
       // Keep the cache bounded: events past the retention horizon can never be
       // reported again, so drop them rather than carry them forever.

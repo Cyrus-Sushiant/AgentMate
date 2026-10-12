@@ -86,6 +86,7 @@ import type {
   AddUsedSkillResult,
   AgentRunInfoMap,
   AgentSessionEntry,
+  AgentSessionUsage,
   AgentStatusMap,
   ApplyVersionInput,
   ApplyVersionResult,
@@ -682,6 +683,9 @@ const agents = {
     ipcRenderer.invoke(IPC.agents.lastRunInfoByCli),
   history: (projectId: string): Promise<AgentHistorySession[]> =>
     ipcRenderer.invoke(IPC.agents.history, projectId),
+  /** Tokens and estimated cost of a past conversation, as the history list showed it. */
+  sessionUsage: (provider: string, id: string): Promise<AgentSessionUsage> =>
+    ipcRenderer.invoke(IPC.agents.sessionUsage, provider, id),
   onRunInfo: (callback: (changes: AgentRunInfoMap) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, changes: AgentRunInfoMap): void =>
       callback(changes);

@@ -1139,6 +1139,8 @@ export const IPC = {
     lastRunInfoByCli: 'agents:lastRunInfoByCli',
     // (projectId) -> AgentHistorySession[]: past conversations from every supported CLI in its folder
     history: 'agents:history',
+    // (provider, conversationId) -> AgentSessionUsage: tokens and estimated cost of a past conversation
+    sessionUsage: 'agents:sessionUsage',
     // main -> renderer: AgentRunInfoMap of sessions whose model or effort just changed
     onRunInfo: 'agents:onRunInfo',
     // main -> renderer: AgentStatusMap of sessions whose status just changed

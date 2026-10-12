@@ -3,6 +3,7 @@ import { ipcMain } from 'electron';
 import type {
   AgentRunInfoMap,
   AgentSessionEntry,
+  AgentSessionUsage,
   AgentStatusMap,
   AutoContinuePendingMap,
   LastRunInfoByCli,
@@ -10,6 +11,7 @@ import type {
 import { IPC } from '../../shared/ipcChannels';
 import { claudeHookSettingsPath, supportsStatusHooks } from '../agents/claudeHooks';
 import { listAgentHistory } from '../agents/sessionHistory';
+import { readSessionUsage } from '../agents/sessionUsage';
 import { agentStatus } from '../agents/statusTracker';
 import { store } from '../store';
 import { findProjectScope } from '../worktrees/resolve';
@@ -84,6 +86,14 @@ export function registerAgentHandlers(): void {
       const project = await findProjectScope(projectId);
       return project ? listAgentHistory(project.folderPath) : [];
     },
+  );
+
+  ipcMain.handle(
+    IPC.agents.sessionUsage,
+    async (_event, provider: unknown, id: unknown): Promise<AgentSessionUsage> =>
+      typeof provider === 'string' && typeof id === 'string'
+        ? readSessionUsage(provider, id)
+        : { status: 'unavailable' },
   );
 
   ipcMain.handle(

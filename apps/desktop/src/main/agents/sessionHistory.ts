@@ -25,6 +25,7 @@ import {
   summarizeOpencodeSession,
 } from '@agentmat/core';
 import Database from 'better-sqlite3';
+import { rememberHistorySource } from './historySources';
 
 // Past conversations for the workspace's history section. Each CLI keeps its own store:
 // Claude Code (and OpenClaude, same format) one transcript per session in a folder named
@@ -1089,6 +1090,19 @@ export async function collectHistory(
     }
   });
   let sessions = read.filter((s): s is AgentHistorySession => s !== null);
+
+  // `read` lines up with `picked`. Only this machine's files can be read again for usage later.
+  if (fs.scope === localHistoryFs.scope) {
+    read.forEach((session, i) => {
+      if (!session) return;
+      const item = picked[i];
+      rememberHistorySource(session.provider, session.id, {
+        path: item.file.path,
+        mtimeMs: item.file.mtimeMs,
+        dbPath: item.provider === 'opencode' ? item.dbPath : undefined,
+      });
+    });
+  }
 
   if (sessions.some((s) => s.provider === 'codex')) {
     const names = await codexThreadNames(fs, codex);
