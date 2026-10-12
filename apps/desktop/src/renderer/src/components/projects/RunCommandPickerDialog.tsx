@@ -33,7 +33,9 @@ export function RunCommandPickerDialog({
               : 'Choose a command to run.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+        {/* Padding and scroll-py-1 keep the focus ring from being clipped at the edges. */}
+        {/* The negative margin cancels the padding so the layout does not move. */}
+        <div className="-mx-1 -my-1 flex min-h-0 flex-col gap-2 overflow-y-auto px-1 py-1 scroll-py-1">
           {commands.map((entry) => {
             const title = projectRunCommandTitle(entry);
             const showCommand = entry.label.trim().length > 0;

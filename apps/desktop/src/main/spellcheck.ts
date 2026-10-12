@@ -1,6 +1,6 @@
 import { app, ipcMain, session } from 'electron';
 import { IPC } from '../shared/ipcChannels';
-import type { SpellcheckMenuPayload } from '../shared/spellcheck';
+import { isEditCommand, type SpellcheckMenuPayload } from '../shared/spellcheck';
 
 // Chromium loads one hunspell dictionary per language and only flags a word
 // when none of them knows it, but it gets slower and noisier with every extra
@@ -49,14 +49,25 @@ export function configureSpellChecker(): void {
 /**
  * Forwards every right-click inside an editable field to the renderer, along
  * with whatever Chromium's spellchecker had to say about the word under the
- * cursor. The renderer draws the writing menu itself instead of the OS one, and
- * it opens for grammar issues too, which is why a click on a correctly spelled
- * word is still worth sending.
+ * cursor and which editing commands the field can take. The renderer draws the
+ * field menu itself instead of the OS one: spelling and grammar fixes when
+ * there are any, and always Cut, Copy, Paste and Select all.
  */
 export function registerSpellcheckHandlers(): void {
   ipcMain.handle(IPC.spellcheck.addToDictionary, (_event, word: string): boolean => {
     if (typeof word !== 'string' || !word.trim()) return false;
     return session.defaultSession.addWordToSpellCheckerDictionary(word);
+  });
+
+  // The renderer draws the menu, so these have to come back here to happen. The
+  // contents' own commands are used because they behave exactly like the OS menu
+  // would: they work on any input type, keep the undo stack and send the input
+  // event a controlled React field listens for. The allowlist matters because the
+  // command name is called as a method on the sender.
+  ipcMain.handle(IPC.spellcheck.runEditCommand, (event, command: unknown): boolean => {
+    if (!isEditCommand(command)) return false;
+    event.sender[command]();
+    return true;
   });
 
   // Every window gets the same treatment (main, floating widgets, the pet, the
@@ -69,6 +80,12 @@ export function registerSpellcheckHandlers(): void {
         word: params.misspelledWord,
         suggestions: params.dictionarySuggestions,
         selectionText: params.selectionText,
+        editFlags: {
+          canCut: params.editFlags.canCut,
+          canCopy: params.editFlags.canCopy,
+          canPaste: params.editFlags.canPaste,
+          canSelectAll: params.editFlags.canSelectAll,
+        },
       };
       contents.send(IPC.spellcheck.onShowMenu, payload);
     });

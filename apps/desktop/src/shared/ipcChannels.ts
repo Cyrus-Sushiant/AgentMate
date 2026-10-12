@@ -388,6 +388,9 @@ export const IPC = {
     // main -> renderer: an editable field was right-clicked, open the writing menu
     onShowMenu: 'spellcheck:showMenu',
     addToDictionary: 'spellcheck:addToDictionary',
+    // Cut, copy, paste or select all in the field that has focus. Main runs it on the calling
+    // window, so it works on every input type, number and email boxes included.
+    runEditCommand: 'spellcheck:runEditCommand',
   },
   splash: {
     // main -> splash window: what startup is busy with right now

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, ChevronDown, Spinner, Undo } from '@/components/icons';
+import { SEGMENT_TRACK } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
@@ -129,16 +130,16 @@ function ChoiceButtons({
   small?: boolean;
   onChoose: (next: VersionFileDecision) => void;
 }): React.JSX.Element {
+  // Drawn as the app's segmented pill (see SEGMENT_TRACK), with the chosen side tinted green or
+  // red instead of the neutral raised chip, so the decision reads at a glance down the list.
   const buttonClass = cn(
-    'flex cursor-pointer items-center gap-1 font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
-    small ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-[11px]',
+    'inline-flex cursor-pointer items-center justify-center rounded-full font-medium transition-[color,background-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
+    small ? 'h-5 gap-1 px-2 text-[10px]' : 'h-6 gap-1.5 px-2.5 text-[11px]',
   );
+  const iconClass = small ? 'h-2.5 w-2.5' : 'h-3 w-3';
+  const idleClass = 'text-muted-foreground enabled:hover:text-foreground';
   return (
-    <div
-      role="group"
-      aria-label={label}
-      className="flex shrink-0 overflow-hidden rounded-md border border-border bg-card"
-    >
+    <div role="group" aria-label={label} className={cn(SEGMENT_TRACK, 'shrink-0 gap-0.5')}>
       <button
         type="button"
         aria-pressed={choice === 'keep'}
@@ -147,11 +148,12 @@ function ChoiceButtons({
         className={cn(
           buttonClass,
           choice === 'keep'
-            ? 'bg-success/15 text-success'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            ? 'bg-success/15 text-success shadow-sm ring-1 ring-inset ring-success/30'
+            : idleClass,
         )}
       >
-        <Check className="h-3 w-3" /> {choice === 'keep' ? 'Kept' : 'Keep'}
+        <Check className={iconClass} />
+        {choice === 'keep' ? 'Kept' : 'Keep'}
       </button>
       <button
         type="button"
@@ -160,13 +162,16 @@ function ChoiceButtons({
         onClick={() => onChoose('revert')}
         className={cn(
           buttonClass,
-          'border-l border-border',
           choice === 'revert'
-            ? 'bg-destructive/15 text-destructive'
-            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            ? 'bg-destructive/15 text-destructive shadow-sm ring-1 ring-inset ring-destructive/30'
+            : idleClass,
         )}
       >
-        {busy ? <Spinner className="h-3 w-3 animate-spin" /> : <Undo className="h-3 w-3" />}{' '}
+        {busy ? (
+          <Spinner className={cn(iconClass, 'animate-spin')} />
+        ) : (
+          <Undo className={iconClass} />
+        )}
         {choice === 'revert' ? 'Reverted' : 'Revert'}
       </button>
     </div>
@@ -301,10 +306,10 @@ function LinePicker({
               disabled={disabled}
               onClick={(event) => onChoose(option.value, event.shiftKey)}
               className={cn(
-                'flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded transition-[color,background-color,opacity] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed',
+                'flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed',
                 selected
                   ? option.active
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  : 'text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground',
                 // Once a line is decided the other option steps back until the row is hovered.
                 !selected &&
                   choice &&
@@ -802,7 +807,7 @@ export function VersionChangeReview({
 
                 {change.hadLocalEdits && (
                   <SimpleTooltip label="This file already had uncommitted edits before the run. The diff shows only the run's edit, and Revert keeps your earlier edits, but committing it includes them.">
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                       Had edits
                     </span>
                   </SimpleTooltip>
@@ -818,7 +823,7 @@ export function VersionChangeReview({
                   >
                     <span
                       className={cn(
-                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums',
                         decision === 'partial'
                           ? 'bg-success/15 text-success'
                           : 'bg-muted text-muted-foreground',

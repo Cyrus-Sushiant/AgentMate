@@ -315,11 +315,42 @@ describe('the project runs entry', () => {
     await user.click(await screen.findByRole('button', { name: 'Apollo: Dev' }));
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', {
-        name: /http:\/\/localhost:5173\//,
+        name: 'http://localhost:5173/',
       }),
     );
 
     expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith('http://localhost:5173/');
+  });
+
+  it('lists every address a run can be reached on, not just the first', async () => {
+    // A launch script that starts a web app and its API, printing both (and the API docs).
+    runs([DEV], {
+      dev: {
+        urls: [
+          'http://localhost:3002/api/v1',
+          'http://localhost:3001/',
+          'http://localhost:3002/api/v1/docs',
+        ],
+        devices: [],
+      },
+    });
+    const { user, bridge } = setupRuns([status('dev', { ports: [3001, 3002] })]);
+
+    const chip = await screen.findByRole('button', { name: 'Apollo: Dev' });
+    await waitFor(() => expect(within(chip).getByText(/:3002/)).toBeInTheDocument());
+    expect(within(chip).getByText('+1')).toBeInTheDocument();
+
+    await user.click(chip);
+    const panel = await screen.findByRole('dialog');
+    const api = within(panel).getByRole('button', { name: 'http://localhost:3002/api/v1' });
+    const web = within(panel).getByRole('button', { name: 'http://localhost:3001/' });
+    expect(api.compareDocumentPosition(web) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(panel).getByRole('button', { name: 'Copy http://localhost:3001/' }),
+    ).toBeVisible();
+
+    await user.click(web);
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith('http://localhost:3001/');
   });
 
   it('stays out of the bar, and measures nothing, with no runs', async () => {

@@ -982,8 +982,7 @@ function RunStateDot({ state }: { state: RunRow['state'] }): React.JSX.Element {
   );
 }
 
-function portOfUrl(url: string | null): string | null {
-  if (!url) return null;
+function portOfUrl(url: string): string | null {
   try {
     return new URL(url).port || null;
   } catch {
@@ -1001,11 +1000,12 @@ function RunTarget({ row }: { row: RunRow }): React.JSX.Element | null {
       </span>
     );
   }
-  const port = portOfUrl(row.url);
-  if (!port) return null;
+  const ports = row.urls.map(portOfUrl).filter((port): port is string => port !== null);
+  if (ports.length === 0) return null;
   return (
     <span className="flex items-center gap-1 tabular-nums">
-      <Globe className="h-2.5 w-2.5 shrink-0" />:{port}
+      <Globe className="h-2.5 w-2.5 shrink-0" />:{ports[0]}
+      {ports.length > 1 ? <span className="text-muted-foreground">+{ports.length - 1}</span> : null}
     </span>
   );
 }
@@ -1024,7 +1024,7 @@ function RunDetail({
   stopLabel: string | null;
 }): React.JSX.Element {
   const navigate = useNavigate();
-  const { session, status, url, device } = row;
+  const { session, status, urls, device } = row;
   const openTerminal = (): void => {
     const terminal = useTerminalStore.getState();
     terminal.setActiveSession(session.id);
@@ -1081,8 +1081,8 @@ function RunDetail({
           </span>
         </div>
       ) : null}
-      {url ? (
-        <div className="flex items-center gap-1">
+      {urls.map((url) => (
+        <div key={url} className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => void window.agentmat.shell.openExternal(url)}
@@ -1095,19 +1095,14 @@ function RunDetail({
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="Copy address"
+              aria-label={`Copy ${url}`}
               onClick={() => void navigator.clipboard.writeText(url)}
             >
               <Copy />
             </Button>
           </SimpleTooltip>
         </div>
-      ) : null}
-      {row.ports.length > 1 ? (
-        <p className="px-1 text-[10px] tabular-nums text-muted-foreground">
-          Listening on {row.ports.map((port) => `:${port}`).join(', ')}
-        </p>
-      ) : null}
+      ))}
       {row.mobile && device?.serial ? (
         <PopoverPrimitive.Close asChild>
           <button

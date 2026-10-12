@@ -27,8 +27,8 @@ export interface RunRow {
   session: RunSessionMeta;
   status: TerminalRunStatus | null;
   cpuReady: boolean;
-  /** Where to open a web run: a printed address on a port the run listens on, if there is one. */
-  url: string | null;
+  /** Where to open a web run, one address per port, printed ones first. */
+  urls: string[];
   ports: number[];
   mobile: boolean;
   device: RunDevice | null;
@@ -45,15 +45,24 @@ function portOfUrl(url: string): number | null {
   }
 }
 
-/** The address to offer: a printed one the run really listens on, else its first port. */
-export function pickRunUrl(printed: string[], ports: number[]): string | null {
-  const listening = printed.find((url) => {
+/**
+ * The addresses to offer, one for each port. With the ports the run listens on known, each gets
+ * the address printed for it (or a bare localhost one), and a printed address on a port nobody
+ * listens on is left out. Before that, or when the servers run outside the shell's process tree
+ * (a script that `start`s each one in its own window), every printed port gets its first address.
+ */
+export function pickRunUrls(printed: string[], ports: number[]): string[] {
+  const byPort = new Map<number, string>();
+  for (const url of printed) {
     const port = portOfUrl(url);
-    return port !== null && ports.includes(port);
-  });
-  if (listening) return listening;
-  if (ports.length > 0) return `http://localhost:${ports[0]}/`;
-  return printed[0] ?? null;
+    if (port !== null && !byPort.has(port) && (ports.length === 0 || ports.includes(port))) {
+      byPort.set(port, url);
+    }
+  }
+  for (const port of ports) {
+    if (!byPort.has(port)) byPort.set(port, `http://localhost:${port}/`);
+  }
+  return [...byPort.values()];
 }
 
 /** Puts a printed device name to the emulator or phone the Android page shows, when it can. */
@@ -118,7 +127,7 @@ export function buildRunRows(
       session,
       status,
       cpuReady: result?.cpuReady ?? false,
-      url: pickRunUrl(output?.urls ?? [], ports),
+      urls: pickRunUrls(output?.urls ?? [], ports),
       ports,
       mobile,
       device: pickRunDevice(devices, snapshot),

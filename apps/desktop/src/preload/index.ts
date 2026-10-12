@@ -430,7 +430,7 @@ import type { GrammarCheckInput, GrammarCheckResult, GrammarLocalStatus } from '
 import { IPC } from '../shared/ipcChannels';
 import type { PetPipelineMessage, PetSnoozeState, PetWorkArea } from '../shared/pet';
 import type { RemoteInputEvent, RemoteRtcMessage } from '../shared/remoteProtocol';
-import type { SpellcheckMenuPayload } from '../shared/spellcheck';
+import type { EditCommand, SpellcheckMenuPayload } from '../shared/spellcheck';
 import type { SshHostKeyStatus } from '../shared/sshHostKey';
 import { cloudflareServer } from './cloudflareServer';
 import { createDeployAssistant, createDeployLogs } from './deployAssistant';
@@ -2258,6 +2258,9 @@ const spellcheck = {
   /** Resolves false when the platform has no custom dictionary (macOS). */
   addToDictionary: (word: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.spellcheck.addToDictionary, word),
+  /** Runs it in the field that has focus. Resolves false for a command main does not know. */
+  runEditCommand: (command: EditCommand): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.spellcheck.runEditCommand, command),
 };
 
 const grammar = {

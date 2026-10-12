@@ -2,7 +2,7 @@ import type { AndroidSnapshot } from '@agentmat/core';
 import type { TerminalRunStatusResult } from '@shared/apiTypes';
 import { describe, expect, it } from 'vitest';
 import type { RunSessionMeta } from '@/stores/runSessionStore';
-import { buildRunRows, pickRunDevice, pickRunUrl, resolveRunDevice } from './useRunRows';
+import { buildRunRows, pickRunDevice, pickRunUrls, resolveRunDevice } from './useRunRows';
 
 /**
  * How a run's row in the status bar is put together from what the run printed and what the OS
@@ -55,29 +55,61 @@ const SNAPSHOT = {
   ],
 } as unknown as AndroidSnapshot;
 
-describe('pickRunUrl', () => {
+describe('pickRunUrls', () => {
   it('offers the printed address whose port the run really listens on', () => {
     // Vite prints both; the run only got 5174 because 5173 was taken.
-    expect(pickRunUrl(['http://localhost:5173/', 'http://localhost:5174/app'], [5174])).toBe(
+    expect(pickRunUrls(['http://localhost:5173/', 'http://localhost:5174/app'], [5174])).toEqual([
       'http://localhost:5174/app',
-    );
+    ]);
   });
 
-  it('falls back to the lowest port when nothing printed matches', () => {
+  it('offers every port the run listens on, not just the first', () => {
+    // A web app and its API started by one script, each printing its own address.
     expect(
-      pickRunUrl(
-        [],
-        [8080, 3000].sort((a, b) => a - b),
-      ),
-    ).toBe('http://localhost:3000/');
+      pickRunUrls(['http://localhost:3002/api/v1', 'http://localhost:3001/'], [3001, 3002]),
+    ).toEqual(['http://localhost:3002/api/v1', 'http://localhost:3001/']);
   });
 
-  it('uses a printed address before any port is known', () => {
-    expect(pickRunUrl(['http://localhost:5173/'], [])).toBe('http://localhost:5173/');
+  it('gives a listening port nothing printed for a bare address, after the printed ones', () => {
+    expect(pickRunUrls(['http://localhost:5173/'], [4000, 5173, 8080])).toEqual([
+      'http://localhost:5173/',
+      'http://localhost:4000/',
+      'http://localhost:8080/',
+    ]);
+  });
+
+  it('falls back to every port, lowest first, when nothing printed matches', () => {
+    expect(pickRunUrls([], [3000, 8080])).toEqual([
+      'http://localhost:3000/',
+      'http://localhost:8080/',
+    ]);
+  });
+
+  it('offers every printed port before any port is known', () => {
+    // What CuraLink's launch.bat prints. It starts each server with `start` in its own window,
+    // so they leave the shell's process tree and no port is ever traced back to the run.
+    const printed = [
+      'http://localhost:3002/api/v1',
+      'http://localhost:3001/',
+      'http://localhost:3002/api/v1/docs',
+    ];
+    expect(pickRunUrls(printed, [])).toEqual([
+      'http://localhost:3002/api/v1',
+      'http://localhost:3001/',
+    ]);
+  });
+
+  it('keeps one address per port', () => {
+    expect(
+      pickRunUrls(
+        ['http://localhost:5173/', 'http://127.0.0.1:5173/', 'http://localhost:5173/x'],
+        [],
+      ),
+    ).toEqual(['http://localhost:5173/']);
   });
 
   it('has nothing to offer for a run with no address and no port', () => {
-    expect(pickRunUrl([], [])).toBeNull();
+    expect(pickRunUrls([], [])).toEqual([]);
   });
 });
 
@@ -137,7 +169,7 @@ describe('buildRunRows', () => {
     );
 
     expect(row).toMatchObject({
-      url: 'http://localhost:5173/',
+      urls: ['http://localhost:5173/', 'http://localhost:9229/'],
       ports: [5173, 9229],
       mobile: false,
       device: null,
