@@ -719,7 +719,13 @@ describe('Gemini CLI logs', () => {
 
   it('does not add thoughts tokens to the output count, they are already inside it', async () => {
     writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
-      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 100, candidates: 80, thoughts: 60 }),
+      geminiUsageLine({
+        at: now - HOUR_MS,
+        model: 'test-model',
+        prompt: 100,
+        candidates: 80,
+        thoughts: 60,
+      }),
     ]);
 
     const [entry] = (await scanGemini()).entries;
@@ -797,7 +803,11 @@ describe('Gemini CLI logs', () => {
   });
 
   it('contributes nothing for the files the CLI writes today: prompts, but no token counts', async () => {
-    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', geminiChatToday('a1', now - HOUR_MS));
+    writeGeminiLog(
+      'agentmate',
+      'session-2026-09-17T10-00-a1.jsonl',
+      geminiChatToday('a1', now - HOUR_MS),
+    );
     writeProjectRoot('agentmate', 'E:\\work\\shop');
 
     const result = await scanGemini();

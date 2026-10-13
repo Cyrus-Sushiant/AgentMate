@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { open, readFile, readdir, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
@@ -538,7 +538,9 @@ function geminiCounts(
     const slice = tokens as GeminiTokenObject;
     const input = num(slice.inputTokens ?? slice.input_tokens ?? slice.input);
     const output = num(slice.outputTokens ?? slice.output_tokens ?? slice.output);
-    const cacheRead = num(slice.cacheReadTokens ?? slice.cache_read_input_tokens ?? slice.cacheRead);
+    const cacheRead = num(
+      slice.cacheReadTokens ?? slice.cache_read_input_tokens ?? slice.cacheRead,
+    );
     const cacheWrite = num(
       slice.cacheWriteTokens ?? slice.cache_creation_input_tokens ?? slice.cacheWrite,
     );

@@ -103,6 +103,8 @@ describe('AI CLI launches use the user CLI settings', () => {
       'renderer/src/components/workspace/PaneLauncher.tsx',
       'renderer/src/lib/openCli.ts',
       'renderer/src/lib/workspace/launch.ts',
+      // Tab tooltips fall back to the launch default model when the agent never reports one.
+      'renderer/src/stores/agentStatusStore.ts',
       'renderer/src/stores/cliStore.ts',
     ]);
     // Terminal launches never read the background task arguments, so only the field that edits

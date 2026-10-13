@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { projectRow, splitOf, usageOf } from '../components/usage/weekday/testing/fixtures';
 import {
   addDays,
@@ -48,9 +48,23 @@ describe('calendar helpers', () => {
   });
 
   it("reads the locale's week start and weekend", () => {
-    expect(localeWeekInfo('en-US')).toEqual({ firstDay: 0, weekend: [6, 0] });
-    expect(localeWeekInfo('en-GB')).toEqual({ firstDay: 1, weekend: [6, 0] });
-    expect(localeWeekInfo('fa-IR')).toEqual({ firstDay: 6, weekend: [5] });
+    // ICU's week table for en-US differs across Node/ICU versions (Sunday vs Monday first),
+    // so pin the platform values with a stub and check the Sunday-as-0 mapping only.
+    const spy = vi.spyOn(Intl.Locale.prototype, 'getWeekInfo');
+    spy.mockImplementation(function (this: Intl.Locale) {
+      const tag = this.toString();
+      if (tag.startsWith('en-US')) return { firstDay: 7, weekend: [6, 7], minimalDays: 1 };
+      if (tag.startsWith('en-GB')) return { firstDay: 1, weekend: [6, 7], minimalDays: 4 };
+      if (tag.startsWith('fa-IR')) return { firstDay: 6, weekend: [5], minimalDays: 1 };
+      return { firstDay: 1, weekend: [6, 7], minimalDays: 4 };
+    });
+    try {
+      expect(localeWeekInfo('en-US')).toEqual({ firstDay: 0, weekend: [6, 0] });
+      expect(localeWeekInfo('en-GB')).toEqual({ firstDay: 1, weekend: [6, 0] });
+      expect(localeWeekInfo('fa-IR')).toEqual({ firstDay: 6, weekend: [5] });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('falls back to Monday with a Saturday and Sunday weekend for a locale it cannot read', () => {
