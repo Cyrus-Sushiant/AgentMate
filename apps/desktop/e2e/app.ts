@@ -30,6 +30,13 @@ export interface LaunchedApp {
   close(): Promise<void>;
 }
 
+/**
+ * Playwright tells every page the OS prefers light unless told otherwise. With the "System"
+ * theme on a dark Windows that painted the page light on top of a dark Mica frame, so every
+ * launch leaves the color scheme to the OS, like a real start.
+ */
+export const OS_COLOR_SCHEME = { colorScheme: 'no-override' } as const;
+
 /** What the fake `claude` answers a headless (`-p`) run with. */
 export const FAKE_CLAUDE_ANSWER = 'feat: e2e change';
 
@@ -120,6 +127,7 @@ export async function launchApp(seed: {
 
   const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH';
   const app = await electron.launch({
+    ...OS_COLOR_SCHEME,
     args: [
       join(E2E_OUT_DIR, 'main', 'index.mjs'),
       `--user-data-dir=${userDataDir}`,

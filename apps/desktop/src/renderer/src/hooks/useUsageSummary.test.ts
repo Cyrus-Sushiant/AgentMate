@@ -10,10 +10,11 @@ import { renderHookWithProviders } from '../../../test/renderer/renderWithProvid
 import { useUsageSummary } from './useUsageSummary';
 
 /**
- * The aggregate behind the Token Usage summary tiles and the All agents card. Claude Code, Codex
- * and Cursor connect themselves from local data, so they are always tracked; everything else only
- * counts once its config says enabled. What the tests pin down is which providers are added up,
- * which are skipped, and that a provider that failed to scan never contributes a number.
+ * The aggregate behind the Token Usage summary tiles and the All agents card. Claude Code,
+ * Codex, Cursor and GitHub Copilot connect themselves from local data, so they are always
+ * tracked; everything else only counts once its config says enabled. What the tests pin down is
+ * which providers are added up, which are skipped, and that a provider that failed to scan never
+ * contributes a number.
  */
 
 function period(total: number, costUsd: number | null = null): UsagePeriod {
@@ -53,8 +54,8 @@ const codex = usage({
   costSeries: [0.4, 0.5],
 });
 
-/** The three providers that need no configuration at all. */
-const AUTO_CONNECTED = 3;
+/** The four providers that need no configuration at all. */
+const AUTO_CONNECTED = 4;
 
 describe('useUsageSummary', () => {
   it('reports pending until both the settings and the usage list have landed', async () => {
@@ -74,7 +75,7 @@ describe('useUsageSummary', () => {
     });
 
     await waitFor(() => expect(result.current.isPending).toBe(false));
-    // Claude Code, Codex and Cursor read local data, so they are tracked without a key.
+    // Claude Code, Codex, Cursor and Copilot read local data, so they are tracked without a key.
     expect(result.current.trackedCount).toBe(AUTO_CONNECTED);
     expect(result.current.totalCount).toBe(USAGE_PROVIDER_REGISTRY.length);
   });

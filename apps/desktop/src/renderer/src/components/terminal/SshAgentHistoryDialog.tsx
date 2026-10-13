@@ -132,6 +132,9 @@ function runAsText(run: AgentRun): string {
       case 'answer':
         lines.push(`You answered: ${entry.text || '(nothing)'}`, '');
         break;
+      case 'message':
+        lines.push(`You told the AI: ${entry.text}`, '');
+        break;
       case 'error':
         lines.push(entry.text);
         break;
@@ -365,6 +368,12 @@ function Entry({ entry }: { entry: AgentEntry }): React.JSX.Element {
       return (
         <Bubble from="you" at={entry.at}>
           {entry.text || <span className="italic text-muted-foreground">(no answer)</span>}
+        </Bubble>
+      );
+    case 'message':
+      return (
+        <Bubble from="you" at={entry.at}>
+          {entry.text}
         </Bubble>
       );
     case 'error':

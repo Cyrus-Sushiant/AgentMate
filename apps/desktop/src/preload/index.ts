@@ -592,6 +592,12 @@ const sshAgent = {
     ipcRenderer.invoke(IPC.sshAgent.skipCommand, sessionId),
   answerNeedsInput: (sessionId: string, answer: string): Promise<void> =>
     ipcRenderer.invoke(IPC.sshAgent.answerNeedsInput, sessionId, answer),
+  /**
+   * Tells a task that is already running something new, without waiting for it to ask. Resolves
+   * false when the task is over by now, so the caller can keep the text.
+   */
+  sendMessage: (sessionId: string, text: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.sshAgent.sendMessage, sessionId, text),
   /** True types the server's saved password into the prompt the running command opened. */
   answerPassword: (sessionId: string, approved: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.sshAgent.answerPassword, sessionId, approved),

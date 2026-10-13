@@ -12,10 +12,10 @@ export const ALL_AGENTS_PROVIDER: UsageProviderDefinition = {
   accentColor: '#00994d',
 };
 
-// The full catalog of 63 providers mirrors steipete/CodexBar's registry so the
-// Usage page reads as complete. Only the cross-platform starter set has a live
-// `dataSource` today (local-log for the coding CLIs, api-key for a handful of
-// key-based APIs); everything else is `unsupported` and renders a "Connect"
+// The full catalog of 64 providers mirrors steipete/CodexBar's registry, plus Meta to
+// match the Muse Code CLI, so the Usage page reads as complete. Only the cross-platform
+// starter set has a live `dataSource` today (local-log for the coding CLIs, api-key for a
+// handful of key-based APIs); everything else is `unsupported` and renders a "Connect"
 // state until its integration is wired. `supportsCost` marks the providers whose
 // data source can attribute a dollar cost.
 export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
@@ -125,6 +125,15 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
     accentColor: '#1C69FF',
   },
   {
+    id: 'meta',
+    name: 'Meta',
+    category: 'api-provider',
+    dataSource: 'unsupported',
+    supportsCost: false,
+    homepageUrl: 'https://dev.meta.ai',
+    accentColor: '#0467DF',
+  },
+  {
     id: 'antigravity',
     name: 'Antigravity',
     category: 'ide',
@@ -226,9 +235,9 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
   {
     id: 'copilot',
     name: 'GitHub Copilot',
-    category: 'ide',
-    dataSource: 'unsupported',
-    supportsCost: false,
+    category: 'coding-agent',
+    dataSource: 'local-log',
+    supportsCost: true,
     homepageUrl: 'https://github.com/features/copilot',
     accentColor: '#000000',
   },

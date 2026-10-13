@@ -89,4 +89,90 @@ describe('SshAgentHistoryDialog', () => {
     expect(bridge.$fn('sshAgent.history')).toHaveBeenCalledWith('ssh-1');
     expect(screen.getByText(/1 command/)).toBeInTheDocument();
   });
+
+  it('shows what the user told the AI mid-run as their own message, in order', async () => {
+    const at = Date.now();
+    const run: SshAgentHistoryRun = {
+      id: 'run-3',
+      sessionId: 'ssh-1',
+      prompt: 'Clean up the server',
+      aiLabel: 'Codex',
+      startedAt: at - 3000,
+      endedAt: at,
+      status: 'finished',
+      entries: [
+        { kind: 'message', at: at - 2000, text: 'leave /var/lib/docker alone' },
+        { kind: 'skipped', at: at - 1500, command: 'rm -rf /var/lib/docker' },
+        {
+          kind: 'command',
+          at: at - 1000,
+          command: 'df -h',
+          output: '/dev/sda1 50%',
+          exitCode: 0,
+          timedOut: false,
+        },
+        { kind: 'finished', at, text: 'Cleaned up.' },
+      ],
+    };
+    renderWithProviders(
+      <SshAgentHistoryDialog
+        sessionId="ssh-1"
+        sessionTitle="web-1"
+        open
+        onOpenChange={() => undefined}
+      />,
+      { bridge: { 'sshAgent.history': [run] } },
+    );
+
+    const message = await screen.findByText('leave /var/lib/docker alone');
+    // The same bubble the user's answers get: their words, on their side, labelled as them.
+    expect(message.parentElement).toHaveClass('items-end');
+    expect(message.parentElement).toHaveTextContent(/You ·/);
+    // It sits between the prompt and what the AI did afterwards. The prompt is also the task's
+    // title in the list on the left, which comes first in the page, so only the timeline is read.
+    const order = screen
+      .getAllByText(/Clean up the server|leave \/var\/lib\/docker alone|df -h|Cleaned up\./)
+      .map((el) => el.textContent)
+      .slice(-4);
+    expect(order).toEqual([
+      'Clean up the server',
+      'leave /var/lib/docker alone',
+      'df -h',
+      'Cleaned up.',
+    ]);
+  });
+
+  it('puts the message in the copied transcript', async () => {
+    const at = Date.now();
+    const run: SshAgentHistoryRun = {
+      id: 'run-4',
+      sessionId: 'ssh-1',
+      prompt: 'Clean up the server',
+      aiLabel: 'Codex',
+      startedAt: at - 2000,
+      endedAt: at,
+      status: 'finished',
+      entries: [
+        { kind: 'message', at: at - 1000, text: 'leave /var/lib/docker alone' },
+        { kind: 'finished', at, text: 'Cleaned up.' },
+      ],
+    };
+    const { user } = renderWithProviders(
+      <SshAgentHistoryDialog
+        sessionId="ssh-1"
+        sessionTitle="web-1"
+        open
+        onOpenChange={() => undefined}
+      />,
+      { bridge: { 'sshAgent.history': [run] } },
+    );
+
+    await user.click(await screen.findByRole('button', { name: /Copy transcript/ }));
+    // user-event gives the page a clipboard of its own, so the copy is read back from it.
+    await vi.waitFor(async () =>
+      expect(await navigator.clipboard.readText()).toContain(
+        'You told the AI: leave /var/lib/docker alone',
+      ),
+    );
+  });
 });

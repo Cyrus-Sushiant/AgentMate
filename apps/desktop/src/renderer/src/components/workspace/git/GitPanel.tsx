@@ -70,7 +70,7 @@ import { PullRequestDialog } from './pr/PullRequestDialog';
 import { PullRequestSection } from './pr/PullRequestSection';
 import { announcePublishedBranch, usePullRequest } from './pr/usePullRequest';
 import { SectionCount, SourceSection, SourceSectionSplitter } from './SourceSection';
-import { StashMenu, StashesSection, useStashes } from './StashesSection';
+import { StashesSection, StashMenu, useStashes } from './StashesSection';
 import {
   type GitActions,
   openChangedFile,

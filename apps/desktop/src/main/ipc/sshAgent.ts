@@ -12,6 +12,7 @@ import {
   continueSshTask,
   getSshTaskHistory,
   notifySshTaskWaiting,
+  sendSshTaskMessage,
   skipSshTaskCommand,
   startSshTask,
   stopSshTask,
@@ -62,6 +63,10 @@ export function registerSshAgentHandlers(): void {
     (_event, sessionId: string, answer: string): void => {
       answerSshTaskInput(sessionId, answer);
     },
+  );
+
+  ipcMain.handle(IPC.sshAgent.sendMessage, (_event, sessionId: string, text: string): boolean =>
+    sendSshTaskMessage(sessionId, text),
   );
 
   ipcMain.handle(IPC.sshAgent.stop, (_event, sessionId: string): void => {

@@ -157,6 +157,7 @@ export const IPC = {
     approveCommand: 'sshAgent:approveCommand',
     skipCommand: 'sshAgent:skipCommand',
     answerNeedsInput: 'sshAgent:answerNeedsInput',
+    sendMessage: 'sshAgent:sendMessage',
     answerPassword: 'sshAgent:answerPassword',
     stop: 'sshAgent:stop',
     continue: 'sshAgent:continue',

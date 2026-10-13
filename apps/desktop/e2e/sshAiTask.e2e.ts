@@ -6,6 +6,7 @@ import {
   SSH_PASSWORD,
   SSH_USER,
   type SshTestServer,
+  serverExec,
   startSshServer,
 } from './sshServer';
 
@@ -175,6 +176,48 @@ test('lets the user type the sudo password themselves', async () => {
   expect(text).toMatch(/^root$/m);
   expect(text).not.toContain(SSH_PASSWORD);
   expect(ollama?.prompts.at(-1)).toContain('$ sudo id -un [exit code 0]');
+});
+
+test('lets the user message the AI while a command is running', async () => {
+  if (!server) throw new Error('SSH server did not start');
+  // The test window is throttled to about one animation frame a second, which Playwright's click
+  // waits on. A timed `sleep` can end before the click lands, so the command holds until released.
+  const RELEASE = '/tmp/e2e-release-message';
+  const HOLD = `echo before; until [ -e ${RELEASE} ]; do sleep 0.3; done; echo after`;
+  serverExec(server, `rm -f ${RELEASE}`);
+  const page = await openServerTab([`RUN: ${HOLD}`, 'FINISHED: Followed the new instruction.']);
+  await startTask(page, 'Print two words');
+
+  const bar = agentBar(page);
+  await expect(bar).toContainText('Running', { timeout: 60_000 });
+
+  await bar.getByRole('button', { name: 'Message' }).click();
+  const box = bar.getByRole('textbox', { name: 'Message to the AI' });
+  await expect(box).toBeFocused();
+  await expect(box).toHaveAttribute('placeholder', /when the command finishes/);
+  await box.fill('say goodbye as well');
+  await box.press('Enter');
+
+  // The command keeps going, and the bar says the message is waiting for it to end.
+  await expect(bar).toContainText('Sent. The AI reads it when the command finishes.');
+  await expect(bar.getByText('Message queued')).toBeVisible();
+  await expect(box).toHaveValue('');
+  await expect(bar).toContainText('Running');
+
+  serverExec(server, `touch ${RELEASE}`);
+  await expect(bar).toContainText('Followed the new instruction.', { timeout: 60_000 });
+  await expect(bar.getByText('Message queued')).toBeHidden();
+  await expect(bar.getByRole('textbox', { name: 'Message to the AI' })).toBeHidden();
+
+  // The command was left alone, and the AI saw the message in the step after it.
+  await expect.poll(() => terminalText(page)).toMatch(/^before\nafter$/m);
+  expect(ollama?.prompts).toHaveLength(2);
+  expect(ollama?.prompts[0]).not.toContain('The user added these while you were working');
+  const last = ollama?.prompts.at(-1) ?? '';
+  expect(last).toContain('The user added these while you were working');
+  expect(last).toContain('- say goodbye as well');
+  expect(last).toContain(`$ ${HOLD} [exit code 0]`);
+  serverExec(server, `rm -f ${RELEASE}`);
 });
 
 test('shows a failing command with its error and passes the exit code on', async () => {

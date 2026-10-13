@@ -404,9 +404,7 @@ export async function stashPush(
 
 /** Newest stash first, parsed off `git stash list`. Empty when there is nothing stashed. */
 export async function listStashes(root: string): Promise<GitStashEntry[]> {
-  const out = (
-    await runGit(root, ['stash', 'list', '--format=%gd%x00%gs'])
-  ).toString('utf8');
+  const out = (await runGit(root, ['stash', 'list', '--format=%gd%x00%gs'])).toString('utf8');
   return out
     .split('\n')
     .map((line) => line.trim())

@@ -33,9 +33,9 @@ import type {
   GitImageDiff,
   GitInitInput,
   GitOpResult,
-  GitStatus,
   GitStashEntry,
   GitStashPushInput,
+  GitStatus,
   GitTagInfo,
   RenameBranchInput,
   ResolveConflictWithAiResult,
@@ -131,6 +131,7 @@ import {
   backupPaths,
   commitStaged,
   discardPaths,
+  listStashes,
   locateRepo,
   readCommitFileDiff,
   readCommitFileImageDiff,
@@ -139,7 +140,6 @@ import {
   readFileImageDiff,
   readWorkspaceGitState,
   resolveConflict,
-  listStashes,
   stagePaths,
   stashDrop,
   stashPush,
@@ -1271,7 +1271,9 @@ function registerWorkspaceHandlers(): void {
     (_event, input: GitStashPushInput): Promise<GitOpResult> =>
       workspaceGitOp(input?.projectId, async ({ root }) => {
         if (input?.keepIndex && input?.includeUntracked) {
-          throw new Error('A stash cannot keep staged changes and include untracked files at once.');
+          throw new Error(
+            'A stash cannot keep staged changes and include untracked files at once.',
+          );
         }
         return stashPush(root, {
           includeUntracked: Boolean(input?.includeUntracked),
@@ -1281,13 +1283,10 @@ function registerWorkspaceHandlers(): void {
       }),
   );
 
-  ipcMain.handle(
-    IPC.git.stashList,
-    async (_event, projectId: string): Promise<GitStashEntry[]> => {
-      const { root } = await requireRepo(projectId);
-      return listStashes(root);
-    },
-  );
+  ipcMain.handle(IPC.git.stashList, async (_event, projectId: string): Promise<GitStashEntry[]> => {
+    const { root } = await requireRepo(projectId);
+    return listStashes(root);
+  });
 
   ipcMain.handle(
     IPC.git.stashPop,

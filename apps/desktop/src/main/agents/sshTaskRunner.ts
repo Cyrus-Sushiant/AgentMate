@@ -10,6 +10,7 @@ import type {
   SshAgentProgress,
   StartSshAgentTaskInput,
 } from '../../shared/apiTypes';
+import { MAX_SSH_AGENT_MESSAGE_CHARS } from '../../shared/sshAgentMessage';
 import { cancelHeadlessPrompt, runHeadlessCliPrompt } from '../cli/headlessPrompt';
 import { runAiPrompt } from '../ipc/ai';
 import {
@@ -181,14 +182,28 @@ export interface PromptInput {
   viaCli: boolean;
 }
 
+/**
+ * What the user said after starting the run, as a block for the end of the task. It goes in every
+ * prompt rather than the transcript, whose tail is cut when a command prints a lot.
+ */
+function followUpBlock(run: RunState): string {
+  if (run.followUps.length === 0) return '';
+  const lines = run.followUps.map((text) => `- ${text.replace(/\n/g, '\n  ')}`);
+  return `\n\nThe user added these while you were working, oldest first. They take priority over anything earlier, so change course if one asks for it:\n${lines.join('\n')}`;
+}
+
 function buildPrompt(run: RunState): string {
   const tail = transcriptTail(run.transcript);
   if (run.buildPrompt) {
-    return run.buildPrompt({ task: run.prompt, transcript: tail, viaCli: run.cliId !== null });
+    return run.buildPrompt({
+      task: run.prompt + followUpBlock(run),
+      transcript: tail,
+      viaCli: run.cliId !== null,
+    });
   }
   return `${run.cliId ? cliPreamble(run.target) : ''}You are operating ${run.target.description}, on behalf of a user who is watching every command execute live in their terminal.
 
-User's task: "${run.prompt}"
+User's task: "${run.prompt}"${followUpBlock(run)}
 
 Reply with EXACTLY one of these three forms, and nothing else:
 RUN: <a single shell command>
@@ -254,6 +269,10 @@ interface RunState {
   /** Set while a CLI is working out the next step, so Stop can kill it. */
   cliRequestId: string | null;
   prompt: string;
+  /** Messages the user sent after starting, oldest first. Every later prompt carries them. */
+  followUps: string[];
+  /** How many of those the AI's current step was asked with. The rest are still waiting. */
+  followUpsPrompted: number;
   transcript: string;
   step: number;
   startedAt: number;
@@ -278,8 +297,30 @@ const runs = new Map<string, RunState>();
 /** Every terminal's past and current tasks, newest last. Kept for as long as the app runs. */
 const histories = new Map<string, SshAgentHistoryRun[]>();
 
+/** Messages from the user the AI has not been asked with yet. */
+function queuedMessages(run: RunState): number {
+  return run.followUps.length - run.followUpsPrompted;
+}
+
 function emit(run: RunState, phase: SshAgentPhase, extra: Partial<SshAgentProgress> = {}): void {
-  run.lastProgress = { sessionId: run.sessionId, phase, step: run.step, ...extra };
+  const queued = queuedMessages(run);
+  run.lastProgress = {
+    sessionId: run.sessionId,
+    phase,
+    step: run.step,
+    ...extra,
+    // Left out when nothing waits, so a run nobody talked to reports what it always did.
+    ...(queued > 0 ? { queuedMessages: queued } : {}),
+  };
+  run.listener(run.lastProgress);
+}
+
+/** Reports the queue again with whatever the run last said, so the bar shows a new message at once. */
+function announceQueue(run: RunState): void {
+  if (!run.lastProgress) return;
+  const { queuedMessages: _old, ...rest } = run.lastProgress;
+  const queued = queuedMessages(run);
+  run.lastProgress = queued > 0 ? { ...rest, queuedMessages: queued } : rest;
   run.listener(run.lastProgress);
 }
 
@@ -521,13 +562,13 @@ function cleanupRun(run: RunState): void {
 const CLI_STEP_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** Asks the CLI the run was started with for its next step. */
-async function askCli(run: RunState): Promise<string> {
+async function askCli(run: RunState, prompt: string): Promise<string> {
   const requestId = `ssh-agent:${run.sessionId}:${run.step}`;
   run.cliRequestId = requestId;
   try {
     // The temp dir, not a project folder: the CLI only needs the prompt, and one started inside
     // a repo tends to go reading files first.
-    const result = await runHeadlessCliPrompt(buildPrompt(run), tmpdir(), {
+    const result = await runHeadlessCliPrompt(prompt, tmpdir(), {
       requestId,
       preferredCliId: run.cliId,
       strictCli: true,
@@ -588,21 +629,34 @@ async function runLoop(run: RunState): Promise<void> {
       }
 
       run.step += 1;
+      // Everything the user has said so far goes into this step's prompt, so none of it waits now.
+      const askedWith = run.followUps.length;
+      run.followUpsPrompted = askedWith;
       emit(run, 'thinking');
+      // A message that lands while the AI is working out this step makes its answer out of date.
+      const outdated = (): boolean => run.followUps.length !== askedWith;
 
       let reply: string;
       try {
+        const prompt = buildPrompt(run);
         reply = api
-          ? await runAiPrompt(api.provider, api.model, buildPrompt(run), [], run.controller.signal)
-          : await askCli(run);
+          ? await runAiPrompt(api.provider, api.model, prompt, [], run.controller.signal)
+          : await askCli(run, prompt);
       } catch (error) {
         if (run.aborted) return;
         // Nothing came of this step, so the retry takes its number rather than skipping one.
         run.step -= 1;
+        // The CLI was cancelled for the new message, which is not a failure.
+        if (outdated()) continue;
         if (!(await pauseOnError(run, (error as Error).message))) return;
         continue;
       }
       if (run.aborted) return;
+      if (outdated()) {
+        // Acting on it would ignore what the user just said, so the AI is asked again.
+        run.step -= 1;
+        continue;
+      }
 
       const parsed = parseModelReply(reply);
       if (!parsed) {
@@ -745,6 +799,8 @@ export function startAgentTask(
     runArgs: spec.runArgs,
     cliRequestId: null,
     prompt: prompt.trim(),
+    followUps: [],
+    followUpsPrompted: 0,
     transcript: '',
     step: 0,
     startedAt: Date.now(),
@@ -788,6 +844,29 @@ export function answerSshTaskInput(sessionId: string, answer: string): void {
   const resolve = run.pendingInputAnswer;
   run.pendingInputAnswer = null;
   resolve(answer);
+}
+
+/**
+ * Passes the user's own message to a run that is still going, without the run having asked. The
+ * AI reads it at its next step. Whatever it is working out right now was decided without the
+ * message, so that reply is dropped and asked for again, and a command waiting for approval is
+ * skipped. A command already running is left to finish. False when there is no such run any more.
+ */
+export function sendSshTaskMessage(sessionId: string, text: string): boolean {
+  const run = runs.get(sessionId);
+  if (!run || run.aborted || typeof text !== 'string') return false;
+  const message = text.trim().slice(0, MAX_SSH_AGENT_MESSAGE_CHARS);
+  if (!message) return false;
+  run.followUps.push(message);
+  record(run, { kind: 'message', text: message });
+  if (run.cliRequestId) cancelHeadlessPrompt(run.cliRequestId);
+  if (run.pendingApproval) {
+    const { resolve } = run.pendingApproval;
+    run.pendingApproval = null;
+    resolve(false);
+  }
+  announceQueue(run);
+  return true;
 }
 
 /** `approved` types the saved password into the prompt; false leaves it for the user to type. */

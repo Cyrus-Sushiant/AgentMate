@@ -2598,6 +2598,11 @@ export interface SshAgentProgress {
    * again with everything it has done so far.
    */
   canContinue?: boolean;
+  /**
+   * How many messages the user sent mid-run that the AI has not read yet. Absent when none are
+   * waiting, so a run nobody talked to reports exactly what it did before.
+   */
+  queuedMessages?: number;
 }
 
 /** One thing that happened during an AI terminal task, as shown in its history. */
@@ -2613,6 +2618,8 @@ export type SshAgentHistoryEntry =
   | { kind: 'skipped'; at: number; command: string }
   | { kind: 'question'; at: number; text: string }
   | { kind: 'answer'; at: number; text: string }
+  /** Something the user told the AI on their own, while it was working. */
+  | { kind: 'message'; at: number; text: string }
   | { kind: 'error'; at: number; text: string }
   | { kind: 'continued'; at: number }
   | { kind: 'finished'; at: number; text: string }

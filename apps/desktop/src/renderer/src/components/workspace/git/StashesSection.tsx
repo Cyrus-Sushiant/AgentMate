@@ -16,7 +16,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
-import { useGitActions, type GitActions } from './useWorkspaceGit';
+import { type GitActions, useGitActions } from './useWorkspaceGit';
 
 /** A project's `git stash list`, newest first. Quiet until the Stashes section is opened. */
 export function useStashes(projectId: string, enabled: boolean) {
@@ -238,11 +238,7 @@ function StashRow({
 }
 
 /** Every stash, newest first, with pop/apply/drop. Only fetched while the section is open. */
-export function StashesSection({
-  project,
-}: {
-  project: Project;
-}): React.JSX.Element {
+export function StashesSection({ project }: { project: Project }): React.JSX.Element {
   const actions = useGitActions(project.id);
   const stashes = useStashes(project.id, true);
   const [busy, setBusy] = useState<string | null>(null);

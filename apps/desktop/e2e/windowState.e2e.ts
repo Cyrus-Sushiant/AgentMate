@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type ElectronApplication, _electron as electron, expect, test } from '@playwright/test';
-import { closeApp, type LaunchedApp, launchApp } from './app';
+import { closeApp, type LaunchedApp, launchApp, OS_COLOR_SCHEME } from './app';
 import { E2E_OUT_DIR } from './paths';
 
 /**
@@ -62,6 +62,7 @@ async function restart(
   await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 10_000))]);
 
   relaunched = await electron.launch({
+    ...OS_COLOR_SCHEME,
     args: [
       join(E2E_OUT_DIR, 'main', 'index.mjs'),
       `--user-data-dir=${current.userDataDir}`,

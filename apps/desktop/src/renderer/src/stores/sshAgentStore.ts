@@ -17,6 +17,8 @@ export interface SshAgentSessionState {
   hasSavedPassword?: boolean;
   /** Set on an `error` the run is paused on, rather than ended by. */
   canContinue?: boolean;
+  /** Messages the user sent mid-run that the AI has not read yet. */
+  queuedMessages?: number;
 }
 
 /** The AI the user picked last time: a CLI with its model and effort, or null for Settings' provider. */
@@ -101,6 +103,14 @@ export function answerSshAgentInput(sessionId: string, answer: string): void {
   void window.agentmat.sshAgent.answerNeedsInput(sessionId, answer);
 }
 
+/**
+ * Tells a running task something new. False means it was over by now and nothing was sent, so the
+ * caller keeps the text instead of losing it.
+ */
+export async function sendSshAgentMessage(sessionId: string, text: string): Promise<boolean> {
+  return window.agentmat.sshAgent.sendMessage(sessionId, text);
+}
+
 export function answerSshAgentPassword(sessionId: string, approved: boolean): void {
   void window.agentmat.sshAgent.answerPassword(sessionId, approved);
 }
@@ -144,6 +154,7 @@ export function initSshAgentStatus(): void {
         message: progress.message,
         hasSavedPassword: progress.hasSavedPassword,
         canContinue: progress.canContinue,
+        queuedMessages: progress.queuedMessages,
       };
       return { sessions: { ...state.sessions, [progress.sessionId]: next } };
     });

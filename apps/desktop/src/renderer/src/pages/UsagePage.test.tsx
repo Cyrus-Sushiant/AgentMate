@@ -3,6 +3,7 @@ import {
   type SubscriptionUsage,
   USAGE_PROVIDER_REGISTRY,
   type UsagePeriod,
+  type UsageSegment,
 } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -11,7 +12,7 @@ import { renderWithProviders } from '../../../test/renderer/renderWithProviders'
 import { projectRow, splitOf } from '../components/usage/weekday/testing/fixtures';
 
 /**
- * Token Usage is a page of cards fed by one scan: three providers connect themselves from local
+ * Token Usage is a page of cards fed by one scan: four providers connect themselves from local
  * data and the rest have to be added with a key. The tests drive it the way the page is used, by
  * reading the totals, flipping the period, adding and removing a provider, and checking that a
  * scan that fell over says so on the card instead of blanking the page.
@@ -150,16 +151,18 @@ function tileValue(label: string): string {
 }
 
 describe('UsagePage with nothing behind it', () => {
-  it('still offers the three providers that connect themselves', async () => {
+  it('still offers the four providers that connect themselves', async () => {
     renderPage();
 
-    // Claude Code, Codex and Cursor read local data, so they are on the page without a key.
+    // Claude Code, Codex, Cursor and GitHub Copilot read local data, so they are on the
+    // page without a key.
     expect(await screen.findByText('Claude Code')).toBeTruthy();
     expect(screen.getByText('Codex')).toBeTruthy();
     expect(screen.getByText('Cursor')).toBeTruthy();
+    expect(screen.getByText('GitHub Copilot')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add provider' })).toBeTruthy();
     await waitFor(() =>
-      expect(tileValue('Providers tracked')).toBe(`3/${USAGE_PROVIDER_REGISTRY.length}`),
+      expect(tileValue('Providers tracked')).toBe(`4/${USAGE_PROVIDER_REGISTRY.length}`),
     );
   });
 
@@ -184,7 +187,7 @@ describe('UsagePage with nothing behind it', () => {
 
     const messages = await screen.findAllByText('usage scan crashed');
     // One per tracked provider's card; the page's toolbar and tiles are all still there.
-    expect(messages).toHaveLength(3);
+    expect(messages).toHaveLength(4);
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy();
   });
 });
@@ -255,7 +258,7 @@ describe('UsagePage provider management', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add provider' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByPlaceholderText(/Search 63 providers/), 'openai');
+    await user.type(within(dialog).getByPlaceholderText(/Search 64 providers/), 'openai');
 
     // "openai" also matches Azure OpenAI, so the row is found by its exact name.
     const row = within(dialog)
@@ -278,7 +281,7 @@ describe('UsagePage provider management', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add provider' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByPlaceholderText(/Search 63 providers/), 'claude');
+    await user.type(within(dialog).getByPlaceholderText(/Search 64 providers/), 'claude');
 
     expect(within(dialog).getByText('Local logs · automatic')).toBeTruthy();
     expect(within(dialog).getByText('Auto')).toBeTruthy();
@@ -356,6 +359,45 @@ describe('UsagePage card views', () => {
     expect(within(card).getByText('300 tokens today')).toBeTruthy();
   });
 
+  it('draws the Copilot card with its Cost section and feature split, like Codex', async () => {
+    const segment = (key: string, label: string, total: number, costUsd: number): UsageSegment => ({
+      key,
+      label,
+      tokens: { input: total, output: 0, cacheRead: 0, cacheWrite: 0, total },
+      costUsd,
+    });
+    renderPage({
+      'settings.get': {},
+      'usage.list': [
+        usage({
+          providerId: 'copilot',
+          today: {
+            ...period(4_250, 0.42),
+            segments: [
+              segment('chat', 'Chat', 1_500, 0.2),
+              segment('completions', 'Code completions', 2_500, 0.2),
+              segment('cli', 'CLI', 250, 0.02),
+            ],
+          },
+          last7d: period(9_250, 0.9),
+          last30d: period(30_000, 3),
+          series: [100, 200, 300, 400],
+          costSeries: [0.01, 0.02, 0.03, 0.04],
+        }),
+      ],
+    });
+
+    await screen.findByText('GitHub Copilot');
+    const card = cardFor('GitHub Copilot');
+    await waitFor(() => expect(within(card).getByText('tokens today')).toBeTruthy());
+    // Headline cost and the Cost comparison column both show today's cost.
+    expect(within(card).getAllByText('$0.42')).toHaveLength(2);
+    expect(within(card).getByText('Cost')).toBeTruthy();
+    expect(within(card).getByText('Chat')).toBeTruthy();
+    expect(within(card).getByText('Code completions')).toBeTruthy();
+    expect(within(card).getByText('CLI')).toBeTruthy();
+  });
+
   it('adds a provider card to the dashboard and takes it off again', async () => {
     const { user } = renderPage({ 'settings.get': {}, 'usage.list': [claudeUsage] });
 
@@ -424,7 +466,7 @@ describe('UsagePage project weekday chart', () => {
     });
 
     expect(await screen.findByText('Project usage could not be loaded.')).toBeTruthy();
-    // The three provider cards still report the raw error on their own, and nothing else does.
-    expect(await screen.findAllByText('usage scan crashed')).toHaveLength(3);
+    // The four provider cards still report the raw error on their own, and nothing else does.
+    expect(await screen.findAllByText('usage scan crashed')).toHaveLength(4);
   });
 });

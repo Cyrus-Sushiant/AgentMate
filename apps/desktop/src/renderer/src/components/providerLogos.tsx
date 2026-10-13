@@ -1,5 +1,5 @@
 import { getUsageProvider } from '@agentmat/core';
-import { siClaude, siCursor, siGooglegemini, siOllama } from 'simple-icons';
+import { siClaude, siCursor, siGooglegemini, siMeta, siOllama } from 'simple-icons';
 import { openaiMark, xaiMark } from '@/components/brandMarks';
 import { cn } from '@/lib/utils';
 
@@ -11,9 +11,8 @@ interface BrandLogo {
   viewBox?: string;
 }
 
-// Only providers with a confirmed mark get a brand glyph; the rest
-// fall back to a colored monogram driven by the registry's accentColor, so all
-// 63 render consistently without risking a missing-icon import.
+// Providers with a brand glyph get it here. Everyone else uses a logo file below, and
+// anything with neither falls back to a colored monogram driven by the registry's accentColor.
 const BRAND_LOGOS: Record<string, BrandLogo> = {
   'claude-code': { path: siClaude.path, color: `#${siClaude.hex}` },
   cursor: { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
@@ -22,7 +21,26 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   codex: { ...openaiMark, invertOnDark: true },
   openai: { ...openaiMark, invertOnDark: true },
   grok: { ...xaiMark, invertOnDark: true },
+  // The same Meta mark the Muse Code row uses in the CLI list.
+  meta: { path: siMeta.path, color: `#${siMeta.hex}` },
 };
+
+// Logo files in assets/provider-logos, named by registry id. A `<id>-dark` file is shown
+// in dark mode instead of the light one.
+const LOGO_FILES = import.meta.glob<string>('../assets/provider-logos/*.{svg,png}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+});
+const LOGO_URLS = new Map(
+  Object.entries(LOGO_FILES).map(([path, url]) => [
+    path.replace(/^.*\//, '').replace(/\.(svg|png)$/, ''),
+    url,
+  ]),
+);
+
+// Solid black marks with no background. They disappear on a dark page, so they flip there.
+const INVERT_ON_DARK = new Set(['augment', 'clinepass', 'copilot', 'devin', 'neuralwatt', 'zed']);
 
 export interface ProviderLogoProps {
   providerId: string;
@@ -41,6 +59,34 @@ export function ProviderLogo({ providerId, className }: ProviderLogoProps): Reac
       >
         <path d={brand.path} />
       </svg>
+    );
+  }
+
+  const src = LOGO_URLS.get(providerId);
+  if (src) {
+    const darkSrc = LOGO_URLS.get(`${providerId}-dark`);
+    if (darkSrc) {
+      return (
+        <>
+          <img src={src} alt="" className={cn('shrink-0 object-contain dark:hidden', className)} />
+          <img
+            src={darkSrc}
+            alt=""
+            className={cn('hidden shrink-0 object-contain dark:block', className)}
+          />
+        </>
+      );
+    }
+    return (
+      <img
+        src={src}
+        alt=""
+        className={cn(
+          'shrink-0 object-contain',
+          INVERT_ON_DARK.has(providerId) && 'dark:invert',
+          className,
+        )}
+      />
     );
   }
 

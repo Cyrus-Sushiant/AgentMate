@@ -141,6 +141,19 @@ The clock button opens a sheet named after the server. It lists the conversation
 
 Inside an SSH terminal tab, the terminal bar has a robot button that lets an AI work on the server for you in one of three modes: **Approve each command**, **Auto, guard risky ones** or **Fully autonomous**. See [Workspace terminals and agents](workspace-terminals-agents.md).
 
+#### Talking to the AI while it works
+
+You do not have to wait for the AI to ask you something. While a task is running, the bar above the terminal has a **Message** button. Click it, type what you want to change ("only look at /var/log", "leave the config alone", "also check memory") and press `Enter` to send. `Shift+Enter` adds a new line and `Esc` closes the box. Anything you typed stays in the box if you close it or if the AI stops to ask you a question.
+
+When the AI reads your message depends on what it is doing at that moment:
+
+- **While it is thinking.** It drops the answer it was working on and starts again with your message.
+- **While a command is waiting for your approval.** That command is skipped, and the AI plans its next step with your message.
+- **While a command is running.** The command finishes first, then the AI reads your message. A **Message queued** badge shows in the bar until it has.
+- **While the task is paused on an error.** The message waits until you click **Continue**.
+
+Your messages are kept for the rest of the task and show up in **History** next to your answers. They count as new instructions, so they win over the original request if the two disagree. Once a task has finished or been stopped there is nobody to message, so start a new one with the robot button.
+
 ## Remote Desktop: saved Windows servers
 
 The **Remote Desktop** tab keeps saved Windows servers and PCs. **Connect** opens the session in its own window. Adding a server, the session window, file copying and Ask AI are covered in [Remote Desktop](remote-desktop.md).

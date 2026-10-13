@@ -6,6 +6,7 @@ import {
 } from '@agentmat/core';
 import { fetchApiProviderUsage } from './apiProviders';
 import { clearLiveWindowCache } from './claudeAccount';
+import { fetchCopilotUsage } from './copilot';
 import { clearCursorAccountCache } from './cursorAccount';
 import { fetchCursorSessionUsage } from './cursorSession';
 import { loadKnownProjects } from './knownProjects';
@@ -15,7 +16,7 @@ import { connectUsage, errorUsage } from './shared';
 
 const CACHE_TTL_MS = 30_000;
 
-const LOCAL_LOG_PROVIDERS = new Set<string>(['claude-code', 'codex']);
+const LOCAL_LOG_PROVIDERS = new Set<string>(['claude-code', 'codex', 'copilot']);
 
 interface CacheEntry {
   at: number;
@@ -33,6 +34,13 @@ async function computeUsage(
   switch (def.dataSource) {
     case 'local-log':
       if (!LOCAL_LOG_PROVIDERS.has(providerId)) return connectUsage(providerId);
+      // Copilot reads the metrics API first when a token + org are set, and its
+      // CLI logs otherwise, so it goes through its own driver either way.
+      if (providerId === 'copilot') {
+        return fetchCopilotUsage(config, {
+          scanLocal: () => scanLocalProvider('copilot', { knownProjects: loadKnownProjects }),
+        });
+      }
       return scanLocalProvider(providerId as LocalLogProvider, {
         knownProjects: loadKnownProjects,
       });

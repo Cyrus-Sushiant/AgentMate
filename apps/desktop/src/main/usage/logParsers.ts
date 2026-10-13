@@ -2,10 +2,10 @@ import { createReadStream } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CODEX_LOG_FALLBACK_MODEL } from '@agentmat/core';
+import { CODEX_LOG_FALLBACK_MODEL, COPILOT_LOG_FALLBACK_MODEL } from '@agentmat/core';
 import { codexCwdFromHead, cwdsIn, launchFolder, topLevelDir } from './sessionFolders';
 
-// Parsing for the local-log usage providers (Claude Code, Codex). Deliberately
+// Parsing for the local-log usage providers (Claude Code, Codex, Copilot). Deliberately
 // free of any `electron` / `@agentmat/core` import so this module can be loaded
 // both by the main process and by the scan worker thread.
 //
@@ -98,7 +98,7 @@ export interface ScanResult {
   sources?: ScanSource[];
 }
 
-export type LocalLogProvider = 'claude-code' | 'codex';
+export type LocalLogProvider = 'claude-code' | 'codex' | 'copilot';
 
 // --- file discovery -------------------------------------------------------
 
@@ -356,6 +356,106 @@ function parseCodexLine(line: string, state: FileScanState): void {
   }
 }
 
+// --- Copilot ---------------------------------------------------------------
+
+// The Copilot CLI keeps JSONL session transcripts under its config dir. The
+// line shape is not versioned, so the parser accepts the shapes seen in the
+// wild: Claude-style `message.usage` with `input_tokens`, OpenAI-style `usage`
+// with `prompt_tokens`/`completion_tokens`, and the flat token fields. Anything
+// without a model, a timestamp, or a positive token count is not a usage event.
+// `COPILOT_CONFIG_DIR` overrides the location; otherwise the well-known homes
+// are checked.
+function copilotRoots(): string[] {
+  const roots: string[] = [];
+  const override = process.env.COPILOT_CONFIG_DIR;
+  if (override) roots.push(join(override, 'session-state'));
+  roots.push(join(homedir(), '.copilot', 'session-state'));
+  roots.push(join(homedir(), '.copilot', 'history-session-state'));
+  roots.push(join(homedir(), '.config', 'github-copilot', 'session-state'));
+  return roots;
+}
+
+interface CopilotUsageBlock {
+  input_tokens?: number;
+  output_tokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}
+
+interface CopilotLine {
+  timestamp?: string;
+  time?: string;
+  created_at?: string;
+  createdAt?: string;
+  id?: string;
+  message_id?: string;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  usage?: CopilotUsageBlock;
+  token_usage?: CopilotUsageBlock;
+  message?: {
+    model?: string;
+    id?: string;
+    usage?: CopilotUsageBlock;
+  };
+}
+
+function num(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/**
+ * One Copilot token event from a transcript line, or null when the line is not
+ * one. Pure (no state) so the Copilot usage tests can pin the accepted shapes
+ * without touching the disk.
+ */
+export function parseCopilotLine(line: string): RawUsageEntry | null {
+  let parsed: CopilotLine;
+  try {
+    parsed = JSON.parse(line) as CopilotLine;
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const usage = parsed.message?.usage ?? parsed.usage ?? parsed.token_usage;
+  const input =
+    num(usage?.input_tokens ?? usage?.prompt_tokens) ||
+    num(parsed.input_tokens ?? parsed.prompt_tokens);
+  const output =
+    num(usage?.output_tokens ?? usage?.completion_tokens) ||
+    num(parsed.output_tokens ?? parsed.completion_tokens);
+  const cacheRead = num(usage?.cache_read_input_tokens);
+  const cacheWrite = num(usage?.cache_creation_input_tokens);
+  if (input + output + cacheRead + cacheWrite <= 0) return null;
+
+  const ts = parsed.timestamp ?? parsed.time ?? parsed.created_at ?? parsed.createdAt;
+  const at = ts ? new Date(ts).getTime() : NaN;
+  if (Number.isNaN(at)) return null;
+
+  return {
+    at,
+    model: parsed.message?.model ?? parsed.model ?? COPILOT_LOG_FALLBACK_MODEL,
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    id: parsed.message?.id ?? parsed.id ?? parsed.message_id,
+  };
+}
+
+function parseCopilotStateLine(line: string, state: FileScanState): void {
+  // Cheap substring reject before paying for JSON.parse, mirroring the Claude parser.
+  if (!line.includes('token')) return;
+  const entry = parseCopilotLine(line);
+  if (entry) state.entries.push(entry);
+}
+
 // --- driver ---------------------------------------------------------------
 
 const PARSERS: Record<
@@ -364,6 +464,7 @@ const PARSERS: Record<
 > = {
   'claude-code': { roots: claudeRoots, line: parseClaudeLine },
   codex: { roots: codexRoots, line: parseCodexLine },
+  copilot: { roots: copilotRoots, line: parseCopilotStateLine },
 };
 
 /**

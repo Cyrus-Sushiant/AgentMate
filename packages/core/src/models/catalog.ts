@@ -61,6 +61,9 @@ export const CODEX_MODELS = {
 /** Priced in place of a Codex log entry that never said which model it came from. */
 export const CODEX_LOG_FALLBACK_MODEL = 'gpt-5';
 
+/** Priced in place of Copilot usage that never named a model (CLI logs without one, API rollups). */
+export const COPILOT_LOG_FALLBACK_MODEL = 'gpt-5';
+
 // Google (Gemini CLI)
 
 export const GEMINI_CLI_MODELS = {
