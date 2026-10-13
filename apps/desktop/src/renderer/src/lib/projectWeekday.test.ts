@@ -50,6 +50,10 @@ describe('calendar helpers', () => {
   it("reads the locale's week start and weekend", () => {
     // ICU's week table for en-US differs across Node/ICU versions (Sunday vs Monday first),
     // so pin the platform values with a stub and check the Sunday-as-0 mapping only.
+    // Node 22 only has the older `weekInfo` getter, so add the method that gets stubbed.
+    const locale = Intl.Locale.prototype as unknown as { getWeekInfo?: () => unknown };
+    const addedMethod = typeof locale.getWeekInfo !== 'function';
+    if (addedMethod) locale.getWeekInfo = () => undefined;
     const spy = vi.spyOn(Intl.Locale.prototype, 'getWeekInfo');
     spy.mockImplementation(function (this: Intl.Locale) {
       const tag = this.toString();
@@ -64,6 +68,7 @@ describe('calendar helpers', () => {
       expect(localeWeekInfo('fa-IR')).toEqual({ firstDay: 6, weekend: [5] });
     } finally {
       spy.mockRestore();
+      if (addedMethod) delete locale.getWeekInfo;
     }
   });
 
