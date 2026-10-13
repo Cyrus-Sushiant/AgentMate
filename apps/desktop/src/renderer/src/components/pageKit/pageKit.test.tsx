@@ -91,6 +91,14 @@ describe('EmptyState', () => {
     rerender(<EmptyState card icon={Server} title="Empty" />);
     expect(container.firstElementChild?.classList.contains('glass')).toBe(true);
   });
+
+  it('turns an arc around the icon tile only while busy', () => {
+    const { container, rerender } = render(<EmptyState icon={Server} title="Empty" />);
+    expect(container.querySelector('svg rect')).toBeNull();
+
+    rerender(<EmptyState busy icon={Server} title="Empty" />);
+    expect(container.querySelector('svg[aria-hidden] rect')).not.toBeNull();
+  });
 });
 
 describe('MetricTile', () => {

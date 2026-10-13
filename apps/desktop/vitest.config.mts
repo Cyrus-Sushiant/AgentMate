@@ -94,6 +94,8 @@ export default defineConfig({
         'src/main/deploy/wordpress/index.ts',
         'src/renderer/src/main.tsx',
         'src/main/usage/usageScanWorker.ts',
+        'src/main/agents/projectUsageWorker.ts',
+        'src/main/agents/projectUsageWorkerClient.ts',
         'src/main/security/codeqlExtractWorker.ts',
         'src/main/ptyHost/hostEntry.ts',
         // Interface declarations with no runtime code of their own.

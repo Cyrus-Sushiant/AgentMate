@@ -1,4 +1,5 @@
 import type {
+  AgentHistoryProvider,
   AgentHistorySession,
   AgentStatus,
   AgentType,
@@ -272,6 +273,89 @@ export type AgentSessionUsage =
       models: AgentSessionModelUsage[];
     }
   | { status: 'unsupported' }
+  | { status: 'unavailable' };
+
+/** What a project spent on one local calendar day. */
+export interface ProjectUsageDay {
+  /** `YYYY-MM-DD` in this machine's time zone. */
+  day: string;
+  /** All token kinds added up. */
+  tokens: number;
+  /** Null when no model that day has a known price. */
+  costUsd: number | null;
+}
+
+/** What one agent (Claude Code, Codex, ...) used in a project. */
+export interface ProjectUsageAgent {
+  provider: AgentHistoryProvider;
+  /** Conversations of this agent that used tokens in the period. */
+  conversations: number;
+  tokens: UsageTokens;
+  costUsd: number | null;
+  costPartial: boolean;
+}
+
+/** What one model used in a project, across agents. */
+export interface ProjectUsageModel {
+  /** Raw model id, e.g. `claude-opus-5-5`. */
+  model: string;
+  tokens: UsageTokens;
+  /** Null when the model has no known price. */
+  costUsd: number | null;
+}
+
+/** One conversation's share of a project's spend. */
+export interface ProjectUsageConversation {
+  provider: AgentHistoryProvider;
+  id: string;
+  title: string | null;
+  /** Epoch ms of its last activity. */
+  updatedAt: number;
+  /** All token kinds added up, inside the period. */
+  tokens: number;
+  costUsd: number | null;
+  costPartial: boolean;
+}
+
+/** Conversations of an agent that keeps no token log, so they could not be counted. */
+export interface ProjectUsageUncounted {
+  provider: AgentHistoryProvider;
+  conversations: number;
+}
+
+/**
+ * What a project's past conversations used, for the project page's Usage tab. Costs are list
+ * price estimates from the catalog (OpenCode's own recorded cost wins where it has one).
+ */
+export type ProjectUsageReport =
+  | {
+      status: 'ok';
+      /** The period in days, or null for everything. */
+      days: number | null;
+      tokens: UsageTokens;
+      /** Null when no model in the period has a known price. */
+      costUsd: number | null;
+      /** Some tokens ran on a model with no price, so `costUsd` is a lower bound. */
+      costPartial: boolean;
+      /** Conversations that used tokens in the period. */
+      conversations: number;
+      /** Local days that had spend, oldest first. */
+      byDay: ProjectUsageDay[];
+      /** Most expensive first (most tokens first when nothing is priced). */
+      byAgent: ProjectUsageAgent[];
+      /** Most tokens first. */
+      byModel: ProjectUsageModel[];
+      /** The costliest conversations, most expensive first. */
+      top: ProjectUsageConversation[];
+      /** Agents whose conversations could not be counted. */
+      uncounted: ProjectUsageUncounted[];
+      /** Conversations whose log was listed but could not be read. */
+      unreadable: number;
+      /** The project has more conversations than were read; the oldest were left out. */
+      truncated: boolean;
+      /** Folders read: the project's own, plus one per git worktree. */
+      folders: number;
+    }
   | { status: 'unavailable' };
 
 /** What a terminal found on the clipboard: text, or paths (copied files, a screenshot saved to

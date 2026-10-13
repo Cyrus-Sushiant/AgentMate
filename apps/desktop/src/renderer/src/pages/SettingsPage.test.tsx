@@ -765,3 +765,47 @@ describe('SettingsPage help search', () => {
     expect(screen.queryByText('Appearance')).toBeNull();
   });
 });
+
+describe('SettingsPage Build Prompt sizing', () => {
+  const sizingSwitch = 'Size right after Generate or Translate';
+
+  it('is on for a profile that never saved the switch', async () => {
+    const { user } = renderSettings();
+
+    await user.type(screen.getByLabelText('Search settings'), 'build prompt sizing');
+
+    expect(await screen.findByRole('switch', { name: sizingSwitch })).toBeChecked();
+  });
+
+  it('shows a switch that was saved off as off', async () => {
+    const { user } = renderSettings({
+      'settings.get': { ...settings, promptBuilderAutoSize: false },
+    });
+
+    await user.type(screen.getByLabelText('Search settings'), 'build prompt sizing');
+
+    expect(await screen.findByRole('switch', { name: sizingSwitch })).not.toBeChecked();
+  });
+
+  it('saves a click on the switch straight away, without a save bar', async () => {
+    const { user, bridge } = renderSettings({
+      'settings.get': { ...settings, promptBuilderAutoSize: true },
+    });
+    await user.type(screen.getByLabelText('Search settings'), 'build prompt sizing');
+
+    await user.click(await screen.findByRole('switch', { name: sizingSwitch }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({ promptBuilderAutoSize: false }),
+    );
+    expect(screen.queryByText('Unsaved changes')).toBeNull();
+  });
+
+  it('is found by searching for the modal it controls', async () => {
+    const { user } = renderSettings();
+
+    await user.type(screen.getByLabelText('Search settings'), 'modal');
+
+    expect(await screen.findByText('Build Prompt sizing')).toBeInTheDocument();
+  });
+});

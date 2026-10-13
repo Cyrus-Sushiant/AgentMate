@@ -63,6 +63,7 @@ asarUnpack:
   - '**/node_modules/onnxruntime-node/**'
   - 'out/main/ptyHost.mjs'
   - 'out/main/usageScanWorker.mjs'
+  - 'out/main/projectUsageWorker.mjs'
   - 'out/main/codeqlExtractWorker.mjs'
   - 'out/main/chunks/**'
 

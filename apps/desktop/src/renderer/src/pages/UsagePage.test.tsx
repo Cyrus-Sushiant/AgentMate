@@ -8,6 +8,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
+import { projectRow, splitOf } from '../components/usage/weekday/testing/fixtures';
 
 /**
  * Token Usage is a page of cards fed by one scan: three providers connect themselves from local
@@ -377,5 +378,53 @@ describe('UsagePage card views', () => {
     );
     expect(confirm.confirmDialog).toHaveBeenCalled();
     expect(toast.info).toHaveBeenCalledWith('Claude Code removed from your dashboard.');
+  });
+});
+
+describe('UsagePage project weekday chart', () => {
+  it('sits between the combined card and the provider cards', async () => {
+    renderPage({ 'settings.get': {}, 'usage.list': [claudeUsage, codexUsage] });
+
+    const heading = await screen.findByRole('heading', { name: 'Projects by weekday' });
+    const combined = allAgentsCard();
+    expect(
+      combined.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      heading.compareDocumentPosition(cardFor('Claude Code')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('draws from the same usage list as the tiles, so the two agree on the projects', async () => {
+    const withSplit = usage({
+      providerId: 'claude-code',
+      today: period(1_000, 0.5),
+      last7d: period(7_000, 3),
+      last30d: period(30_000, 12),
+      projectDaily: splitOf([
+        projectRow({ key: 'project:p1', name: 'AgentMate', tokens: [0, 0, 0, 0, 0, 0, 1000] }),
+      ]),
+    });
+    renderPage({ 'settings.get': {}, 'usage.list': [withSplit] });
+
+    expect(await screen.findByRole('button', { name: /AgentMate/ })).toBeTruthy();
+    await waitFor(() => expect(tileValue('Tokens today')).toBe('1.0K'));
+  });
+
+  it('shows its own loading state, not an overlay, while the list is pending', async () => {
+    renderPage({ 'settings.get': {}, 'usage.list': () => new Promise(() => undefined) });
+
+    expect(await screen.findByRole('status', { name: 'Loading project usage' })).toBeTruthy();
+  });
+
+  it('shows a generic message when the list fails, and leaves the raw error to the cards', async () => {
+    renderPage({
+      'settings.get': {},
+      'usage.list': () => Promise.reject(new Error('usage scan crashed')),
+    });
+
+    expect(await screen.findByText('Project usage could not be loaded.')).toBeTruthy();
+    // The three provider cards still report the raw error on their own, and nothing else does.
+    expect(await screen.findAllByText('usage scan crashed')).toHaveLength(3);
   });
 });

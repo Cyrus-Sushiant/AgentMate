@@ -3,7 +3,7 @@ title: Prompt Builder
 category: Build
 order: 10
 summary: Turn a rough idea, typed or spoken in any language, into a clear prompt for your AI coding agent, then run it, save it or schedule it.
-keywords: prompt builder, prompt, generate prompt, build prompt, translate, voice input, dictate, target ai, prompt type, template, draft, schedule, history, recommended run, model, effort, send to cli, widget, pin to desktop
+keywords: prompt builder, prompt, generate prompt, build prompt, translate, voice input, dictate, target ai, prompt type, template, draft, schedule, history, recommended run, model, effort, sizing, send to cli, widget, pin to desktop
 route: /prompt-builder
 ---
 
@@ -69,7 +69,7 @@ See [Projects](projects.md) and [Scheduled tasks](scheduled-tasks.md) for where 
 
 ## Recommended run
 
-Under the generated prompt, the **Recommended run** panel tells you how heavy the task is and which model and effort level to use, so you do not overspend on a small job. After **Generate Prompt** or **Translate** finishes, AgentMate automatically asks your default AI CLI to read the prompt and size it. This uses a CLI, not your API provider, so one must be installed and signed in (see [AI CLI Manager](cli-manager.md)). Sizing can take a short while and is stopped after 2 minutes.
+Under the generated prompt, the **Recommended run** panel tells you how heavy the task is and which model and effort level to use, so you do not overspend on a small job. After **Generate Prompt** or **Translate** finishes, AgentMate automatically asks your default AI CLI to read the prompt and size it. This uses a CLI, not your API provider, so one must be installed and signed in (see [AI CLI Manager](cli-manager.md)). Sizing can take a short while and is stopped after 2 minutes. In the Build Prompt dialog this can be switched off, see the dialog section below.
 
 When a result is ready the panel shows:
 
@@ -135,6 +135,8 @@ The dialog remembers each project's request, type, target and result separately.
 Closing the dialog does not stop a running Generate, Translate or sizing. It carries on in the background and a message such as "Prompt for <project> is ready." tells you when it is done.
 
 The **Recommended run** advice shows here as a small chip above the result. Click the chip to open the full panel.
+
+By default the dialog sizes the prompt on its own as soon as **Generate prompt** or **Translate** finishes, and the chip shows the result. To wait until you ask instead, switch off **Build Prompt sizing** under **Settings**, **AI**. With it off, a new prompt is not sized until you click the chip, which opens the panel and starts sizing right away. If you change the prompt or the target after a sizing, the chip keeps the old advice with a warning, and clicking it sizes the new text. The Prompt Builder page is not affected by this switch and always sizes after Generate or Translate.
 
 ### Footer actions
 

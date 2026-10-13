@@ -162,6 +162,31 @@ export interface SubscriptionUsage {
   estimateReason?: string;
 }
 
+/**
+ * What one project (or one folder that is not a project) spent on each of the last days. The arrays
+ * are index-aligned with `ProjectDaily.endDay`: the last entry is that day, the first the oldest.
+ */
+export interface ProjectDailyUsage {
+  /** `project:<id>` for a registered AgentMate project, `folder:<path>` for any other folder. */
+  key: string;
+  name: string;
+  /** The folder the sessions ran in, when there is one. */
+  path: string | null;
+  /** Tokens of every kind, per local day. */
+  tokens: number[];
+  /** Estimated cost in USD of the priced tokens, per local day. */
+  costUsd: number[];
+  /** Tokens on models with no known price, per local day. */
+  unpricedTokens: number[];
+}
+
+/** Per-project daily usage over a fixed window of local days ending at `endDay`. */
+export interface ProjectDaily {
+  /** `YYYY-MM-DD` in local time: the last day of the window, which is today. */
+  endDay: string;
+  projects: ProjectDailyUsage[];
+}
+
 export type ProviderUsageStatus = 'ok' | 'connect' | 'error';
 
 /** Normalized snapshot returned by every data source, rendered by one card. */
@@ -181,6 +206,11 @@ export interface ProviderUsage {
   series?: number[];
   /** Daily cost totals aligned with `series`, when the source can price calls. */
   costSeries?: number[];
+  /**
+   * Usage split by project and day, for the local-log sources whose logs name a folder. Absent when
+   * the source cannot say which folder a session ran in, or when the split could not be built.
+   */
+  projectDaily?: ProjectDaily;
   /** Currency code for the cost figures (only 'USD' for now). */
   currency: string;
   /** ISO datetime this snapshot was computed. */

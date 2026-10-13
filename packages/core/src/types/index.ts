@@ -480,6 +480,11 @@ export interface AppSettings {
   /** AI provider used to generate prompts in Prompt Builder; model comes from that provider's configured model above. */
   promptBuilderProvider: AiProvider;
   /**
+   * Whether the Build Prompt dialog sizes the model and effort as soon as Generate or Translate
+   * finishes. When off, the dialog's Recommended run chip starts the sizing when it is opened.
+   */
+  promptBuilderAutoSize: boolean;
+  /**
    * Legacy flat display order for the dashboard's cards. Superseded by
    * `dashboardLayout`, and only read once to build rows for users upgrading.
    */

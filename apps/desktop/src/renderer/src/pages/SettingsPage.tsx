@@ -391,6 +391,12 @@ const SECTIONS = {
     title: 'Translation retries',
     keywords: 'translation retries translate',
   },
+  buildPromptSizing: {
+    tab: 'ai',
+    title: 'Build Prompt sizing',
+    keywords:
+      'build prompt modal dialog size sizing sized auto automatic recommended run model effort generate translate chip cost',
+  },
   telegram: {
     tab: 'notifications',
     title: 'Telegram bot',
@@ -1127,6 +1133,21 @@ export default function SettingsPage(): React.JSX.Element {
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
   });
+
+  // The switch is read on every Generate in the Build Prompt dialog, so the saved answer goes into
+  // the settings cache right away and the card moves in the same render, like the main menu does.
+  const buildPromptSizingMutation = useMutation({
+    mutationFn: (promptBuilderAutoSize: boolean) =>
+      window.agentmat.settings.update({ promptBuilderAutoSize }),
+    meta: { silentLoading: true },
+    onSuccess: (next: AppSettings) => {
+      queryClient.setQueryData(queryKeys.settings, next);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings });
+    },
+  });
+  const buildPromptAutoSize = buildPromptSizingMutation.isPending
+    ? buildPromptSizingMutation.variables
+    : (settingsQuery.data?.promptBuilderAutoSize ?? true);
 
   const [speechModel, setSpeechModel] = useState(DEFAULT_WHISPER_MODEL);
   const [speechLanguage, setSpeechLanguage] = useState('auto');
@@ -2318,6 +2339,30 @@ export default function SettingsPage(): React.JSX.Element {
                       }}
                       className="w-24"
                     />
+                  </SettingsCard>
+                )}
+
+                {show('buildPromptSizing') && (
+                  <SettingsCard
+                    icon={Robot}
+                    title="Build Prompt sizing"
+                    description="Works out the model and effort a prompt needs in the Build Prompt dialog."
+                  >
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="build-prompt-auto-size"
+                        checked={buildPromptAutoSize}
+                        onCheckedChange={(checked) => buildPromptSizingMutation.mutate(checked)}
+                      />
+                      <Label htmlFor="build-prompt-auto-size" className="font-normal">
+                        Size right after Generate or Translate
+                      </Label>
+                    </div>
+                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                      When this is off, click the Recommended run chip in the Build Prompt dialog to
+                      size the prompt. The Prompt Builder page always sizes after Generate or
+                      Translate.
+                    </p>
                   </SettingsCard>
                 )}
 

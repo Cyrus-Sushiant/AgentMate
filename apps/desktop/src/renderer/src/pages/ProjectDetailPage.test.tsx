@@ -6,7 +6,7 @@ import { renderWithProviders } from '../../../test/renderer/renderWithProviders'
 
 /**
  * The project detail page reads its project out of the route, so everything here renders it
- * under `projects/:projectId`. The page is a shell around sixteen sections, so the tests cover
+ * under `projects/:projectId`. The page is a shell around seventeen sections, so the tests cover
  * the shell (the header, the section nav, the not-found path) plus the sections that are the
  * page's own code rather than a separate component with its own tests.
  */
@@ -257,16 +257,33 @@ describe('ProjectDetailPage sections', () => {
     ).toBeTruthy();
   });
 
+  it('opens the Usage section from its link and reads the usage of that project', async () => {
+    const { bridge } = renderWithProviders(<ProjectDetailPage />, {
+      route: '/projects/p1?tab=usage',
+      path: 'projects/:projectId',
+      bridge: { 'projects.list': [project()], 'agents.projectUsage': { status: 'unavailable' } },
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Usage and cost' })).toBeTruthy();
+    expect(
+      within(sectionNav()).getByRole('button', { name: /^Usage/, current: 'page' }),
+    ).toBeTruthy();
+    expect(bridge.$fn('agents.projectUsage')).toHaveBeenCalledWith('p1', null);
+  });
+
   it('mounts every section in the nav without falling over', async () => {
-    // The page is mostly a router between fifteen sections, so the thing worth proving is that
+    // The page is mostly a router between sixteen sections, so the thing worth proving is that
     // each one can be reached and rendered with nothing but a project behind the bridge.
-    const { user } = renderPage({ 'tools.detectAll': [{ id: 'diffray', installed: true }] });
+    const { user } = renderPage({
+      'tools.detectAll': [{ id: 'diffray', installed: true }],
+      'agents.projectUsage': { status: 'unavailable' },
+    });
     await screen.findByRole('heading', { name: 'Apollo' });
 
     const labels = within(sectionNav())
       .getAllByRole('button')
       .map((button) => button.textContent?.trim() ?? '');
-    expect(labels.length).toBe(15);
+    expect(labels.length).toBe(16);
 
     for (const label of labels) {
       const button = within(sectionNav()).getByRole('button', { name: label });

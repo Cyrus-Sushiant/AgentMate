@@ -141,3 +141,39 @@ describe('PipelinesSection refresh errors', () => {
     await waitFor(() => expect(screen.getByText('Release')).toBeTruthy());
   });
 });
+
+describe('PipelinesSection retry', () => {
+  const failed = { ...healthy, error: 'rate limited', workflows: [] };
+
+  // A failed attempt that answers after a moment, so the loading state is on screen to assert on.
+  const slowFailure = () => new Promise((done) => setTimeout(() => done(failed), 50));
+
+  it('shows a loading state on Retry until the attempt settles', async () => {
+    status.mockResolvedValueOnce(failed);
+    renderSection();
+    const retryButton = await screen.findByRole('button', { name: 'Retry' });
+
+    status.mockImplementationOnce(slowFailure);
+    fireEvent.click(retryButton);
+
+    const busy = await screen.findByRole('button', { name: 'Retrying…' });
+    expect(busy.getAttribute('aria-disabled')).toBe('true');
+    expect(status).toHaveBeenCalledTimes(2);
+
+    expect(await screen.findByRole('button', { name: 'Retry' }, { timeout: 2000 })).toBeTruthy();
+  });
+
+  it('ignores clicks while a retry is in flight', async () => {
+    status.mockResolvedValueOnce(failed);
+    renderSection();
+    const retryButton = await screen.findByRole('button', { name: 'Retry' });
+
+    status.mockImplementationOnce(slowFailure);
+    fireEvent.click(retryButton);
+    fireEvent.click(await screen.findByRole('button', { name: 'Retrying…' }));
+
+    expect(status).toHaveBeenCalledTimes(2);
+    await screen.findByRole('button', { name: 'Retry' }, { timeout: 2000 });
+    expect(status).toHaveBeenCalledTimes(2);
+  });
+});

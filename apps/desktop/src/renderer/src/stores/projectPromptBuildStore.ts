@@ -8,6 +8,11 @@ interface ProjectPromptBuildEntry {
   /** Absent until the user picks one; the form then follows the project's agent. */
   targetAI?: TargetAI;
   generated: string;
+  /**
+   * What produced `generated`. A translation is not shaped by a prompt type, so sizing it has to
+   * leave the type out. Absent for entries saved before this was recorded.
+   */
+  generatedSource?: 'generate' | 'translate';
 }
 
 const EMPTY_ENTRY: ProjectPromptBuildEntry = {

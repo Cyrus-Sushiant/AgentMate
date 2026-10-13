@@ -593,6 +593,20 @@ describe('collectHistory for every CLI', () => {
     expect(providers.has('freebuff-cli')).toBe(true);
     expect(providers.size).toBeGreaterThan(2);
   });
+
+  it('reads only the agents it is asked for, and never queries the database of the others', async () => {
+    const fs = withOpencode();
+    const queryDb = vi.fn(fs.queryDb);
+    fs.queryDb = queryDb;
+
+    const sessions = await collectHistory(fs, {
+      folder: '/work/app',
+      providers: ['claude-code', 'codex'],
+    });
+
+    expect(sessions.map((s) => s.provider).sort()).toEqual(['claude-code', 'codex']);
+    expect(queryDb).not.toHaveBeenCalled();
+  });
 });
 
 describe('collectHistory for OpenCode', () => {

@@ -68,6 +68,7 @@ import {
   settingsToOpenOptions,
   type WidgetSettingsValue,
 } from '@/components/usage/WidgetSettingsForm';
+import { ProjectWeekdayChart } from '@/components/usage/weekday/ProjectWeekdayChart';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatReset, formatTokens } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
@@ -445,6 +446,8 @@ export default function UsagePage(): React.JSX.Element {
           </>
         }
       />
+
+      <ProjectWeekdayChart className={GLASS_CARD} />
 
       {/* Provider cards */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">

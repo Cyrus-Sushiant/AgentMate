@@ -25,7 +25,7 @@ import { type HistoryFs, localHistoryFs } from './sessionHistory';
 const UNAVAILABLE: AgentSessionUsage = { status: 'unavailable' };
 
 /** The ids of every supported agent are UUIDs or `ses_...`; anything else never names a file. */
-const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+export const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 /** Which parser reads each agent's transcript. OpenClaude writes Claude Code's format. */
 const FILE_PARSER = new Map<string, LocalLogProvider>([
@@ -154,7 +154,7 @@ const count = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 
 /** The session row stores the model as JSON like `{"id":"...","providerID":"..."}`. */
-function opencodeModelId(raw: unknown): string | null {
+export function opencodeModelId(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);

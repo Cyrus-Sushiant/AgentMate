@@ -323,6 +323,37 @@ describe('settings migrations', () => {
     expect((await store.getSettings()).desktopPetFlippedIds).toEqual(['nori', 'hex']);
   });
 
+  it('sizes in the Build Prompt dialog right away for a profile that predates the setting', async () => {
+    userData.writeData('settings.json', { theme: 'dark' });
+    const { store, DEFAULT_SETTINGS } = await loadStore();
+
+    expect(DEFAULT_SETTINGS.promptBuilderAutoSize).toBe(true);
+    expect((await store.getSettings()).promptBuilderAutoSize).toBe(true);
+  });
+
+  it('keeps the Build Prompt sizing off once it is switched off', async () => {
+    userData.writeData('settings.json', { promptBuilderAutoSize: false });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).promptBuilderAutoSize).toBe(false);
+  });
+
+  it('keeps sizing on for a stored value that is not literally false, like the other opt-out flags', async () => {
+    userData.writeData('settings.json', { promptBuilderAutoSize: 'no' });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).promptBuilderAutoSize).toBe(true);
+  });
+
+  it('saves a switch-off to disk and reads it back', async () => {
+    const { store } = await loadStore();
+    const settings = await store.getSettings();
+
+    await store.setSettings({ ...settings, promptBuilderAutoSize: false });
+
+    expect((await store.getSettings()).promptBuilderAutoSize).toBe(false);
+  });
+
   it('drops duplicate and non-string entries from the CLI order', async () => {
     userData.writeData('settings.json', { cliOrder: ['claude', 'claude', 7, 'codex'] });
     const { store } = await loadStore();

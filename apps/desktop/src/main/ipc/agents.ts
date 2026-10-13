@@ -7,9 +7,11 @@ import type {
   AgentStatusMap,
   AutoContinuePendingMap,
   LastRunInfoByCli,
+  ProjectUsageReport,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { claudeHookSettingsPath, supportsStatusHooks } from '../agents/claudeHooks';
+import { readProjectUsage } from '../agents/projectUsage';
 import { listAgentHistory } from '../agents/sessionHistory';
 import { readSessionUsage } from '../agents/sessionUsage';
 import { agentStatus } from '../agents/statusTracker';
@@ -36,6 +38,14 @@ function isAutoContinueOptions(value: unknown): boolean {
   return (
     (options.afterLimitReset === undefined || typeof options.afterLimitReset === 'boolean') &&
     (options.afterNetworkError === undefined || typeof options.afterNetworkError === 'boolean')
+  );
+}
+
+/** A usage period is a whole number of days (ten years at most), or null for everything. */
+function isPeriod(value: unknown): value is number | null {
+  return (
+    value === null ||
+    (typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 3650)
   );
 }
 
@@ -94,6 +104,26 @@ export function registerAgentHandlers(): void {
       typeof provider === 'string' && typeof id === 'string'
         ? readSessionUsage(provider, id)
         : { status: 'unavailable' },
+  );
+
+  ipcMain.handle(
+    IPC.agents.projectUsage,
+    async (_event, projectId: unknown, days: unknown): Promise<ProjectUsageReport> => {
+      if (typeof projectId !== 'string' || !isPeriod(days)) return { status: 'unavailable' };
+      const project = await findProjectScope(projectId);
+      if (!project) return { status: 'unavailable' };
+      // A worktree's own id reads just that worktree; the project's reads its folder and all of
+      // its worktrees, since the work in them is the project's spend too.
+      const folders = project.worktree
+        ? [project.folderPath]
+        : [
+            project.folderPath,
+            ...(await store.getWorktrees())
+              .filter((w) => w.projectId === project.id)
+              .map((w) => w.path),
+          ];
+      return readProjectUsage([...new Set(folders)], days);
+    },
   );
 
   ipcMain.handle(

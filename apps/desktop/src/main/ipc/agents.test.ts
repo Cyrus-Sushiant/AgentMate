@@ -21,6 +21,11 @@ const sessionUsage = vi.hoisted(() => ({
 }));
 vi.mock('../agents/sessionUsage', () => sessionUsage);
 
+const projectUsage = vi.hoisted(() => ({
+  readProjectUsage: vi.fn(async () => ({ status: 'unavailable' })),
+}));
+vi.mock('../agents/projectUsage', () => projectUsage);
+
 vi.mock('../ptyHost/sessionManager', () => ({
   PtySessionManager: class {
     createOrAttach(): unknown {
@@ -149,5 +154,78 @@ describe('agent session usage', () => {
       status: 'unavailable',
     });
     expect(sessionUsage.readSessionUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('project usage', () => {
+  const worktree = (id: string, projectId: string, path: string) => ({
+    id,
+    projectId,
+    path,
+    branch: id,
+    baseBranch: 'main',
+    createdAt: '2026-09-25T00:00:00.000Z',
+    createdByApp: true,
+  });
+
+  beforeEach(() => {
+    projectUsage.readProjectUsage.mockClear();
+    userData.writeData('projects.json', [
+      { id: 'p1', name: 'App', folderPath: 'C:/code/app', createdAt: '2026-01-01' },
+      { id: 'p2', name: 'Other', folderPath: 'C:/code/other', createdAt: '2026-01-01' },
+    ]);
+    userData.writeData('worktrees.json', [
+      worktree('wt-1', 'p1', 'C:/code/app.worktrees/feat'),
+      worktree('wt-2', 'p1', 'C:/code/app.worktrees/fix'),
+      worktree('wt-3', 'p2', 'C:/code/other.worktrees/x'),
+    ]);
+  });
+
+  it('reads the project folder and each of its worktrees, and only those', async () => {
+    const report = { status: 'ok', days: 30 };
+    projectUsage.readProjectUsage.mockResolvedValueOnce(report);
+
+    expect(await invoke(IPC.agents.projectUsage, 'p1', 30)).toEqual(report);
+    expect(projectUsage.readProjectUsage).toHaveBeenCalledWith(
+      ['C:/code/app', 'C:/code/app.worktrees/feat', 'C:/code/app.worktrees/fix'],
+      30,
+    );
+  });
+
+  it('reads everything when no period is given', async () => {
+    await invoke(IPC.agents.projectUsage, 'p2', null);
+
+    expect(projectUsage.readProjectUsage).toHaveBeenCalledWith(
+      ['C:/code/other', 'C:/code/other.worktrees/x'],
+      null,
+    );
+  });
+
+  it('reads just that worktree when the id names one', async () => {
+    await invoke(IPC.agents.projectUsage, 'p1~wt-2', null);
+
+    expect(projectUsage.readProjectUsage).toHaveBeenCalledWith(['C:/code/app.worktrees/fix'], null);
+  });
+
+  it('has nothing to report for a project that is not there', async () => {
+    expect(await invoke(IPC.agents.projectUsage, 'nope', null)).toEqual({ status: 'unavailable' });
+    expect(projectUsage.readProjectUsage).not.toHaveBeenCalled();
+  });
+
+  it('turns away arguments that are not an id and a whole number of days', async () => {
+    for (const [id, days] of [
+      [42, null],
+      [undefined, null],
+      ['p1', '30'],
+      ['p1', 0],
+      ['p1', -7],
+      ['p1', 1.5],
+      ['p1', Number.NaN],
+      ['p1', 100_000],
+      ['p1', undefined],
+    ] as const) {
+      expect(await invoke(IPC.agents.projectUsage, id, days)).toEqual({ status: 'unavailable' });
+    }
+    expect(projectUsage.readProjectUsage).not.toHaveBeenCalled();
   });
 });

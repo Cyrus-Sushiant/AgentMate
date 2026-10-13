@@ -2,12 +2,12 @@
 title: Projects
 category: Getting started
 order: 50
-summary: Add and organise your projects, then use each project's page for its prompts and Blueprint, git, security scans, packages, Docker, bootstrap files, skills, MCP servers, hooks and environments.
-keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts
+summary: Add and organise your projects, then use each project's page for its prompts and Blueprint, git, token usage and cost, security scans, packages, Docker, bootstrap files, skills, MCP servers, hooks and environments.
+keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts, usage, cost, tokens, spend
 route: /projects
 ---
 
-A project in AgentMate is a folder on your computer that you work on with AI agents. The Projects page lists them all so you can search, pin, reorder and open them. Each project then has its own page with everything about it in one place: a standing prompt for agents, a Blueprint that turns an idea into a plan, drafts and scheduled prompts, git tools, security scans, dependency updates, Docker containers, scaffolding files for your agent, skills, MCP servers, notification hooks and saved environment files.
+A project in AgentMate is a folder on your computer that you work on with AI agents. The Projects page lists them all so you can search, pin, reorder and open them. Each project then has its own page with everything about it in one place: a standing prompt for agents, a Blueprint that turns an idea into a plan, drafts and scheduled prompts, git tools, token usage and cost, security scans, dependency updates, Docker containers, scaffolding files for your agent, skills, MCP servers, notification hooks and saved environment files.
 
 ## Where to find it
 
@@ -103,7 +103,7 @@ The page has a header, a section list on the left (a tab bar on narrow windows) 
 
 ### Sections
 
-The list on the left has two groups. **Work**: Overview, Blueprint, Prompts, Git, Review, Security, Packages, Docker, Terminal. **Setup**: Bootstrap, Skills, MCP, Hooks, Environments, Config. At the bottom of the list, **Created** and **Updated** show when the project was added and last changed.
+The list on the left has two groups. **Work**: Overview, Blueprint, Prompts, Git, Usage, Review, Security, Packages, Docker, Terminal. **Setup**: Bootstrap, Skills, MCP, Hooks, Environments, Config. At the bottom of the list, **Created** and **Updated** show when the project was added and last changed.
 
 Small badges flag things that need a look: Prompts shows open drafts plus missed scheduled prompts (amber when any was missed), Skills and MCP show how many are installed (Skills turns amber when updates are available), and Security shows how many critical and high findings the last scan found. **Review** only appears once the diffray tool is installed (see [Agent Tools](agent-tools.md)).
 
@@ -183,6 +183,21 @@ Below the top row:
 - **Worktrees**: what a new worktree of this project starts with. **Setup command** runs in its own terminal tab in every new worktree, and **Its own files to copy** overrides the app-wide patterns for this project. See [Worktrees](worktrees.md).
 
 The branch history dialog, **Branch history**, shows an activity chart for the last 12 weeks and the commits on the branch with a graph, authors, tags and a short hash you can click to copy.
+
+### Usage
+
+The Usage section shows what the project's agent conversations have used, and what that would cost at list prices. It reads the conversation logs your CLIs already keep for this project, so there is nothing to set up. For one conversation, right-click it in the Workspace's Agent sessions tab instead (see [Agent sessions](workspace-terminals-agents.md#agent-sessions)). For all your projects at once, see [Token Usage](token-usage.md).
+
+- The switch at the top right picks the period: **All time** (the default), **30 days** or **7 days**. **Refresh** reads the logs again. Reading a long history takes a few seconds the first time, and the section shows placeholders meanwhile. The result is kept, so coming back is quick.
+- Three figures head the section: **Est. cost**, **Tokens** (with the exact count under it) and **Conversations** (with the number of agents they came from).
+- **Spend over time** draws a bar per day, or per week once the period is longer than about two months. Hover a bar for its date, cost and tokens. **Cost** and **Tokens** switch what the bars show. When no price is known, only tokens are shown.
+- **By agent** and **By model** show where the spend came from, largest first. A model with no known price says **Unpriced**.
+- **Token mix** splits the tokens into input, output, cache read and cache write.
+- **Most expensive conversations** ranks the eight that cost the most.
+- The section counts the project's folder and each of its git worktrees (see [Worktrees](worktrees.md)).
+- It works for Claude Code, OpenClaude, Codex and OpenCode. The other agents do not record tokens, so their conversations are named in a note instead of being counted. OpenCode keeps one total per conversation, so its usage is dated by the conversation's last update.
+
+The cost is an estimate from public list prices, not an invoice, and a subscription plan charges something different. It shows a **+** when some tokens ran on a model with no known price, so the real figure is at least that. Notes under the section say what is left out: conversations that could not be read, agents that keep no token counts, or that only the newest conversations were read. A section that could not be read says **Usage could not be read.** with a **Try again** button, and a project with no conversations says **No usage yet**.
 
 ### Review
 

@@ -295,6 +295,16 @@ describe('settings', () => {
     expect(settings?.pingTargets).toEqual(['1.1.1.1']);
   });
 
+  it('keeps the Build Prompt sizing switch when the backup saved it off', () => {
+    const settings = parsed({ settings: { promptBuilderAutoSize: false } }).data.settings;
+    expect(settings?.promptBuilderAutoSize).toBe(false);
+  });
+
+  it('leaves Build Prompt sizing on for a backup made before the switch existed', () => {
+    const settings = parsed({ settings: { theme: 'dark' } }).data.settings;
+    expect(settings?.promptBuilderAutoSize).toBe(true);
+  });
+
   it('ignores a settings value that is not an object', () => {
     expect(parsed({ settings: 'dark' }).data.settings).toBeUndefined();
     expect(parsed({ settings: [] }).data.settings).toBeUndefined();

@@ -85,6 +85,12 @@ export interface CollectHistoryOptions {
   tailBytes?: number;
   /** How many files are read at once. */
   concurrency?: number;
+  /**
+   * Only these agents are read; the others are not even looked for. OpenCode keeps its sessions
+   * in a database that is queried synchronously, so a caller that does not need it can leave it
+   * out and keep the main process free.
+   */
+  providers?: readonly AgentHistoryProvider[];
 }
 
 interface Settings {
@@ -93,6 +99,7 @@ interface Settings {
   headBytes: number;
   tailBytes: number;
   concurrency: number;
+  providers: readonly AgentHistoryProvider[] | undefined;
 }
 
 interface FileInfo {
@@ -767,7 +774,7 @@ const OPENCODE_DB_HEADER = 'SQLite format 3\0';
  * Windows; macOS uses Application Support. Probed in order, so a missing file
  * just falls through to the next candidate.
  */
-async function findOpencodeDb(fs: HistoryFs, home: string): Promise<string | null> {
+export async function findOpencodeDb(fs: HistoryFs, home: string): Promise<string | null> {
   const candidates = [
     fs.join(home, '.local', 'share', 'opencode', 'opencode.db'),
     fs.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db'),
@@ -993,7 +1000,17 @@ export async function collectHistory(
     headBytes: options.headBytes ?? HEAD_BYTES,
     tailBytes: options.tailBytes ?? TAIL_BYTES,
     concurrency: options.concurrency ?? CONCURRENCY,
+    providers: options.providers,
   };
+  // A reader that fails finds nothing, so one broken agent never hides the others; an agent the
+  // caller did not ask for is not looked for at all.
+  const candidatesOf = <Candidate>(
+    provider: AgentHistoryProvider,
+    load: () => Promise<Candidate[]>,
+  ): Promise<Candidate[]> =>
+    settings.providers === undefined || settings.providers.includes(provider)
+      ? load().catch((): Candidate[] => [])
+      : Promise.resolve([]);
   const home = await fs.home();
   const codex = await codexHome(fs, home);
   const geminiTmp = fs.join(home, '.gemini', 'tmp');
@@ -1011,17 +1028,17 @@ export async function collectHistory(
     opencodeSessions,
     freebuffCandidates,
   ] = await Promise.all([
-    claudeFiles(fs, home, settings).catch(() => []),
-    openclaudeFiles(fs, home, settings).catch(() => []),
-    codexFiles(fs, codex, settings).catch(() => []),
-    geminiChats(fs, geminiTmp, settings).catch(() => []),
-    geminiChats(fs, qwenTmp, settings).catch(() => []),
-    cursorFiles(fs, home, settings).catch(() => []),
-    continueFiles(fs, home, settings).catch(() => []),
-    grokFiles(fs, home, settings).catch(() => []),
-    clineFiles(fs, home, settings).catch(() => []),
-    opencodeCandidates(fs, home, settings).catch(() => []),
-    freebuffChats(fs, home, settings).catch(() => []),
+    candidatesOf('claude-code', () => claudeFiles(fs, home, settings)),
+    candidatesOf('openclaude', () => openclaudeFiles(fs, home, settings)),
+    candidatesOf('codex', () => codexFiles(fs, codex, settings)),
+    candidatesOf('gemini-cli', () => geminiChats(fs, geminiTmp, settings)),
+    candidatesOf('qwen-cli', () => geminiChats(fs, qwenTmp, settings)),
+    candidatesOf('cursor-cli', () => cursorFiles(fs, home, settings)),
+    candidatesOf('continue-cli', () => continueFiles(fs, home, settings)),
+    candidatesOf('grok-cli', () => grokFiles(fs, home, settings)),
+    candidatesOf('cline-cli', () => clineFiles(fs, home, settings)),
+    candidatesOf('opencode', () => opencodeCandidates(fs, home, settings)),
+    candidatesOf('freebuff-cli', () => freebuffChats(fs, home, settings)),
   ]);
   type Picked =
     | {

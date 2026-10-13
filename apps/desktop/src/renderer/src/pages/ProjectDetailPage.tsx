@@ -106,6 +106,7 @@ import { ProjectFormDialog, type ProjectFormValues } from '@/components/projects
 import { ProjectPromptDialog } from '@/components/projects/ProjectPromptDialog';
 import { ProjectPrompts } from '@/components/projects/prompts/ProjectPrompts';
 import { SecurityTab } from '@/components/projects/security/SecurityTab';
+import { ProjectUsageTab } from '@/components/projects/usage/ProjectUsageTab';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import {
   fileDecision,
@@ -1123,6 +1124,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
             />
           )}
           {section === 'git' && <ProjectWorktreeSetupCard project={project} />}
+
+          {/* Keyed like Git: the route reuses this page between projects, and the period and chart
+              choice should not carry over. */}
+          {section === 'usage' && <ProjectUsageTab key={project.id} projectId={project.id} />}
 
           {section === 'review' && (
             <DiffrayReviewWizard

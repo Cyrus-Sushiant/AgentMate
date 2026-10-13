@@ -90,6 +90,9 @@ export const queryKeys = {
   agentHistory: (projectId: string) => ['agent-history', projectId] as const,
   agentSessionUsage: (provider: string, id: string) =>
     ['agent-session-usage', provider, id] as const,
+  /** What a project's conversations used over the last `days`, or all of it for null. */
+  projectUsage: (projectId: string, days: number | null) =>
+    ['project-usage', projectId, days] as const,
   /** The workspace Pull request tab: the current branch and its PR, checks and review. */
   pullRequest: (projectId: string) => ['pull-request', projectId] as const,
   gitFileDiff: (projectId: string, side: string, path: string) =>

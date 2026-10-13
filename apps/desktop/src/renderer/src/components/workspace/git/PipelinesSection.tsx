@@ -15,7 +15,7 @@ import { timeAgo } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { FixRunDialog } from './FixRunDialog';
-import { PanelNotice } from './PanelNotice';
+import { PanelNotice, type PanelNoticeAction } from './PanelNotice';
 
 const RANK: Record<string, number> = {
   failed: 0,
@@ -25,6 +25,9 @@ const RANK: Record<string, number> = {
   cancelled: 4,
   other: 5,
 };
+
+/** Shortest time a retry shows its spinner, so an instant failure still reads as a retry. */
+const RETRY_FEEDBACK_MS = 600;
 
 /** A run's outcome as a small tinted chip, live runs with a pulsing dot. */
 export function RunChip({ tone }: { tone: RunTone }): React.JSX.Element {
@@ -65,6 +68,14 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   const lastGood = useRef<ProjectPipelineStatus | null>(null);
   if (status.data && !status.data.error) lastGood.current = status.data;
 
+  // Retry shows a spinner until the attempt settles, so a click never looks like it did nothing.
+  const [retrying, setRetrying] = useState(false);
+  function retry(): void {
+    setRetrying(true);
+    const minimum = new Promise((done) => setTimeout(done, RETRY_FEEDBACK_MS));
+    void Promise.all([status.refetch(), minimum]).finally(() => setRetrying(false));
+  }
+
   if (status.isPending) {
     return (
       <div className="space-y-1 px-2 py-1.5">
@@ -76,11 +87,9 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
   }
 
   const data = status.data?.error || !status.data ? (lastGood.current ?? status.data) : status.data;
-  const notice = (
-    title: string,
-    body: React.ReactNode,
-    action?: { label: string; run: () => void },
-  ) => <PanelNotice title={title} body={body} action={action} />;
+  const notice = (title: string, body: React.ReactNode, action?: PanelNoticeAction) => (
+    <PanelNotice title={title} body={body} action={action} />
+  );
 
   if (!data || data.error) {
     return notice(
@@ -96,7 +105,9 @@ export function PipelinesSection({ project }: { project: Project }): React.JSX.E
       ),
       {
         label: 'Retry',
-        run: () => void status.refetch(),
+        run: retry,
+        pending: retrying,
+        pendingLabel: 'Retrying…',
       },
     );
   }

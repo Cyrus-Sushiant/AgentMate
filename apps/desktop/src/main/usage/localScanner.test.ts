@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The local-log driver for Codex, from rollout files on disk to the card's plan limits. The scan
@@ -48,6 +48,12 @@ async function scanCodex() {
   const { scanLocalProvider } = await import('./localScanner');
   return scanLocalProvider('codex');
 }
+
+// The first import of the scanner loads the whole usage module graph cold, which can take longer
+// than a test is allowed. Loading it here, with a longer limit, times the scans alone.
+beforeAll(async () => {
+  await import('./localScanner');
+}, 120_000);
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'agentmate-local-scanner-'));

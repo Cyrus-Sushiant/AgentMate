@@ -1,4 +1,4 @@
-import type { AgentHistorySession, UsageTokens } from '@agentmat/core';
+import type { AgentHistorySession } from '@agentmat/core';
 import type { AgentSessionUsage } from '@shared/apiTypes';
 import { useQuery } from '@tanstack/react-query';
 import { CircleInfo, TriangleAlert } from '@/components/icons';
@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TokenLegend, TokenShareBar } from '@/components/usage/TokenSplit';
 import { useChartColors } from '@/lib/chartColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatTokens } from '@/lib/usageFormat';
@@ -17,25 +18,10 @@ import { shortModel } from './modelLabel';
 
 type Usage = Extract<AgentSessionUsage, { status: 'ok' }>;
 
-/** The four kinds of token, in the fixed order that gives each its chart color. */
-const KINDS = [
-  { key: 'input', label: 'Input' },
-  { key: 'output', label: 'Output' },
-  { key: 'cacheRead', label: 'Cache read' },
-  { key: 'cacheWrite', label: 'Cache write' },
-] as const satisfies readonly { key: keyof UsageTokens; label: string }[];
-
 /** Models listed before the rest are folded into a count. */
 const MAX_MODEL_ROWS = 5;
 
 const exact = new Intl.NumberFormat();
-
-/** A share of the total as a whole percent, keeping a sliver visible as "<1%". */
-function share(part: number, total: number): string {
-  if (total <= 0 || part <= 0) return '0%';
-  const percent = (part / total) * 100;
-  return percent < 1 ? '<1%' : `${Math.round(percent)}%`;
-}
 
 function Stat({
   label,
@@ -70,60 +56,6 @@ function Note({ children }: { children: string }): React.JSX.Element {
       <CircleInfo className="mt-px h-2.5 w-2.5 shrink-0" />
       <span>{children}</span>
     </p>
-  );
-}
-
-/** One thin stacked bar of where the tokens went. The legend under it carries the numbers. */
-function ShareBar({
-  tokens,
-  colors,
-}: {
-  tokens: UsageTokens;
-  colors: string[];
-}): React.JSX.Element {
-  const parts = KINDS.flatMap((kind, i) =>
-    tokens[kind.key] > 0 ? [{ ...kind, value: tokens[kind.key], color: colors[i] }] : [],
-  );
-  const summary = KINDS.map((k) => `${k.label} ${share(tokens[k.key], tokens.total)}`).join(', ');
-  return (
-    <div role="img" aria-label={`Token split: ${summary}`} className="mx-2.5 flex h-2 gap-[2px]">
-      {parts.map((part, i) => (
-        <span
-          key={part.key}
-          // Grown by value, with a floor so a sliver is still a visible mark.
-          style={{ flex: `${part.value} 1 0`, backgroundColor: part.color }}
-          className={cn(
-            'h-full min-w-[3px] rounded-[2px]',
-            i === 0 && 'rounded-l-full',
-            i === parts.length - 1 && 'rounded-r-full',
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Legend({ tokens, colors }: { tokens: UsageTokens; colors: string[] }): React.JSX.Element {
-  return (
-    <div className="px-2.5 pb-1 pt-2 text-[12px]">
-      {KINDS.map((kind, i) => (
-        <div
-          key={kind.key}
-          className="grid grid-cols-[auto_1fr_auto_2.25rem] items-center gap-x-2 py-[3px]"
-        >
-          <span
-            aria-hidden="true"
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: colors[i] }}
-          />
-          <span className="text-muted-foreground">{kind.label}</span>
-          <span className="tabular-nums">{formatTokens(tokens[kind.key])}</span>
-          <span className="text-right text-[11px] tabular-nums text-muted-foreground">
-            {share(tokens[kind.key], tokens.total)}
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -191,8 +123,8 @@ function Details({ usage }: { usage: Usage }): React.JSX.Element {
       </div>
       {tokens.total > 0 ? (
         <>
-          <ShareBar tokens={tokens} colors={categorical} />
-          <Legend tokens={tokens} colors={categorical} />
+          <TokenShareBar tokens={tokens} colors={categorical} className="mx-2.5" />
+          <TokenLegend tokens={tokens} colors={categorical} className="px-2.5 pb-1 pt-2" />
         </>
       ) : (
         <Note>No tokens used yet.</Note>

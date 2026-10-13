@@ -85,8 +85,10 @@ export function useRunRecommendation(input: {
   generated: string;
   promptType: string;
   targetAI: string;
+  /** Whether `generated` is a translation, which is sized without a prompt type. */
+  isTranslation?: boolean;
 }): RunRecommendationState {
-  const { jobKey, generated, promptType, targetAI } = input;
+  const { jobKey, generated, promptType, targetAI, isTranslation = false } = input;
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const { status, analysis, error, override } = usePromptJobsStore(
     (s) => s.runs[jobKey] ?? EMPTY_RUN_JOB,
@@ -101,9 +103,9 @@ export function useRunRecommendation(input: {
       startRunAssessment(jobKey, {
         prompt: options.prompt ?? generated,
         targetAI,
-        promptType: options.isTranslation ? undefined : promptType,
+        promptType: (options.isTranslation ?? isTranslation) ? undefined : promptType,
       }),
-    [jobKey, generated, promptType, targetAI],
+    [jobKey, generated, promptType, targetAI, isTranslation],
   );
 
   const recommendation = analysis?.recommendation ?? null;
@@ -162,6 +164,18 @@ export function useRunRecommendation(input: {
   };
 }
 
+/**
+ * Whether opening the chip should start a sizing: there is text to size, nothing is being sized
+ * right now, and the last result is missing or was made for an older prompt or target.
+ */
+export function shouldSizeOnOpen(
+  state: Pick<RunRecommendationState, 'canAnalyze' | 'status' | 'recommendation' | 'isStale'>,
+): boolean {
+  return (
+    state.canAnalyze && state.status !== 'analyzing' && (!state.recommendation || state.isStale)
+  );
+}
+
 const COMPLEXITY_COPY = {
   light: { label: 'Light task', className: 'text-success' },
   moderate: { label: 'Moderate task', className: 'text-warning' },
@@ -214,6 +228,7 @@ export function RunRecommendationPanel({
   state,
   className,
   collapsibleKey,
+  sizeOnOpen = false,
 }: {
   state: RunRecommendationState;
   className?: string;
@@ -222,6 +237,8 @@ export function RunRecommendationPanel({
    * localStorage key. For layouts where the details would crowd out the prompt editor.
    */
   collapsibleKey?: string;
+  /** The chip sizes on open, so the empty state should not promise sizing on Generate. */
+  sizeOnOpen?: boolean;
 }): React.JSX.Element {
   const { status, recommendation, targetAI, cliName, canAnalyze, isStale, choice } = state;
   const [collapsed, setCollapsed] = useState(() => readCollapsed(collapsibleKey));
@@ -366,13 +383,19 @@ export function RunRecommendationPanel({
           <RunResult state={state} recommendation={recommendation} />
         </>
       ) : (
-        <RunEmpty state={state} />
+        <RunEmpty state={state} sizeOnOpen={sizeOnOpen} />
       )}
     </div>
   );
 }
 
-function RunEmpty({ state }: { state: RunRecommendationState }): React.JSX.Element {
+function RunEmpty({
+  state,
+  sizeOnOpen = false,
+}: {
+  state: RunRecommendationState;
+  sizeOnOpen?: boolean;
+}): React.JSX.Element {
   const cliLabel = state.cliName ?? 'your default AI CLI';
   return (
     <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-3 py-4 text-center">
@@ -380,7 +403,9 @@ function RunEmpty({ state }: { state: RunRecommendationState }): React.JSX.Eleme
       <p className="max-w-xs text-[11px] leading-relaxed text-muted-foreground">
         {state.canAnalyze
           ? `Ask ${cliLabel} how big this prompt is and which model and effort will do it without overspending.`
-          : `Generate or translate a prompt first. ${cliLabel[0]?.toUpperCase()}${cliLabel.slice(1)} then sizes it and suggests a model and effort.`}
+          : sizeOnOpen
+            ? `Generate or translate a prompt first. Then ${cliLabel} sizes it when you open this.`
+            : `Generate or translate a prompt first. ${cliLabel[0]?.toUpperCase()}${cliLabel.slice(1)} then sizes it and suggests a model and effort.`}
       </p>
       <Button
         size="sm"
@@ -654,9 +679,15 @@ function RunResult({
 export function RunRecommendationChip({
   state,
   className,
+  sizeOnOpen = false,
 }: {
   state: RunRecommendationState;
   className?: string;
+  /**
+   * Starts sizing when the chip opens, if the prompt has no current result. For forms that leave
+   * sizing to the user instead of sizing after every Generate or Translate.
+   */
+  sizeOnOpen?: boolean;
 }): React.JSX.Element {
   const { status, recommendation, choice, isCustom, isStale } = state;
 
@@ -707,11 +738,17 @@ export function RunRecommendationChip({
     );
     tooltip = state.canAnalyze
       ? 'Ask your default AI CLI which model and effort this needs'
-      : 'Generate or translate a prompt, then it gets sized';
+      : sizeOnOpen
+        ? 'Generate or translate a prompt, then open this to size it'
+        : 'Generate or translate a prompt, then it gets sized';
   }
 
   return (
-    <PopoverPrimitive.Root>
+    <PopoverPrimitive.Root
+      onOpenChange={(open) => {
+        if (open && sizeOnOpen && shouldSizeOnOpen(state)) state.analyze();
+      }}
+    >
       <SimpleTooltip label={tooltip}>
         <PopoverPrimitive.Trigger asChild>
           <button
@@ -737,7 +774,7 @@ export function RunRecommendationChip({
             'z-50 w-[min(27rem,calc(100vw-2rem))] p-3 origin-[var(--radix-popover-content-transform-origin)]',
           )}
         >
-          <RunRecommendationPanel state={state} />
+          <RunRecommendationPanel state={state} sizeOnOpen={sizeOnOpen} />
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>

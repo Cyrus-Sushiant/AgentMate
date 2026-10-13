@@ -203,6 +203,7 @@ import type {
   PrCommentInput,
   ProjectEnvironment,
   ProjectPipelineStatus,
+  ProjectUsageReport,
   PromptHistoryEntry,
   ProxyStatus,
   ProxyTestResult,
@@ -688,6 +689,12 @@ const agents = {
   /** Tokens and estimated cost of a past conversation, as the history list showed it. */
   sessionUsage: (provider: string, id: string): Promise<AgentSessionUsage> =>
     ipcRenderer.invoke(IPC.agents.sessionUsage, provider, id),
+  /**
+   * What every past conversation in a project (and its worktrees) used over the last `days`, or
+   * all of it for null. Parsing the transcripts can take a few seconds on a long history.
+   */
+  projectUsage: (projectId: string, days: number | null): Promise<ProjectUsageReport> =>
+    ipcRenderer.invoke(IPC.agents.projectUsage, projectId, days),
   onRunInfo: (callback: (changes: AgentRunInfoMap) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, changes: AgentRunInfoMap): void =>
       callback(changes);

@@ -58,11 +58,14 @@ export function useProjectPromptBuilder(
   const rawInput = stored?.rawInput ?? '';
   const promptType = stored?.promptType ?? 'Full Stack';
   const generated = stored?.generated ?? '';
+  const generatedSource = stored?.generatedSource;
   const updateEntry = useProjectPromptBuildStore((s) => s.update);
   const setRawInput = (v: string) => updateEntry(projectId, { rawInput: v });
   const setPromptType = (v: PromptType) => updateEntry(projectId, { promptType: v });
   const setTargetAI = (v: TargetAI) => updateEntry(projectId, { targetAI: v });
   const setGenerated = (v: string) => updateEntry(projectId, { generated: v });
+  const setGeneratedResult = (v: string, source: 'generate' | 'translate') =>
+    updateEntry(projectId, { generated: v, generatedSource: source });
   const clearEntry = useProjectPromptBuildStore((s) => s.clear);
   const jobKey = projectPromptJobKey(projectId);
   const handleClear = () => {
@@ -188,7 +191,7 @@ export function useProjectPromptBuilder(
         return;
       }
       const content = result.text.trim();
-      setGenerated(content);
+      setGeneratedResult(content, 'generate');
       void logHistory('generate', request, content);
       if (sizeResults) {
         startRunAssessment(jobKey, {
@@ -223,7 +226,7 @@ export function useProjectPromptBuilder(
         requestId: task.requestId,
       });
       if (!isCurrentPromptTask(jobKey, task)) return;
-      setGenerated(translated);
+      setGeneratedResult(translated, 'translate');
       void logHistory('translate', request, translated);
       if (sizeResults) {
         startRunAssessment(jobKey, { prompt: translated, targetAI: request.targetAI });
@@ -255,6 +258,7 @@ export function useProjectPromptBuilder(
     targetAI,
     setTargetAI,
     generated,
+    generatedSource,
     setGenerated,
     isGenerating,
     isTranslating,

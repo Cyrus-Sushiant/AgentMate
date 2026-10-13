@@ -166,6 +166,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   geminiModel: DEFAULT_GEMINI_API_MODEL,
   helpEmbeddingModels: {},
   promptBuilderProvider: 'openai',
+  // Sizing right after Generate or Translate is what the dialog always did, so it stays on.
+  promptBuilderAutoSize: true,
   dashboardChartOrder: [],
   dashboardChartCards: [...DASHBOARD_CHART_IDS],
   dashboardUsageCards: [],
@@ -288,6 +290,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     grammar: normalizeGrammarSettings(settings.grammar),
     proxy: normalizeProxySettings(settings.proxy),
     helpEmbeddingModels: normalizeHelpEmbeddingModels(settings.helpEmbeddingModels),
+    promptBuilderAutoSize: settings.promptBuilderAutoSize !== false,
     desktopPetCustoms: customs,
     desktopPetCharacterId: normalizeDesktopPetId(
       settings.desktopPetCharacterId,

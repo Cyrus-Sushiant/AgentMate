@@ -156,6 +156,23 @@ describe('PromptBuilderPage generating', () => {
     expect(screen.getByRole('button', { name: /Save Template/ })).toBeEnabled();
   });
 
+  it('still sizes the prompt straight after Generate when the Build Prompt switch is off', async () => {
+    // The switch belongs to the Build Prompt dialog. The page keeps sizing as it always has.
+    const assessRun = vi.fn(async () => ({ ok: false, error: 'No CLI installed.' }));
+    const { user } = renderPage({
+      'settings.get': { ...settings, promptBuilderAutoSize: false },
+      'ai.ask': async () => ({ ok: true, text: 'Build it.' }),
+      'ai.assessRun': assessRun,
+    });
+    await screen.findByRole('button', { name: /Generate Prompt/ });
+
+    await user.type(request(), 'add a login form');
+    await user.click(screen.getByRole('button', { name: /Generate Prompt/ }));
+
+    await waitFor(() => expect(assessRun).toHaveBeenCalledTimes(1));
+    expect(assessRun).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Build it.' }));
+  });
+
   it('asks for a description first rather than generating from nothing', async () => {
     const { user, bridge } = renderPage();
     await screen.findByRole('button', { name: /Generate Prompt/ });

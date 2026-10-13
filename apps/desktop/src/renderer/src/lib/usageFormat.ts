@@ -18,6 +18,45 @@ export function formatPercent(p: number): string {
   return `${Math.round(p)}%`;
 }
 
+const COMPACT_UNITS = [
+  { size: 1, suffix: '' },
+  { size: 1_000, suffix: 'K' },
+  { size: 1_000_000, suffix: 'M' },
+  { size: 1_000_000_000, suffix: 'B' },
+  { size: 1_000_000_000_000, suffix: 'T' },
+];
+
+/** Three significant digits and a K, M, B or T suffix: 1.5K, 52.5, 2.5B. Rolls over at 1000. */
+function compactNumber(value: number): string {
+  let index = 0;
+  while (index < COMPACT_UNITS.length - 1 && value >= COMPACT_UNITS[index + 1].size) index += 1;
+  let scaled = Number((value / COMPACT_UNITS[index].size).toPrecision(3));
+  if (scaled >= 1_000 && index < COMPACT_UNITS.length - 1) {
+    index += 1;
+    scaled = Number((value / COMPACT_UNITS[index].size).toPrecision(3));
+  }
+  return `${scaled}${COMPACT_UNITS[index].suffix}`;
+}
+
+/** A token count for a chart axis, where a few digits matter more than an exact figure. */
+export function formatTokensAxis(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0';
+  return compactNumber(value);
+}
+
+/** A dollar amount for a chart axis, such as $0.75, $52.5 or $1.2K. */
+export function formatCostAxis(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '$0';
+  return `$${compactNumber(value)}`;
+}
+
+/** One part's share of a total as a whole percentage, or "<1%" for a sliver. */
+export function formatShare(part: number, total: number): string {
+  if (!(part > 0) || !(total > 0)) return '0%';
+  const share = (part / total) * 100;
+  return share < 1 ? '<1%' : `${Math.round(share)}%`;
+}
+
 /** Bare "2d 4h" / "38m" countdown for tight layouts, or null when unknown. */
 export function formatCountdown(resetAt: string | null | undefined): string | null {
   const full = formatReset(resetAt);

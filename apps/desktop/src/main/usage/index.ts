@@ -8,6 +8,7 @@ import { fetchApiProviderUsage } from './apiProviders';
 import { clearLiveWindowCache } from './claudeAccount';
 import { clearCursorAccountCache } from './cursorAccount';
 import { fetchCursorSessionUsage } from './cursorSession';
+import { loadKnownProjects } from './knownProjects';
 import { scanLocalProvider } from './localScanner';
 import type { LocalLogProvider } from './logParsers';
 import { connectUsage, errorUsage } from './shared';
@@ -32,7 +33,9 @@ async function computeUsage(
   switch (def.dataSource) {
     case 'local-log':
       if (!LOCAL_LOG_PROVIDERS.has(providerId)) return connectUsage(providerId);
-      return scanLocalProvider(providerId as LocalLogProvider);
+      return scanLocalProvider(providerId as LocalLogProvider, {
+        knownProjects: loadKnownProjects,
+      });
     case 'local-session':
       if (providerId !== 'cursor') return connectUsage(providerId);
       // A team Admin key still wins when the user has entered one: it reports

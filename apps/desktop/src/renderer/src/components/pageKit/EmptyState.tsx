@@ -36,6 +36,7 @@ export function EmptyState({
   action,
   size = 'md',
   card = false,
+  busy = false,
   className,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -47,6 +48,8 @@ export function EmptyState({
   size?: EmptyStateSize;
   /** Draws the state as a glass card of its own, for when nothing else frames it. */
   card?: boolean;
+  /** Something is being fetched for this state, so a slow arc turns around the icon tile. */
+  busy?: boolean;
   className?: string;
 }): React.JSX.Element {
   const sizes = SIZES[size];
@@ -61,10 +64,42 @@ export function EmptyState({
     >
       <div
         className={cn(
-          'flex shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]',
+          'relative flex shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-[0_0_40px_-12px_hsl(var(--primary)/0.7)]',
           sizes.tile,
         )}
       >
+        {/* Strokes, not borders, since the global border-color rule would beat a border. */}
+        {busy ? (
+          <svg
+            aria-hidden
+            viewBox="0 0 50 50"
+            className="pointer-events-none absolute -left-[3px] -top-[3px] size-[calc(100%_+_6px)] motion-safe:animate-spin"
+          >
+            <rect
+              x="0.75"
+              y="0.75"
+              width="48.5"
+              height="48.5"
+              rx="18.25"
+              fill="none"
+              stroke="currentColor"
+              strokeOpacity="0.2"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="0.75"
+              y="0.75"
+              width="48.5"
+              height="48.5"
+              rx="18.25"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeDasharray="35 128"
+            />
+          </svg>
+        ) : null}
         <Icon className={sizes.icon} />
       </div>
       <div className="max-w-sm space-y-1">

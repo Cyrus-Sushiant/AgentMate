@@ -3,7 +3,7 @@ title: Token Usage
 category: Agents
 order: 50
 summary: Track tokens, cost and plan limits across your AI coding agents and API providers, get alerts before you hit a limit, and pin live usage widgets to your desktop or Dashboard.
-keywords: token usage, tokens, cost, spend, usage, limits, quota, rate limit, claude code, codex, cursor, openai, openrouter, deepseek, api key, threshold alert, reset alert, widget, desktop widget, glass widget, dashboard, plan limits, 5 hour session, weekly limit
+keywords: token usage, tokens, cost, spend, usage, limits, quota, rate limit, claude code, codex, cursor, openai, openrouter, deepseek, api key, threshold alert, reset alert, widget, desktop widget, glass widget, dashboard, plan limits, 5 hour session, weekly limit, projects by weekday, day of week, per project usage
 route: /usage
 ---
 
@@ -40,6 +40,12 @@ Four tiles sit at the top: **Tokens today**, **Tokens (7 days)**, **Cost today**
 ### All agents
 
 The **All agents** card combines every tracked provider. It has **Day**, **Week** and **Month** chips and shows the headline token count and cost for that period, averages per day and per agent, a Usage and Cost comparison of the three periods, a **By agent** breakdown with a bar for each provider, and a 14-day trend chart. Icons on the card add it to the Dashboard or pin it to the desktop. If nothing is tracked yet, it says "Track a provider to see combined usage, averages, and cost across your agents."
+
+### Projects by weekday
+
+The **Projects by weekday** card sits under All agents. Each column is one day of the week and each coloured segment is one project, so you can see which folders the tokens and the cost went to on which days. It covers the last 4 weeks, or the last 7 days when you pick that. Hover a column for its figures, or move between columns with the arrow keys. Click a project in the legend to see it alone, and click it again to show every project. Switch to **Table** for every project against every weekday.
+
+Projects come from the folder each Claude Code or Codex session ran in. A folder inside a registered project, or one of its git worktrees, counts for that project, and any other folder shows under its own name. The six busiest projects get a colour of their own, and the rest are grouped as **Other**. Days follow your time zone, and cost is an estimate at list prices. Cursor and the API-key providers do not record a folder, so they are not part of this card. That is why its totals can differ from the All agents card.
 
 ### Provider cards
 
@@ -183,3 +189,4 @@ To hide a provider's item, turn off its switch under **Status bar limits** on th
 - [Notifications and Telegram](notifications-telegram.md)
 - [Agent Tools](agent-tools.md)
 - [AI providers](ai-providers.md)
+- [Projects](projects.md#usage): the Usage section of a project's page shows what that project's conversations cost

@@ -1146,6 +1146,8 @@ export const IPC = {
     history: 'agents:history',
     // (provider, conversationId) -> AgentSessionUsage: tokens and estimated cost of a past conversation
     sessionUsage: 'agents:sessionUsage',
+    // (projectId, days | null) -> ProjectUsageReport: what a project's conversations used, its worktrees included
+    projectUsage: 'agents:projectUsage',
     // main -> renderer: AgentRunInfoMap of sessions whose model or effort just changed
     onRunInfo: 'agents:onRunInfo',
     // main -> renderer: AgentStatusMap of sessions whose status just changed

@@ -12,6 +12,8 @@ export interface UsageEntry {
   at: Date;
   model: string;
   tokens: UsageTokens;
+  /** The folder the session ran in, when the log names one. */
+  folder?: string | null;
 }
 
 const DAY_MS = 86_400_000;

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import { Worker } from 'node:worker_threads';
-import type { ProviderUsage, SubscriptionUsage, UsageWindow } from '@agentmat/core';
+import type { ProjectDaily, ProviderUsage, SubscriptionUsage, UsageWindow } from '@agentmat/core';
 import { app } from 'electron';
 import { getLiveWindows, readClaudeAccount } from './claudeAccount';
 import { codexSubscription } from './codexLimits';
@@ -13,6 +13,7 @@ import {
   type ScanResult,
   scanProviderLogs,
 } from './logParsers';
+import { buildProjectDaily, type KnownProjects } from './projectDaily';
 import { buildUsageFromEntries, makeTokens, type UsageEntry } from './shared';
 import { estimateSubscriptionWindows } from './subscriptionEstimate';
 import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
@@ -113,13 +114,26 @@ function toUsageWindow(window: ScanResult['window']): UsageWindow | undefined {
   };
 }
 
+/**
+ * The folder of every raw entry, in order. `sources` runs parallel to `entries`, so the expanded
+ * list lines up index for index. A result without sources leaves every folder unknown.
+ */
+function foldersOf(result: ScanResult): (string | null | undefined)[] {
+  const folders: (string | null | undefined)[] = [];
+  for (const source of result.sources ?? []) {
+    for (let i = 0; i < source.count; i += 1) folders.push(source.folder);
+  }
+  return folders;
+}
+
 /** Flatten worker output into priced entries, dropping duplicates. */
 function toEntries(result: ScanResult): UsageEntry[] {
   // Dedupe by message id: the same assistant message can appear in both the
-  // main transcript and a summary/compact file.
+  // main transcript and a summary/compact file. The first copy wins, folder included.
   const seen = new Set<string>();
+  const folders = foldersOf(result);
   const entries: UsageEntry[] = [];
-  for (const raw of result.entries) {
+  for (const [index, raw] of result.entries.entries()) {
     if (raw.id) {
       if (seen.has(raw.id)) continue;
       seen.add(raw.id);
@@ -128,9 +142,39 @@ function toEntries(result: ScanResult): UsageEntry[] {
       at: new Date(raw.at),
       model: raw.model,
       tokens: makeTokens(raw.input, raw.output, raw.cacheRead, raw.cacheWrite),
+      folder: folders[index] ?? null,
     });
   }
   return entries;
+}
+
+/** What a scan may ask the app about its projects. Optional, and a failure never fails the scan. */
+export interface LocalScanOptions {
+  knownProjects?: () => Promise<KnownProjects>;
+}
+
+/**
+ * The per-project split for the chart. Asking for the project list and building the split can
+ * both fail: the split then falls back to folder names, or is left out. The totals never depend
+ * on either.
+ */
+async function projectDailyFor(
+  entries: UsageEntry[],
+  options: LocalScanOptions,
+): Promise<ProjectDaily | undefined> {
+  let known: KnownProjects | undefined;
+  try {
+    known = await options.knownProjects?.();
+  } catch {
+    known = undefined;
+  }
+  try {
+    return buildProjectDaily(entries, { now: Date.now(), known });
+  } catch (err) {
+    // biome-ignore lint/suspicious/noConsole: a broken project split should be visible, not silently missing
+    console.warn('[usage] project split failed:', err);
+    return undefined;
+  }
 }
 
 /**
@@ -171,7 +215,10 @@ async function claudeSubscription(entries: UsageEntry[]): Promise<SubscriptionUs
  * in-process, which is still incremental and streamed rather than slurping every
  * file into memory.
  */
-export async function scanLocalProvider(provider: LocalLogProvider): Promise<ProviderUsage> {
+export async function scanLocalProvider(
+  provider: LocalLogProvider,
+  options: LocalScanOptions = {},
+): Promise<ProviderUsage> {
   const caches = await loadCaches();
   const input: ScanWorkerInput = {
     provider,
@@ -197,5 +244,7 @@ export async function scanLocalProvider(provider: LocalLogProvider): Promise<Pro
   } else if (provider === 'codex') {
     usage.subscription = codexSubscription(result.limits);
   }
+  const projectDaily = await projectDailyFor(entries, options);
+  if (projectDaily) usage.projectDaily = projectDaily;
   return usage;
 }

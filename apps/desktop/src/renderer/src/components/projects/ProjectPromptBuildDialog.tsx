@@ -112,6 +112,13 @@ export function ProjectPromptBuildDialog({
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const jobKey = projectPromptJobKey(projectId);
   const setJobVisible = usePromptJobsStore((s) => s.setVisible);
+  // The switch decides whether Generate and Translate size their result, so it is read first.
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => window.agentmat.settings.get(),
+    enabled: open,
+  });
+  const autoSize = settingsQuery.data?.promptBuilderAutoSize ?? true;
   const {
     rawInput,
     setRawInput,
@@ -120,6 +127,7 @@ export function ProjectPromptBuildDialog({
     targetAI,
     setTargetAI,
     generated,
+    generatedSource,
     setGenerated,
     isGenerating,
     isTranslating,
@@ -132,20 +140,21 @@ export function ProjectPromptBuildDialog({
   } = useProjectPromptBuilder(projectId, {
     enabled: open,
     onDraftSaved: () => onOpenChange(false),
-    sizeResults: true,
+    sizeResults: autoSize,
     notifyWhenHidden: projectName,
   });
 
-  const runRecommendation = useRunRecommendation({ jobKey, generated, promptType, targetAI });
+  const runRecommendation = useRunRecommendation({
+    jobKey,
+    generated,
+    promptType,
+    targetAI,
+    isTranslation: generatedSource === 'translate',
+  });
   const hasRequest = rawInput.trim().length > 0;
   const isBusy = isGenerating || isTranslating;
   const isPersian = containsPersian(rawInput);
 
-  const settingsQuery = useQuery({
-    queryKey: queryKeys.settings,
-    queryFn: () => window.agentmat.settings.get(),
-    enabled: open,
-  });
   // Dictation lands after whatever is already typed. The transcription callback outlives the
   // render that started it, so it reads the latest request through a ref.
   const rawInputRef = useRef(rawInput);
@@ -538,6 +547,7 @@ export function ProjectPromptBuildDialog({
                 <RunRecommendationChip
                   state={runRecommendation}
                   className="ml-auto max-w-[13rem]"
+                  sizeOnOpen={!autoSize}
                 />
                 <SimpleTooltip
                   label={copied ? 'Copied' : copyKey ? `Copy prompt (${copyKey})` : 'Copy prompt'}

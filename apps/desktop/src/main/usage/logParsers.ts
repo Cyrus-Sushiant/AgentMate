@@ -1,8 +1,9 @@
 import { createReadStream } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { open, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CODEX_LOG_FALLBACK_MODEL } from '@agentmat/core';
+import { codexCwdFromHead, cwdsIn, launchFolder, topLevelDir } from './sessionFolders';
 
 // Parsing for the local-log usage providers (Claude Code, Codex). Deliberately
 // free of any `electron` / `@agentmat/core` import so this module can be loaded
@@ -70,10 +71,21 @@ export interface FileScanState {
   entries: RawUsageEntry[];
   window?: RawWindow;
   limits?: RawLimits;
+  /** The folder a Codex rollout started in, read from its first lines. */
+  cwd?: string;
+  /** True once a Codex rollout's first lines were read, so a folder-less one is not read again. */
+  cwdChecked?: boolean;
 }
 
 /** Scan cache for one provider, keyed by absolute file path. */
 export type ScanCache = Record<string, FileScanState>;
+
+/** A run of consecutive entries that came from one session folder. */
+export interface ScanSource {
+  /** The folder the sessions ran in, or null when the log does not say. */
+  folder: string | null;
+  count: number;
+}
 
 export interface ScanResult {
   entries: RawUsageEntry[];
@@ -82,6 +94,8 @@ export interface ScanResult {
   limits?: RawLimits;
   /** The cache to persist for the next scan. */
   cache: ScanCache;
+  /** Which folder each run of `entries` came from. The runs add up to `entries.length`, in order. */
+  sources?: ScanSource[];
 }
 
 export type LocalLogProvider = 'claude-code' | 'codex';
@@ -377,9 +391,109 @@ export async function scanLogFile(
   return state;
 }
 
+// --- session folders -------------------------------------------------------
+
+// A head read takes the first 32 KB, which holds the folder of nearly every transcript. A file
+// whose first lines hold none gets one more read, up to 256 KB.
+const HEAD_BYTES = 32 * 1024;
+const HEAD_MAX_BYTES = 256 * 1024;
+/** How many of a Claude Code project directory's newest transcripts are read to name its folder. */
+const SAMPLE_FILES = 3;
+/** How many distinct cwds a project directory's samples keep. */
+const SAMPLE_CWDS = 50;
+
+/**
+ * The whole lines at the start of `path`, reading at most `maxBytes`. Text after the last newline
+ * may still be being written, so it is left out.
+ */
+async function readHeadLines(path: string, maxBytes: number): Promise<string[]> {
+  const handle = await open(path, 'r');
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
+    const pieces = buffer.toString('utf-8', 0, bytesRead).split('\n');
+    pieces.pop();
+    return pieces.map((line) => line.replace(/\r$/, ''));
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * The folder every transcript in each Claude Code project directory was launched in. The
+ * directory name is that folder encoded, and the cwds in a few of its newest transcripts settle
+ * its spelling, so this costs a handful of small reads per directory. Falls back to the first cwd
+ * seen when no encoding matches, which happens for names Claude shortened.
+ */
+async function claudeLaunchFolders(
+  found: readonly { root: string; file: LogFile }[],
+): Promise<Map<string, string | null>> {
+  const byDir = new Map<string, LogFile[]>();
+  for (const { root, file } of found) {
+    const dir = topLevelDir(root, file.path);
+    if (dir) byDir.set(dir, [...(byDir.get(dir) ?? []), file]);
+  }
+
+  const folders = new Map<string, string | null>();
+  for (const [dir, files] of byDir) {
+    const newest = [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, SAMPLE_FILES);
+    const cwds: string[] = [];
+    let folder: string | null = null;
+    for (const file of newest) {
+      try {
+        let lines = await readHeadLines(file.path, HEAD_BYTES);
+        if (cwdsIn(lines).length === 0 && file.size > HEAD_BYTES) {
+          lines = await readHeadLines(file.path, HEAD_MAX_BYTES);
+        }
+        for (const cwd of cwdsIn(lines, SAMPLE_CWDS)) {
+          if (cwds.length < SAMPLE_CWDS && !cwds.includes(cwd)) cwds.push(cwd);
+        }
+      } catch {
+        continue; // vanished or unreadable: the next sample may still name the folder
+      }
+      folder = launchFolder(dir, cwds);
+      if (folder) break;
+    }
+    folders.set(dir, folder ?? cwds[0] ?? null);
+  }
+  return folders;
+}
+
+/**
+ * The folder a Codex rollout started in. `checked` stays false while no complete line exists yet,
+ * because the rollout was only just created and the next scan should look again.
+ */
+async function codexFolder(file: LogFile): Promise<{ cwd: string | null; checked: boolean }> {
+  let lines = await readHeadLines(file.path, HEAD_BYTES);
+  let cwd = codexCwdFromHead(lines);
+  if (!cwd && file.size > HEAD_BYTES) {
+    lines = await readHeadLines(file.path, HEAD_MAX_BYTES);
+    cwd = codexCwdFromHead(lines);
+  }
+  return { cwd, checked: lines.length > 0 };
+}
+
+/** The state with its Codex folder filled in. A copy, so the cache the caller passed in is left alone. */
+async function withCodexFolder(state: FileScanState, file: LogFile): Promise<FileScanState> {
+  try {
+    const { cwd, checked } = await codexFolder(file);
+    if (!checked) return state;
+    return cwd ? { ...state, cwd, cwdChecked: true } : { ...state, cwdChecked: true };
+  } catch {
+    return state;
+  }
+}
+
+function pushSource(sources: ScanSource[], folder: string | null, count: number): void {
+  const last = sources[sources.length - 1];
+  if (last && last.folder === folder) last.count += count;
+  else sources.push({ folder, count });
+}
+
 /**
  * Scan a provider's logs, reusing `cache` so only newly-appended bytes are read.
- * Returns the merged entries, the newest quota window, and the cache to persist.
+ * Returns the merged entries, the newest quota window, the folder of each run of entries, and the
+ * cache to persist.
  */
 export async function scanProviderLogs(
   provider: LocalLogProvider,
@@ -389,25 +503,43 @@ export async function scanProviderLogs(
   const parser = PARSERS[provider];
   const next: ScanCache = {};
   const entries: RawUsageEntry[] = [];
+  const sources: ScanSource[] = [];
   let window: RawWindow | undefined;
   let limits: RawLimits | undefined;
 
+  const found: { root: string; file: LogFile }[] = [];
   for (const root of parser.roots()) {
-    for (const file of await collectLogFiles(root, sinceMs)) {
-      // Unreadable / vanished mid-scan: skip it rather than fail the whole scan.
-      const state = await scanLogFile(provider, file, cache[file.path]);
-      if (!state) continue;
+    for (const file of await collectLogFiles(root, sinceMs)) found.push({ root, file });
+  }
+  const claudeFolders =
+    provider === 'claude-code'
+      ? await claudeLaunchFolders(found)
+      : new Map<string, string | null>();
 
-      // Keep the cache bounded: events past the retention horizon can never be
-      // reported again, so drop them rather than carry them forever.
-      state.entries = state.entries.filter((e) => e.at >= sinceMs);
-      next[file.path] = state;
+  for (const { root, file } of found) {
+    // Unreadable / vanished mid-scan: skip it rather than fail the whole scan.
+    let state = await scanLogFile(provider, file, cache[file.path]);
+    if (!state) continue;
 
-      for (const entry of state.entries) entries.push(entry);
-      if (state.window && (!window || state.window.at > window.at)) window = state.window;
-      if (state.limits && (!limits || state.limits.at > limits.at)) limits = state.limits;
+    let folder: string | null = null;
+    if (provider === 'claude-code') {
+      const dir = topLevelDir(root, file.path);
+      folder = dir ? (claudeFolders.get(dir) ?? null) : null;
+    } else {
+      if (!state.cwdChecked) state = await withCodexFolder(state, file);
+      folder = state.cwd ?? null;
     }
+
+    // Keep the cache bounded: events past the retention horizon can never be
+    // reported again, so drop them rather than carry them forever.
+    state.entries = state.entries.filter((e) => e.at >= sinceMs);
+    next[file.path] = state;
+
+    for (const entry of state.entries) entries.push(entry);
+    if (state.entries.length > 0) pushSource(sources, folder, state.entries.length);
+    if (state.window && (!window || state.window.at > window.at)) window = state.window;
+    if (state.limits && (!limits || state.limits.at > limits.at)) limits = state.limits;
   }
 
-  return { entries, window, limits, cache: next };
+  return { entries, window, limits, cache: next, sources };
 }

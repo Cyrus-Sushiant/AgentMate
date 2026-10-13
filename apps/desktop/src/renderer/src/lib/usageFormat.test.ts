@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   formatCost,
+  formatCostAxis,
   formatCountdown,
   formatPercent,
   formatReset,
+  formatShare,
   formatTokens,
+  formatTokensAxis,
 } from './usageFormat';
 
 const NOW = new Date('2026-03-01T12:00:00.000Z');
@@ -106,5 +109,46 @@ describe('formatCountdown', () => {
   it('keeps the wording that is not a duration, and the null', () => {
     expect(formatCountdown(inMs(0))).toBe('resetting…');
     expect(formatCountdown(null)).toBeNull();
+  });
+});
+
+describe('formatTokensAxis', () => {
+  it('uses three significant digits and a suffix, and never prints a bare zero', () => {
+    expect(formatTokensAxis(0)).toBe('0');
+    expect(formatTokensAxis(-4)).toBe('0');
+    expect(formatTokensAxis(Number.NaN)).toBe('0');
+    expect(formatTokensAxis(999)).toBe('999');
+    expect(formatTokensAxis(1_500)).toBe('1.5K');
+    expect(formatTokensAxis(12_345)).toBe('12.3K');
+    expect(formatTokensAxis(2_500_000_000)).toBe('2.5B');
+  });
+
+  it('rolls over to the next unit instead of printing 1000K', () => {
+    expect(formatTokensAxis(999_999)).toBe('1M');
+    expect(formatTokensAxis(1_234_000_000_000)).toBe('1.23T');
+  });
+});
+
+describe('formatCostAxis', () => {
+  it('shows dollars in the same compact steps', () => {
+    expect(formatCostAxis(0)).toBe('$0');
+    expect(formatCostAxis(0.75)).toBe('$0.75');
+    expect(formatCostAxis(52.5)).toBe('$52.5');
+    expect(formatCostAxis(525)).toBe('$525');
+    expect(formatCostAxis(1_200)).toBe('$1.2K');
+  });
+});
+
+describe('formatShare', () => {
+  it('gives a whole percentage, or <1% for a sliver', () => {
+    expect(formatShare(1, 4)).toBe('25%');
+    expect(formatShare(1, 3)).toBe('33%');
+    expect(formatShare(1, 1000)).toBe('<1%');
+  });
+
+  it('is 0% when there is nothing to share out', () => {
+    expect(formatShare(0, 10)).toBe('0%');
+    expect(formatShare(5, 0)).toBe('0%');
+    expect(formatShare(Number.NaN, 10)).toBe('0%');
   });
 });
