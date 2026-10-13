@@ -49,6 +49,15 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
     homepageUrl: 'https://github.com/openai/codex',
     accentColor: '#000000',
   },
+  {
+    id: 'gemini-cli',
+    name: 'Gemini CLI',
+    category: 'coding-agent',
+    dataSource: 'local-log',
+    supportsCost: true,
+    homepageUrl: 'https://github.com/google-gemini/gemini-cli',
+    accentColor: '#1C69FF',
+  },
 
   // --- Live: API-key providers ---------------------------------------------
   {
@@ -146,8 +155,8 @@ export const USAGE_PROVIDER_REGISTRY: UsageProviderDefinition[] = [
     id: 'opencode',
     name: 'OpenCode',
     category: 'coding-agent',
-    dataSource: 'unsupported',
-    supportsCost: false,
+    dataSource: 'local-log',
+    supportsCost: true,
     homepageUrl: 'https://opencode.ai',
     accentColor: '#111111',
   },

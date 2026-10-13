@@ -1,4 +1,5 @@
 import {
+  getUsageProvider,
   type ProviderUsage,
   type SubscriptionUsage,
   USAGE_PROVIDER_REGISTRY,
@@ -7,12 +8,13 @@ import {
 } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { readableAccent } from '@/lib/chartColors';
 import { useDashboardLayoutStore } from '@/stores/dashboardLayoutStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 import { projectRow, splitOf } from '../components/usage/weekday/testing/fixtures';
 
 /**
- * Token Usage is a page of cards fed by one scan: four providers connect themselves from local
+ * Token Usage is a page of cards fed by one scan: six providers connect themselves from local
  * data and the rest have to be added with a key. The tests drive it the way the page is used, by
  * reading the totals, flipping the period, adding and removing a provider, and checking that a
  * scan that fell over says so on the card instead of blanking the page.
@@ -150,19 +152,31 @@ function tileValue(label: string): string {
   return tile.lastElementChild?.textContent ?? '';
 }
 
+/**
+ * What an inline hex resolves to in this DOM, so accent assertions compare
+ * against the serialized value rather than the authored hex.
+ */
+function cssColor(hex: string): string {
+  const probe = document.createElement('div');
+  probe.style.color = hex;
+  return probe.style.color;
+}
+
 describe('UsagePage with nothing behind it', () => {
-  it('still offers the four providers that connect themselves', async () => {
+  it('still offers the six providers that connect themselves', async () => {
     renderPage();
 
-    // Claude Code, Codex, Cursor and GitHub Copilot read local data, so they are on the
-    // page without a key.
+    // Claude Code, Codex, Cursor, GitHub Copilot, OpenCode and Gemini CLI read local data, so
+    // they are on the page without a key.
     expect(await screen.findByText('Claude Code')).toBeTruthy();
     expect(screen.getByText('Codex')).toBeTruthy();
     expect(screen.getByText('Cursor')).toBeTruthy();
     expect(screen.getByText('GitHub Copilot')).toBeTruthy();
+    expect(screen.getByText('OpenCode')).toBeTruthy();
+    expect(screen.getByText('Gemini CLI')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add provider' })).toBeTruthy();
     await waitFor(() =>
-      expect(tileValue('Providers tracked')).toBe(`4/${USAGE_PROVIDER_REGISTRY.length}`),
+      expect(tileValue('Providers tracked')).toBe(`6/${USAGE_PROVIDER_REGISTRY.length}`),
     );
   });
 
@@ -187,7 +201,7 @@ describe('UsagePage with nothing behind it', () => {
 
     const messages = await screen.findAllByText('usage scan crashed');
     // One per tracked provider's card; the page's toolbar and tiles are all still there.
-    expect(messages).toHaveLength(4);
+    expect(messages).toHaveLength(6);
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy();
   });
 });
@@ -258,7 +272,7 @@ describe('UsagePage provider management', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add provider' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByPlaceholderText(/Search 64 providers/), 'openai');
+    await user.type(within(dialog).getByPlaceholderText(/Search 65 providers/), 'openai');
 
     // "openai" also matches Azure OpenAI, so the row is found by its exact name.
     const row = within(dialog)
@@ -281,7 +295,7 @@ describe('UsagePage provider management', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add provider' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByPlaceholderText(/Search 64 providers/), 'claude');
+    await user.type(within(dialog).getByPlaceholderText(/Search 65 providers/), 'claude');
 
     expect(within(dialog).getByText('Local logs · automatic')).toBeTruthy();
     expect(within(dialog).getByText('Auto')).toBeTruthy();
@@ -405,6 +419,168 @@ describe('UsagePage card views', () => {
     ).toBeTruthy();
   });
 
+  it('draws the OpenCode card with the same chart UI as a Codex card', async () => {
+    const { user } = renderPage({
+      'settings.get': {},
+      'usage.list': [
+        usage({
+          providerId: 'opencode',
+          today: period(4_250, 0.42),
+          last7d: period(9_250, 0.9),
+          last30d: period(30_000, 3),
+          series: [100, 200, 300, 400],
+          costSeries: [0.01, 0.02, 0.03, 0.04],
+        }),
+      ],
+    });
+
+    await screen.findByText('OpenCode');
+    const card = cardFor('OpenCode');
+    await waitFor(() => expect(within(card).getByText('tokens today')).toBeTruthy());
+
+    // Day / Week / Month chips switch the headline window, like every other card.
+    expect(within(card).getByRole('tab', { name: 'Day' })).toBeTruthy();
+    expect(within(card).getByRole('tab', { name: 'Week' })).toBeTruthy();
+    expect(within(card).getByRole('tab', { name: 'Month' })).toBeTruthy();
+
+    // Headline cost and the Cost comparison column both show today's cost.
+    expect(within(card).getAllByText('$0.42')).toHaveLength(2);
+    expect(within(card).getByText('Cost')).toBeTruthy();
+    expect(within(card).getByText('Usage')).toBeTruthy();
+    // Cost leads the headline, usage follows it.
+    const headline = headlineFor(card, 'tokens today');
+    const headlineCost = within(headline).getByText('$0.42');
+    const headlineTokens = within(headline).getByText('4.3K');
+    expect(
+      headlineCost.compareDocumentPosition(headlineTokens) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // The week window adds a per-day average under the headline.
+    await user.click(within(card).getByRole('tab', { name: 'Week' }));
+    expect(within(card).getByText('tokens this week')).toBeTruthy();
+    expect(within(card).getByText(/avg .* \/ day/)).toBeTruthy();
+
+    await user.click(within(card).getByRole('tab', { name: 'Month' }));
+    expect(within(card).getByText('tokens this month')).toBeTruthy();
+    expect(within(headlineFor(card, 'tokens this month')).getByText('30.0K')).toBeTruthy();
+
+    // The 14-day token sparkline and its footer read from the same series.
+    expect(within(card).getByRole('img', { name: 'Time series chart' })).toBeTruthy();
+    expect(within(card).getByText('14-day trend')).toBeTruthy();
+    expect(within(card).getByText(/7d /)).toBeTruthy();
+
+    // OpenCode connects itself, so its only actions are [dashboard, desktop]:
+    // no plan-limits toggle without subscription windows, no key, no remove.
+    expect(within(card).getAllByRole('button')).toHaveLength(2);
+
+    // The combined card above counts OpenCode in its per-agent breakdown.
+    expect(within(allAgentsCard()).getByText('OpenCode')).toBeTruthy();
+  });
+
+  it('draws the Gemini CLI card with the Codex chart UI in the Gemini accent', async () => {
+    const { user } = renderPage({
+      'settings.get': {},
+      'usage.list': [
+        claudeUsage,
+        usage({
+          providerId: 'gemini-cli',
+          today: period(4_250, 0.42),
+          last7d: period(9_250, 0.9),
+          last30d: period(30_000, 3),
+          series: [100, 200, 300, 400],
+          costSeries: [0.01, 0.02, 0.03, 0.04],
+        }),
+      ],
+    });
+
+    await screen.findByText('Gemini CLI');
+    const card = cardFor('Gemini CLI');
+    await waitFor(() => expect(within(card).getByText('tokens today')).toBeTruthy());
+
+    // The registry's Gemini blue, as readable on this theme, is what every
+    // painted element in the chart carries.
+    expect(getUsageProvider('gemini-cli')?.accentColor).toBe('#1C69FF');
+    const gemini = cssColor(readableAccent('#1C69FF', false));
+
+    // Day / Week / Month chips switch the headline window, like every other card.
+    expect(within(card).getByRole('tab', { name: 'Day' })).toBeTruthy();
+    expect(within(card).getByRole('tab', { name: 'Week' })).toBeTruthy();
+    expect(within(card).getByRole('tab', { name: 'Month' })).toBeTruthy();
+
+    // Headline cost and the Cost comparison column both show today's cost.
+    expect(within(card).getAllByText('$0.42')).toHaveLength(2);
+    expect(within(card).getByText('Cost')).toBeTruthy();
+    expect(within(card).getByText('Usage')).toBeTruthy();
+    // Cost leads the headline, usage follows it.
+    const headline = headlineFor(card, 'tokens today');
+    const headlineCost = within(headline).getByText('$0.42');
+    const headlineTokens = within(headline).getByText('4.3K');
+    expect(
+      headlineCost.compareDocumentPosition(headlineTokens) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The headline cost wears the Gemini accent, and it is not Claude's. The figure itself
+    // is a CountUp span, so the accent sits on its parent.
+    expect((headlineCost.parentElement as HTMLElement).style.color).toBe(gemini);
+    const claudeHeadline = headlineFor(cardFor('Claude Code'), 'tokens today');
+    expect(
+      (within(claudeHeadline).getByText('$0.50').parentElement as HTMLElement).style.color,
+    ).not.toBe(gemini);
+
+    // Every Usage and Cost compare bar shares the same accent.
+    const bars = [...card.querySelectorAll('.bar-shine')];
+    expect(bars).toHaveLength(6);
+    for (const bar of bars) expect((bar as HTMLElement).style.backgroundColor).toBe(gemini);
+
+    // The week window adds a per-day average under the headline.
+    await user.click(within(card).getByRole('tab', { name: 'Week' }));
+    expect(within(card).getByText('tokens this week')).toBeTruthy();
+    expect(within(card).getByText(/avg .* \/ day/)).toBeTruthy();
+
+    await user.click(within(card).getByRole('tab', { name: 'Month' }));
+    expect(within(card).getByText('tokens this month')).toBeTruthy();
+    expect(within(headlineFor(card, 'tokens this month')).getByText('30.0K')).toBeTruthy();
+
+    // The 14-day token sparkline and its footer read from the same series.
+    // Cost keeps to the compare column here; its own sparkline is widget-only.
+    expect(within(card).getAllByRole('img', { name: 'Time series chart' })).toHaveLength(1);
+    expect(within(card).getByText('14-day trend')).toBeTruthy();
+    expect(within(card).getByText('7d 9.3K · $0.90')).toBeTruthy();
+
+    // Gemini CLI connects itself, so its only actions are [dashboard, desktop]:
+    // no plan-limits toggle without subscription windows, no key, no remove.
+    expect(within(card).getAllByRole('button')).toHaveLength(2);
+
+    // The combined card above counts Gemini CLI in its per-agent breakdown,
+    // painted with the same accent as its own card.
+    const agentRow = within(allAgentsCard()).getByText('Gemini CLI').closest('div.grid');
+    expect(
+      ((agentRow as HTMLElement).querySelector('.bar-shine') as HTMLElement).style.backgroundColor,
+    ).toBe(gemini);
+  });
+
+  it('keeps the Gemini CLI card at an honest zero while the CLI logs no token counts', async () => {
+    const zeros = new Array<number>(14).fill(0);
+    renderPage({
+      'settings.get': {},
+      'usage.list': [usage({ providerId: 'gemini-cli', series: zeros, costSeries: zeros })],
+    });
+
+    await screen.findByText('Gemini CLI');
+    const card = cardFor('Gemini CLI');
+    await waitFor(() => expect(within(card).getByText('tokens today')).toBeTruthy());
+
+    // Tokens headline with no cost: nothing is priced, so no dollar figure is shown.
+    expect(within(headlineFor(card, 'tokens today')).getByText('0')).toBeTruthy();
+    expect(within(card).queryByText(/\$\d/)).toBeNull();
+    expect(within(card).queryByText('Cost')).toBeNull();
+    // No quota bar either: the CLI reports no rate-limit window to draw.
+    expect(within(card).queryByText(/resets in/)).toBeNull();
+    // The flat trend still draws, so the empty state reads as "no data yet".
+    expect(within(card).getByRole('img', { name: 'Time series chart' })).toBeTruthy();
+    expect(within(card).getByText('14-day trend')).toBeTruthy();
+    expect(within(card).getByText('7d 0')).toBeTruthy();
+  });
+
   it('adds a provider card to the dashboard and takes it off again', async () => {
     const { user } = renderPage({ 'settings.get': {}, 'usage.list': [claudeUsage] });
 
@@ -473,7 +649,7 @@ describe('UsagePage project weekday chart', () => {
     });
 
     expect(await screen.findByText('Project usage could not be loaded.')).toBeTruthy();
-    // The four provider cards still report the raw error on their own, and nothing else does.
-    expect(await screen.findAllByText('usage scan crashed')).toHaveLength(4);
+    // The six provider cards still report the raw error on their own, and nothing else does.
+    expect(await screen.findAllByText('usage scan crashed')).toHaveLength(6);
   });
 });

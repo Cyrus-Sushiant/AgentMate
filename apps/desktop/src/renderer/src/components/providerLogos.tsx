@@ -17,6 +17,8 @@ const BRAND_LOGOS: Record<string, BrandLogo> = {
   'claude-code': { path: siClaude.path, color: `#${siClaude.hex}` },
   cursor: { path: siCursor.path, color: `#${siCursor.hex}`, invertOnDark: true },
   gemini: { path: siGooglegemini.path, color: `#${siGooglegemini.hex}` },
+  // Gemini CLI shares the Gemini mark under its own provider id.
+  'gemini-cli': { path: siGooglegemini.path, color: `#${siGooglegemini.hex}` },
   ollama: { path: siOllama.path, color: `#${siOllama.hex}`, invertOnDark: true },
   codex: { ...openaiMark, invertOnDark: true },
   openai: { ...openaiMark, invertOnDark: true },

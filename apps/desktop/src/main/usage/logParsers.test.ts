@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, statSync, truncateSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { GEMINI_LOG_FALLBACK_MODEL } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tempDir } from '../../test/main/fixtures';
 import {
@@ -173,6 +174,7 @@ beforeEach(() => {
   vi.stubEnv('CLAUDE_CONFIG_DIR', join(root, 'claude'));
   vi.stubEnv('CODEX_HOME', join(root, 'codex'));
   vi.stubEnv('COPILOT_HOME', join(root, 'copilot'));
+  vi.stubEnv('GEMINI_HOME', join(root, 'gemini'));
   // homedir() is the fallback root, and it must not be reached during a test.
   vi.stubEnv('HOME', join(root, 'home'));
   vi.stubEnv('USERPROFILE', join(root, 'home'));
@@ -617,6 +619,253 @@ describe('Copilot logs', () => {
     const result = await scanCopilot();
 
     expect(result.entries).toHaveLength(1);
+  });
+});
+
+describe('Gemini CLI logs', () => {
+  // Today's CLI writes prompts and context but no token counts, so the parser
+  // reads the Gemini API's own usageMetadata vocabulary whenever a record
+  // carries one, and otherwise contributes nothing: the card stays at zero
+  // until the CLI persists token usage.
+
+  /** One chat file, as the CLI lays it out under `tmp/<hash>/chats/`. */
+  function writeGeminiLog(hash: string, name: string, lines: string[]): string {
+    const dir = join(root, 'gemini', 'tmp', hash, 'chats');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, name);
+    writeFileSync(file, lines.join(''), 'utf-8');
+    return file;
+  }
+
+  function writeProjectRoot(hash: string, cwd: string): void {
+    const dir = join(root, 'gemini', 'tmp', hash);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, '.project_root'), cwd, 'utf-8');
+  }
+
+  function geminiUsageLine(fields: {
+    at: number;
+    model?: string;
+    prompt?: number;
+    cached?: number;
+    candidates?: number;
+    thoughts?: number;
+    id?: string;
+  }): string {
+    return `${JSON.stringify({
+      timestamp: new Date(fields.at).toISOString(),
+      ...(fields.model ? { model: fields.model } : {}),
+      ...(fields.id ? { id: fields.id } : {}),
+      usageMetadata: {
+        promptTokenCount: fields.prompt ?? 0,
+        cachedContentTokenCount: fields.cached ?? 0,
+        candidatesTokenCount: fields.candidates ?? 0,
+        ...(fields.thoughts === undefined ? {} : { thoughtsTokenCount: fields.thoughts }),
+      },
+    })}\n`;
+  }
+
+  /** A session file exactly as the CLI writes one today: meta + user batch, no tokens. */
+  function geminiChatToday(id: string, at: number): string[] {
+    return [
+      `${JSON.stringify({ sessionId: id, startTime: new Date(at).toISOString(), kind: 'main' })}\n`,
+      `${JSON.stringify({
+        $set: {
+          messages: [
+            {
+              id: 'm1',
+              timestamp: new Date(at).toISOString(),
+              type: 'user',
+              content: [{ text: 'Fix it' }],
+            },
+          ],
+        },
+      })}\n`,
+    ];
+  }
+
+  async function scanGemini(cache: ScanCache = {}, sinceMs = now - 7 * 24 * HOUR_MS) {
+    return scanProviderLogs('gemini-cli', cache, sinceMs);
+  }
+
+  it('reads usageMetadata, splitting cached tokens out of the prompt count', async () => {
+    // The prompt count already includes the cached ones, so adding both would
+    // double-count them in the total.
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      geminiUsageLine({
+        at: now - HOUR_MS,
+        model: 'test-model',
+        prompt: 1_000,
+        cached: 400,
+        candidates: 50,
+        id: 'evt-1',
+      }),
+    ]);
+
+    const result = await scanGemini();
+
+    expect(result.entries).toEqual([
+      {
+        at: now - HOUR_MS,
+        model: 'test-model',
+        input: 600,
+        output: 50,
+        cacheRead: 400,
+        cacheWrite: 0,
+        id: 'evt-1',
+      },
+    ]);
+  });
+
+  it('does not add thoughts tokens to the output count, they are already inside it', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 100, candidates: 80, thoughts: 60 }),
+    ]);
+
+    const [entry] = (await scanGemini()).entries;
+
+    expect(entry?.output).toBe(80);
+    expect((entry?.input ?? 0) + (entry?.cacheRead ?? 0) + (entry?.output ?? 0)).toBe(180);
+  });
+
+  it('reads a generic tokens object when there is no usageMetadata', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      `${JSON.stringify({
+        timestamp: new Date(now - HOUR_MS).toISOString(),
+        model: 'test-model',
+        tokens: { inputTokens: 30, outputTokens: 7, cacheReadTokens: 3 },
+      })}\n`,
+    ]);
+
+    const result = await scanGemini();
+
+    expect(result.entries).toEqual([
+      {
+        at: now - HOUR_MS,
+        model: 'test-model',
+        input: 30,
+        output: 7,
+        cacheRead: 3,
+        cacheWrite: 0,
+      },
+    ]);
+  });
+
+  it('prices an entry that never named a model at the Gemini fallback', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      geminiUsageLine({ at: now - HOUR_MS, prompt: 10, candidates: 2 }),
+    ]);
+
+    const [entry] = (await scanGemini()).entries;
+
+    expect(entry?.model).toBe(GEMINI_LOG_FALLBACK_MODEL);
+  });
+
+  it('reads token-bearing messages inside a batched message list, once each', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      `${JSON.stringify({
+        lastUpdated: new Date(now - HOUR_MS).toISOString(),
+        $set: {
+          messages: [
+            { id: 'm1', type: 'user', content: [{ text: 'Fix it' }] },
+            {
+              id: 'm2',
+              type: 'gemini',
+              timestamp: new Date(now - HOUR_MS).toISOString(),
+              model: 'test-model',
+              usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 4 },
+            },
+          ],
+        },
+      })}\n`,
+    ]);
+
+    const result = await scanGemini();
+
+    // The user message carries no payload, so only the assistant message lands.
+    expect(result.entries).toEqual([
+      {
+        at: now - HOUR_MS,
+        model: 'test-model',
+        input: 10,
+        output: 4,
+        cacheRead: 0,
+        cacheWrite: 0,
+        id: 'm2',
+      },
+    ]);
+  });
+
+  it('contributes nothing for the files the CLI writes today: prompts, but no token counts', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', geminiChatToday('a1', now - HOUR_MS));
+    writeProjectRoot('agentmate', 'E:\\work\\shop');
+
+    const result = await scanGemini();
+
+    expect(result.entries).toEqual([]);
+    expect(result.cache).not.toEqual({});
+  });
+
+  it('ignores malformed JSON, unusable timestamps and empty usage blocks', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      '{ not json at all\n',
+      `${JSON.stringify({ timestamp: 'not-a-date', usageMetadata: { promptTokenCount: 5 } })}\n`,
+      geminiUsageLine({ at: now - HOUR_MS }),
+      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 1 }),
+    ]);
+
+    const result = await scanGemini();
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.input).toBe(1);
+  });
+
+  it('attributes entries to the folder named by the hash sidecar', async () => {
+    writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 10, candidates: 1 }),
+    ]);
+    writeProjectRoot('agentmate', 'E:\\work\\shop');
+
+    const result = await scanGemini();
+
+    expect(result.sources).toEqual([{ folder: 'E:\\work\\shop', count: 1 }]);
+  });
+
+  it('still counts entries whose hash has no sidecar, just without a folder', async () => {
+    writeGeminiLog('lonely', 'session-2026-09-17T10-00-b2.jsonl', [
+      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 10, candidates: 1 }),
+    ]);
+
+    const result = await scanGemini();
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.sources).toEqual([{ folder: null, count: 1 }]);
+  });
+
+  it('resolves to nothing when the CLI was never installed', async () => {
+    const result = await scanGemini();
+
+    expect(result.entries).toEqual([]);
+    expect(result.cache).toEqual({});
+  });
+
+  it('only parses the bytes appended since the last scan', async () => {
+    const file = writeGeminiLog('agentmate', 'session-2026-09-17T10-00-a1.jsonl', [
+      geminiUsageLine({ at: now - 2 * HOUR_MS, model: 'test-model', prompt: 10, id: 'a' }),
+    ]);
+
+    const first = await scanGemini();
+    expect(first.entries).toHaveLength(1);
+
+    appendFileSync(
+      file,
+      geminiUsageLine({ at: now - HOUR_MS, model: 'test-model', prompt: 20, id: 'b' }),
+    );
+    vi.setSystemTime(now + 1_000);
+
+    const second = await scanGemini(first.cache);
+
+    expect(second.entries.map((entry) => entry.id)).toEqual(['a', 'b']);
   });
 });
 

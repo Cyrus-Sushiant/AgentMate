@@ -3,11 +3,11 @@ title: Token Usage
 category: Agents
 order: 50
 summary: Track tokens, cost and plan limits across your AI coding agents and API providers, get alerts before you hit a limit, and pin live usage widgets to your desktop or Dashboard.
-keywords: token usage, tokens, cost, spend, usage, limits, quota, rate limit, claude code, codex, cursor, github copilot, copilot, openai, openrouter, deepseek, api key, threshold alert, reset alert, widget, desktop widget, glass widget, dashboard, plan limits, 5 hour session, weekly limit, projects by weekday, day of week, per project usage
+keywords: token usage, tokens, cost, spend, usage, limits, quota, rate limit, claude code, codex, cursor, github copilot, copilot, gemini cli, gemini, opencode, openai, openrouter, deepseek, api key, threshold alert, reset alert, widget, desktop widget, glass widget, dashboard, plan limits, 5 hour session, weekly limit, projects by weekday, day of week, per project usage
 route: /usage
 ---
 
-Token Usage shows how many tokens your AI tools have used and what that is worth in dollars, plus how close you are to your plan's limits. Claude Code, Codex, Cursor and GitHub Copilot connect on their own. API providers such as OpenAI, OpenRouter or DeepSeek connect when you paste a key. You can set alerts for when a limit is nearly used up or has just reset, and pin any card as a frosted-glass widget on your desktop or on the Dashboard.
+Token Usage shows how many tokens your AI tools have used and what that is worth in dollars, plus how close you are to your plan's limits. Claude Code, Codex, Cursor, GitHub Copilot, OpenCode and Gemini CLI connect on their own. API providers such as OpenAI, OpenRouter or DeepSeek connect when you paste a key. You can set alerts for when a limit is nearly used up or has just reset, and pin any card as a frosted-glass widget on your desktop or on the Dashboard.
 
 ## Where to find it
 
@@ -19,11 +19,11 @@ There are three kinds of source, and the **Add a provider** dialog labels each o
 
 | Source | Providers | How it works |
 | --- | --- | --- |
-| **Local logs · automatic** | Claude Code, Codex, GitHub Copilot | AgentMate reads the session logs these CLIs already write on your machine (Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions`, Copilot under `~/.copilot/session-state`). No key, no network, and every run counts, whether you started it from AgentMate or another terminal. |
+| **Local logs · automatic** | Claude Code, Codex, GitHub Copilot, OpenCode, Gemini CLI | AgentMate reads the session data these CLIs already keep on your machine (Claude Code under `~/.claude/projects`, Codex under `~/.codex/sessions`, Copilot under `~/.copilot/session-state`, OpenCode in its `opencode.db` session database, Gemini CLI under `~/.gemini/tmp`). No key, no network, and every run counts, whether you started it from AgentMate or another terminal. |
 | **Signed-in app · automatic** | Cursor | Cursor keeps no local token log, so AgentMate reads your usage through the Cursor desktop app's signed-in session. Sign in to the Cursor app and the card connects itself. |
 | **API key** | OpenAI, OpenRouter, z.ai, LiteLLM, DeepSeek, Moonshot | You paste a key and AgentMate asks the provider for spend or balance. These providers usually report credit and cost, not raw token counts, so their cards show cost and a limit bar and may show zero tokens. |
 
-Another 55 providers are listed as **Soon** (an integration is registered but not wired yet). The dialog title counts 64 providers in total.
+Another 53 providers are listed as **Soon** (an integration is registered but not wired yet). The dialog title counts 65 providers in total.
 
 > [!NOTE]
 > Usage is cached for about 30 seconds, and the page re-reads it every 45 seconds. Click **Refresh** to force a fresh scan.
@@ -35,7 +35,7 @@ Another 55 providers are listed as **Soon** (an integration is registered but no
 
 ### Summary tiles
 
-Four tiles sit at the top: **Tokens today**, **Tokens (7 days)**, **Cost today** and **Providers tracked** (for example 4/64). They add up every tracked provider that loaded successfully. Each tile has a small dashboard icon that adds the tile to your Dashboard (and removes it again, after a confirmation).
+Four tiles sit at the top: **Tokens today**, **Tokens (7 days)**, **Cost today** and **Providers tracked** (for example 6/65). They add up every tracked provider that loaded successfully. Each tile has a small dashboard icon that adds the tile to your Dashboard (and removes it again, after a confirmation).
 
 ### All agents
 
@@ -45,7 +45,15 @@ The **All agents** card combines every tracked provider. It has **Day**, **Week*
 
 The **Projects by weekday** card sits under All agents. Each column is one day of the week and each coloured segment is one project, so you can see which folders the tokens and the cost went to on which days. It covers the last 4 weeks, or the last 7 days when you pick that. Hover a column for its figures, or move between columns with the arrow keys. Click a project in the legend to see it alone, and click it again to show every project. Switch to **Table** for every project against every weekday.
 
-Projects come from the folder each Claude Code or Codex session ran in. A folder inside a registered project, or one of its git worktrees, counts for that project, and any other folder shows under its own name. The six busiest projects get a colour of their own, and the rest are grouped as **Other**. Days follow your time zone, and cost is an estimate at list prices. Cursor, Copilot and the API-key providers do not record a folder, so they are not part of this card. That is why its totals can differ from the All agents card.
+Projects come from the folder each Claude Code, Codex, OpenCode or Gemini CLI session ran in. A folder inside a registered project, or one of its git worktrees, counts for that project, and any other folder shows under its own name. The six busiest projects get a colour of their own, and the rest are grouped as **Other**. Days follow your time zone, and cost is an estimate at list prices. Cursor, Copilot and the API-key providers do not record a folder, so they are not part of this card. That is why its totals can differ from the All agents card.
+
+### OpenCode
+
+OpenCode gets the same card as Codex: **Day / Week / Month** chips, the cost-led headline with a per-day average, side-by-side **Usage** and **Cost** bars for the three periods, and the 14-day trend sparkline. OpenCode keeps one total per conversation in its session database (no per-message times), so each conversation counts on the day it was last updated. Dollars are the cost OpenCode itself recorded, falling back to the list-price estimate when it recorded none.
+
+### Gemini CLI
+
+Gemini CLI gets the same card as Codex, in Gemini blue: **Day / Week / Month** chips, the cost-led headline with a per-day average, side-by-side **Usage** and **Cost** bars for the three periods, and the 14-day trend sparkline. The CLI's session files under `~/.gemini/tmp` name the project folder but carry no token counts, so the card reads zero until the CLI persists token usage; the project split, cost attribution and trend light up from the same scan once it does. There is no plan-limits view: the CLI reports no rate-limit windows to draw.
 
 ### GitHub Copilot
 
@@ -60,6 +68,7 @@ Each tracked provider gets its own card with its logo and name. The card shows:
 - Side-by-side Usage and Cost bars for day, week and month.
 - For Cursor, a breakdown of the period into named slices (for example Auto versus API-priced calls) with tokens, cost and request counts.
 - For GitHub Copilot, the same kind of split into Chat, Code completions and CLI.
+- For Gemini CLI, the same Codex-style card in Gemini blue; the CLI's session files carry no token counts, so it reads zero until the CLI persists them.
 - A 14-day trend sparkline.
 
 A card can also show a **connect** message instead of numbers: "Sign in to the Cursor app to track usage", or "API key required to track usage". If a provider fails to load, the card shows the error in red and the other cards keep working.
@@ -73,7 +82,7 @@ The icons in a card's header are:
 | Clock or chart | Switches the card between **Show plan limits** and **Show tokens and cost** (only when the account reports plan limits). |
 | Dashboard | **Add to dashboard** or **Remove from dashboard**. |
 | Pin | **Add to desktop**, which opens the widget dialog. |
-| X | **Remove** the provider from tracking (API-key providers only, since Claude Code, Codex, Cursor and Copilot are always on). |
+| X | **Remove** the provider from tracking (API-key providers only, since Claude Code, Codex, Cursor, Copilot, OpenCode and Gemini CLI are always on). |
 
 ### Plan limits view
 
@@ -90,8 +99,8 @@ Costs are estimates calculated from token counts with a built-in model price tab
 ### Add a provider
 
 1. Click **Add provider** at the top.
-2. Search the list (the box says "Search 64 providers…"). Each row shows the provider, a category badge and its source.
-3. For an API-key provider, paste the key in the box and click **Add**. The row then shows **Added**. Claude Code, Codex, Cursor and GitHub Copilot show **Auto** and need nothing. Providers marked **Soon** cannot be added yet.
+2. Search the list (the box says "Search 65 providers…"). Each row shows the provider, a category badge and its source.
+3. For an API-key provider, paste the key in the box and click **Add**. The row then shows **Added**. Claude Code, Codex, Cursor, GitHub Copilot, OpenCode and Gemini CLI show **Auto** and need nothing. Providers marked **Soon** cannot be added yet.
 
 Keys are stored in AgentMate's settings on your machine. Remove a provider with the X on its card. That stops tracking it and takes its card off the Dashboard.
 

@@ -1,12 +1,16 @@
 import { createReadStream } from 'node:fs';
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readFile, readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { CODEX_LOG_FALLBACK_MODEL, COPILOT_LOG_FALLBACK_MODEL } from '@agentmat/core';
+import { dirname, join } from 'node:path';
+import {
+  CODEX_LOG_FALLBACK_MODEL,
+  COPILOT_LOG_FALLBACK_MODEL,
+  GEMINI_LOG_FALLBACK_MODEL,
+} from '@agentmat/core';
 import { codexCwdFromHead, cwdsIn, launchFolder, topLevelDir } from './sessionFolders';
 
-// Parsing for the local-log usage providers (Claude Code, Codex, Copilot). Deliberately
-// free of any `electron` / `@agentmat/core` import so this module can be loaded
+// Parsing for the local-log usage providers (Claude Code, Codex, Copilot, Gemini
+// CLI). Deliberately free of any `electron` import so this module can be loaded
 // both by the main process and by the scan worker thread.
 //
 // Session logs are append-only JSONL and get big, a few hundred MB of Claude
@@ -98,7 +102,7 @@ export interface ScanResult {
   sources?: ScanSource[];
 }
 
-export type LocalLogProvider = 'claude-code' | 'codex' | 'copilot';
+export type LocalLogProvider = 'claude-code' | 'codex' | 'copilot' | 'gemini-cli';
 
 // --- file discovery -------------------------------------------------------
 
@@ -472,6 +476,161 @@ function parseCopilotStateLine(line: string, state: FileScanState): void {
   }
 }
 
+// --- Gemini CLI ------------------------------------------------------------
+
+// Gemini CLI keeps one JSONL chat per session under `~/.gemini/tmp/<hash>/chats/`
+// (`session-*.jsonl`), with a `.project_root` sidecar per hash naming the folder
+// the sessions ran in. `GEMINI_HOME` overrides the home dir; otherwise the
+// default home is read.
+//
+// The files logged today carry only user prompts and context: no token counts.
+// The parser therefore reads the Gemini API's own `usageMetadata` vocabulary
+// (plus a generic `tokens` object) whenever a record carries one, and otherwise
+// contributes nothing, so the card stays at zero until the CLI persists token
+// usage. `thoughtsTokenCount` is a share of the candidates total, not on top of
+// it, so it is never added again (same rule as Codex reasoning tokens).
+function geminiRoots(): string[] {
+  const roots: string[] = [];
+  const home = process.env.GEMINI_HOME;
+  if (home) roots.push(join(home, 'tmp'));
+  roots.push(join(homedir(), '.gemini', 'tmp'));
+  return roots;
+}
+
+interface GeminiUsageMetadata {
+  promptTokenCount?: unknown;
+  cachedContentTokenCount?: unknown;
+  candidatesTokenCount?: unknown;
+  thoughtsTokenCount?: unknown;
+}
+
+interface GeminiTokenObject {
+  inputTokens?: unknown;
+  input_tokens?: unknown;
+  input?: unknown;
+  outputTokens?: unknown;
+  output_tokens?: unknown;
+  output?: unknown;
+  cacheReadTokens?: unknown;
+  cache_read_input_tokens?: unknown;
+  cacheRead?: unknown;
+  cacheWriteTokens?: unknown;
+  cache_creation_input_tokens?: unknown;
+  cacheWrite?: unknown;
+}
+
+function geminiCounts(
+  metadata: unknown,
+  tokens: unknown,
+): { input: number; output: number; cacheRead: number; cacheWrite: number } | null {
+  if (metadata && typeof metadata === 'object') {
+    const usage = metadata as GeminiUsageMetadata;
+    const prompt = num(usage.promptTokenCount);
+    const cached = num(usage.cachedContentTokenCount);
+    const candidates = num(usage.candidatesTokenCount);
+    if (prompt + candidates <= 0) return null;
+    // The prompt count already includes the cached ones; split so the total
+    // does not count them twice.
+    const cacheRead = Math.min(cached, prompt);
+    return { input: Math.max(0, prompt - cacheRead), output: candidates, cacheRead, cacheWrite: 0 };
+  }
+  if (tokens && typeof tokens === 'object') {
+    const slice = tokens as GeminiTokenObject;
+    const input = num(slice.inputTokens ?? slice.input_tokens ?? slice.input);
+    const output = num(slice.outputTokens ?? slice.output_tokens ?? slice.output);
+    const cacheRead = num(slice.cacheReadTokens ?? slice.cache_read_input_tokens ?? slice.cacheRead);
+    const cacheWrite = num(
+      slice.cacheWriteTokens ?? slice.cache_creation_input_tokens ?? slice.cacheWrite,
+    );
+    if (input + output + cacheRead + cacheWrite <= 0) return null;
+    return { input, output, cacheRead, cacheWrite };
+  }
+  return null;
+}
+
+function geminiTime(value: unknown): number | null {
+  if (typeof value !== 'string' || !value) return null;
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? null : at;
+}
+
+/**
+ * One Gemini CLI token event from a usage-bearing record, or null when the
+ * record carries no token payload. Pure (no state) so the usage tests can pin
+ * the shape without touching the disk. `fallbackAt` dates records that name no
+ * time of their own; `fallbackModel` names the session's model when the record
+ * does not.
+ */
+export function parseGeminiUsageRecord(
+  record: Record<string, unknown>,
+  fallbackAt: number | null,
+  fallbackModel?: string,
+): RawUsageEntry | null {
+  const counts = geminiCounts(record.usageMetadata, record.tokens);
+  if (!counts) return null;
+  const at = geminiTime(record.timestamp) ?? fallbackAt;
+  if (at == null || Number.isNaN(at)) return null;
+  const model =
+    typeof record.model === 'string' && record.model
+      ? record.model
+      : typeof fallbackModel === 'string' && fallbackModel
+        ? fallbackModel
+        : GEMINI_LOG_FALLBACK_MODEL;
+  const entry: RawUsageEntry = { at, model, ...counts };
+  if (typeof record.id === 'string' && record.id) entry.id = record.id;
+  return entry;
+}
+
+function parseGeminiLine(line: string, state: FileScanState): void {
+  // Cheap substring reject before paying for JSON.parse. Session files are
+  // mostly user prompts and context dumps with no token payload at all.
+  if (!line.includes('usageMetadata') && !line.includes('tokens')) return;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line) as unknown;
+  } catch {
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object') return;
+  const record = parsed as Record<string, unknown>;
+  const lineAt = geminiTime(record.timestamp ?? record.lastUpdated);
+  const lineModel = typeof record.model === 'string' ? record.model : undefined;
+
+  // A usage event on the line itself.
+  const direct = parseGeminiUsageRecord(record, lineAt, lineModel);
+  if (direct) state.entries.push(direct);
+
+  // ...or batched inside the file's message list, one token-bearing message at
+  // a time. Each entry keeps its message id, so a batch repeated across lines
+  // dedupes to one event downstream.
+  const set = record.$set as { messages?: unknown } | undefined;
+  const batches: unknown[] = [
+    ...(Array.isArray(set?.messages) ? set.messages : []),
+    ...(Array.isArray(record.messages) ? (record.messages as unknown[]) : []),
+  ];
+  for (const item of batches) {
+    if (!item || typeof item !== 'object') continue;
+    const entry = parseGeminiUsageRecord(item as Record<string, unknown>, lineAt, lineModel);
+    if (entry) state.entries.push(entry);
+  }
+}
+
+/**
+ * The folder a Gemini CLI chat ran in, from the `.project_root` sidecar next
+ * to its `chats/` directory. Null when the sidecar is missing, so the entries
+ * still count, just without a project split.
+ */
+async function geminiFolder(filePath: string): Promise<string | null> {
+  // `<tmp>/<hash>/chats/session-*.jsonl` → `<tmp>/<hash>/.project_root`
+  const sidecar = join(dirname(dirname(filePath)), '.project_root');
+  try {
+    const text = (await readFile(sidecar, 'utf-8')).trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 // --- driver ---------------------------------------------------------------
 
 const PARSERS: Record<
@@ -481,6 +640,7 @@ const PARSERS: Record<
   'claude-code': { roots: claudeRoots, line: parseClaudeLine },
   codex: { roots: codexRoots, line: parseCodexLine },
   copilot: { roots: copilotRoots, line: parseCopilotStateLine },
+  'gemini-cli': { roots: geminiRoots, line: parseGeminiLine },
 };
 
 /**
@@ -642,6 +802,8 @@ export async function scanProviderLogs(
     if (provider === 'claude-code') {
       const dir = topLevelDir(root, file.path);
       folder = dir ? (claudeFolders.get(dir) ?? null) : null;
+    } else if (provider === 'gemini-cli') {
+      folder = await geminiFolder(file.path);
     } else {
       if (!state.cwdChecked) state = await withCodexFolder(state, file);
       folder = state.cwd ?? null;

@@ -454,7 +454,7 @@ export default function UsagePage(): React.JSX.Element {
         {/* Which providers are tracked comes from settings, so until those land
             there are no cards to shimmer individually, so stand in for a few. */}
         {settingsQuery.isPending &&
-          Array.from({ length: 4 }, (_, i) => (
+          Array.from({ length: 6 }, (_, i) => (
             <div key={`placeholder-${i}`} className={cn(GLASS_CARD, 'flex h-full flex-col p-4')}>
               <div className="mb-2 flex h-7 items-center gap-2">
                 <Skeleton className="h-5 w-5 rounded-full" />
@@ -982,8 +982,8 @@ function AddProviderDialog({
         <DialogHeader>
           <DialogTitle>Add a provider</DialogTitle>
           <DialogDescription>
-            Claude Code, Codex and GitHub Copilot are tracked automatically from local logs. API
-            providers need a key; the rest are registered and coming soon.
+            Claude Code, Codex, GitHub Copilot, OpenCode and Gemini CLI are tracked automatically
+            from local logs. API providers need a key; the rest are registered and coming soon.
           </DialogDescription>
         </DialogHeader>
         <SearchPill
@@ -992,7 +992,7 @@ function AddProviderDialog({
           onValueChange={setSearch}
           clearLabel="Clear filter"
           label="Search providers"
-          placeholder="Search 64 providers…"
+          placeholder="Search 65 providers…"
         />
         <div className="rail-scroll -mx-2 max-h-[50vh] space-y-0.5 overflow-y-auto px-2">
           {filtered.map((def) => {

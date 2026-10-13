@@ -16,7 +16,13 @@ import { connectUsage, errorUsage } from './shared';
 
 const CACHE_TTL_MS = 30_000;
 
-const LOCAL_LOG_PROVIDERS = new Set<string>(['claude-code', 'codex', 'copilot']);
+const LOCAL_LOG_PROVIDERS = new Set<string>([
+  'claude-code',
+  'codex',
+  'copilot',
+  'opencode',
+  'gemini-cli',
+]);
 
 interface CacheEntry {
   at: number;
@@ -34,6 +40,12 @@ async function computeUsage(
   switch (def.dataSource) {
     case 'local-log':
       if (!LOCAL_LOG_PROVIDERS.has(providerId)) return connectUsage(providerId);
+      // OpenCode keeps its totals in a SQLite database rather than JSONL
+      // transcripts, so it has its own driver with the same card shape.
+      if (providerId === 'opencode') {
+        const { scanOpencodeUsage } = await import('./opencode');
+        return scanOpencodeUsage({ knownProjects: loadKnownProjects });
+      }
       // Copilot reads the metrics API first when a token + org are set, and its
       // CLI logs otherwise, so it goes through its own driver either way.
       if (providerId === 'copilot') {
@@ -87,7 +99,7 @@ export function getProviderUsage(
 
 /**
  * Usage for every provider the user has enabled. Local-log providers
- * (Claude Code, Codex) are always included since they need no config.
+ * (Claude Code, Codex, Copilot, OpenCode, Gemini CLI) are always included since they need no config.
  * One provider failing must not blank out the others, so failures are folded
  * into that provider's own card as an error state.
  */
