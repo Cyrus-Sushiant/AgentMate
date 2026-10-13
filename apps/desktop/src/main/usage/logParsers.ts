@@ -358,50 +358,39 @@ function parseCodexLine(line: string, state: FileScanState): void {
 
 // --- Copilot ---------------------------------------------------------------
 
-// The Copilot CLI keeps JSONL session transcripts under its config dir. The
-// line shape is not versioned, so the parser accepts the shapes seen in the
-// wild: Claude-style `message.usage` with `input_tokens`, OpenAI-style `usage`
-// with `prompt_tokens`/`completion_tokens`, and the flat token fields. Anything
-// without a model, a timestamp, or a positive token count is not a usage event.
-// `COPILOT_CONFIG_DIR` overrides the location; otherwise the well-known homes
-// are checked.
+// The Copilot CLI persists every session as `~/.copilot/session-state/<id>/events.jsonl`
+// (see "About GitHub Copilot CLI session data" in the GitHub docs): one
+// `{type, data, timestamp}` event per line. Token counts live on `session.usage_record`
+// events in `data.usage` (`inputTokens`, `outputTokens`, `cacheReadTokens`,
+// `cacheWriteTokens`, plus the model that served them). `reasoningTokens` is a share of
+// `outputTokens`, not on top of it, so it is never added again. `session.start` names the
+// folder the session ran in (`data.context.cwd`), and `session.model_change` tracks the
+// active model for records that do not name one. `COPILOT_HOME` is the CLI's own
+// documented override; otherwise the default home is read.
 function copilotRoots(): string[] {
   const roots: string[] = [];
-  const override = process.env.COPILOT_CONFIG_DIR;
-  if (override) roots.push(join(override, 'session-state'));
+  const home = process.env.COPILOT_HOME || process.env.COPILOT_CONFIG_DIR;
+  if (home) roots.push(join(home, 'session-state'));
   roots.push(join(homedir(), '.copilot', 'session-state'));
-  roots.push(join(homedir(), '.copilot', 'history-session-state'));
-  roots.push(join(homedir(), '.config', 'github-copilot', 'session-state'));
   return roots;
 }
 
-interface CopilotUsageBlock {
-  input_tokens?: number;
-  output_tokens?: number;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  cache_read_input_tokens?: number;
-  cache_creation_input_tokens?: number;
+interface CopilotUsageRecord {
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
 }
 
-interface CopilotLine {
-  timestamp?: string;
-  time?: string;
-  created_at?: string;
-  createdAt?: string;
+interface CopilotEvent {
+  type?: string;
   id?: string;
-  message_id?: string;
-  model?: string;
-  input_tokens?: number;
-  output_tokens?: number;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  usage?: CopilotUsageBlock;
-  token_usage?: CopilotUsageBlock;
-  message?: {
-    model?: string;
-    id?: string;
-    usage?: CopilotUsageBlock;
+  timestamp?: string;
+  data?: {
+    context?: { cwd?: string };
+    newModel?: string;
+    usage?: CopilotUsageRecord;
   };
 }
 
@@ -410,50 +399,77 @@ function num(v: unknown): number {
 }
 
 /**
- * One Copilot token event from a transcript line, or null when the line is not
- * one. Pure (no state) so the Copilot usage tests can pin the accepted shapes
- * without touching the disk.
+ * One Copilot token event from a `session.usage_record` transcript line, or null when the
+ * line is not one. Pure (no state) so the Copilot usage tests can pin the real event shape
+ * without touching the disk. `model` is the session's active model, used only when the
+ * record itself does not name one.
  */
-export function parseCopilotLine(line: string): RawUsageEntry | null {
-  let parsed: CopilotLine;
+export function parseCopilotUsageRecord(line: string, model?: string): RawUsageEntry | null {
+  let parsed: CopilotEvent;
   try {
-    parsed = JSON.parse(line) as CopilotLine;
+    parsed = JSON.parse(line) as CopilotEvent;
   } catch {
     return null;
   }
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== 'object' || parsed.type !== 'session.usage_record') return null;
+  const usage = parsed.data?.usage;
+  if (!usage || typeof usage !== 'object') return null;
 
-  const usage = parsed.message?.usage ?? parsed.usage ?? parsed.token_usage;
-  const input =
-    num(usage?.input_tokens ?? usage?.prompt_tokens) ||
-    num(parsed.input_tokens ?? parsed.prompt_tokens);
-  const output =
-    num(usage?.output_tokens ?? usage?.completion_tokens) ||
-    num(parsed.output_tokens ?? parsed.completion_tokens);
-  const cacheRead = num(usage?.cache_read_input_tokens);
-  const cacheWrite = num(usage?.cache_creation_input_tokens);
+  const input = num(usage.inputTokens);
+  const output = num(usage.outputTokens);
+  const cacheRead = num(usage.cacheReadTokens);
+  const cacheWrite = num(usage.cacheWriteTokens);
   if (input + output + cacheRead + cacheWrite <= 0) return null;
 
-  const ts = parsed.timestamp ?? parsed.time ?? parsed.created_at ?? parsed.createdAt;
-  const at = ts ? new Date(ts).getTime() : NaN;
+  const at = parsed.timestamp ? new Date(parsed.timestamp).getTime() : NaN;
   if (Number.isNaN(at)) return null;
 
   return {
     at,
-    model: parsed.message?.model ?? parsed.model ?? COPILOT_LOG_FALLBACK_MODEL,
+    model: usage.model ?? model ?? COPILOT_LOG_FALLBACK_MODEL,
     input,
     output,
     cacheRead,
     cacheWrite,
-    id: parsed.message?.id ?? parsed.id ?? parsed.message_id,
+    id: parsed.id,
   };
 }
 
 function parseCopilotStateLine(line: string, state: FileScanState): void {
-  // Cheap substring reject before paying for JSON.parse, mirroring the Claude parser.
-  if (!line.includes('token')) return;
-  const entry = parseCopilotLine(line);
-  if (entry) state.entries.push(entry);
+  // Cheap substring reject before paying for JSON.parse. Usage records are rare next to
+  // the tool-call chatter, so most lines are skipped here.
+  if (
+    !line.includes('session.usage_record') &&
+    !line.includes('session.model_change') &&
+    !line.includes('session.start')
+  ) {
+    return;
+  }
+  let parsed: CopilotEvent;
+  try {
+    parsed = JSON.parse(line) as CopilotEvent;
+  } catch {
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object') return;
+
+  // Model is set on model_change lines and applies to the usage records that follow it
+  // within the same session file.
+  if (parsed.type === 'session.model_change' && typeof parsed.data?.newModel === 'string') {
+    state.model = parsed.data.newModel;
+    return;
+  }
+  // The folder the session ran in, read from its first lines. Kept on the state (which the
+  // driver persists) so later scans of an appended file don't need it again.
+  if (parsed.type === 'session.start') {
+    const cwd = parsed.data?.context?.cwd;
+    if (typeof cwd === 'string' && cwd && !state.cwd) state.cwd = cwd;
+    return;
+  }
+  if (parsed.type === 'session.usage_record') {
+    const entry = parseCopilotUsageRecord(line, state.model);
+    if (entry) state.entries.push(entry);
+  }
 }
 
 // --- driver ---------------------------------------------------------------

@@ -25,7 +25,8 @@ import type { ScanWorkerInput, ScanWorkerMessage } from './usageScanWorker';
 
 // 2: Codex files also keep their full rate-limit snapshot (`limits`).
 // 3: Codex output no longer counts reasoning tokens twice, so cached Codex events were wrong.
-const CACHE_VERSION = 3;
+// 4: Copilot reads the CLI's session.usage_record events, so cached Copilot events were wrong.
+const CACHE_VERSION = 4;
 const WORKER_TIMEOUT_MS = 120_000;
 
 interface CacheFile {

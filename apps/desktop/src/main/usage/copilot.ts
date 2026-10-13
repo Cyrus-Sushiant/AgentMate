@@ -9,19 +9,20 @@ import {
   type UsageTokens,
 } from '@agentmat/core';
 
-export { parseCopilotLine } from './logParsers';
+export { parseCopilotUsageRecord } from './logParsers';
 
 // GitHub Copilot usage from two sources. The local one reads the Copilot CLI's
-// own JSONL session transcripts (see `parseCopilotLine` in logParsers.ts) and
-// needs nothing from the user. The API one calls the org Copilot metrics
+// own JSONL session transcripts (see `parseCopilotUsageRecord` in logParsers.ts)
+// and needs nothing from the user. The API one calls the org Copilot metrics
 // endpoint, which reports per-day token breakdowns for chat, completions and
 // the CLI, and needs a personal access token (with `manage_billing:copilot`,
 // `read:org` or `read:enterprise`) plus the org slug. The API wins when both
 // are configured; when it fails the local logs are used instead of failing the
 // card, so a revoked token degrades to local data rather than an error.
 //
-// Neither source reports money, so dollars are estimated at list prices with
-// the fallback model, the same convention the other local-log cards use.
+// Neither source reports money, so dollars are estimated at list prices. A local
+// record is priced at the model it names (the fallback when it names none). The
+// API reports no model, so all of its tokens are priced at the fallback model.
 
 const API_BASE = 'https://api.github.com';
 const API_VERSION = '2026-03-10';

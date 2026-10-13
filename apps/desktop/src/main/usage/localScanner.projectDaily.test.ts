@@ -162,7 +162,7 @@ describe('scanLocalProvider project split for Claude Code', () => {
     expect(warn).toHaveBeenCalledWith('[usage] project split failed:', expect.any(Error));
   });
 
-  it('gives the same split on a second scan that reads the cache, and keeps the cache at version 3', async () => {
+  it('gives the same split on a second scan that reads the cache, and keeps the cache at version 4', async () => {
     writeTranscript('E--side-project/c.jsonl', claudeLine('E:\\side-project', 'c1'));
 
     const first = await scan('claude-code');
@@ -170,7 +170,7 @@ describe('scanLocalProvider project split for Claude Code', () => {
 
     expect(second.projectDaily).toEqual(first.projectDaily);
     const saved = JSON.parse(readFileSync(join(paths.userData, 'usage-scan-cache.json'), 'utf-8'));
-    expect(saved.version).toBe(3);
+    expect(saved.version).toBe(4);
   });
 });
 

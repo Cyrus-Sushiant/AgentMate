@@ -60,6 +60,20 @@ export function StashMenu({
     }
   }
 
+  // Busy covers the pop too. Otherwise a second pop started before the list refreshes reuses
+  // the same ref, and once the first pop has dropped it, that ref points at the next stash.
+  async function popLatest(): Promise<void> {
+    const latest = stashes[0]?.ref;
+    if (!latest || busy) return;
+    setBusy(true);
+    try {
+      await actions.stashRestore('pop', latest);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gitWorkspaceState(project.id) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <DropdownMenu modal={false}>
       <SimpleTooltip label="Stash changes…">
@@ -85,7 +99,7 @@ export function StashMenu({
             <Archive className="h-3.5 w-3.5" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="whitespace-nowrap text-[13px] font-medium leading-5">
+            <span className="text-[13px] font-medium leading-5">
               Stash All (--include-untracked)
             </span>
             <span className="text-[11px] leading-snug text-muted-foreground">
@@ -98,7 +112,7 @@ export function StashMenu({
           </span>
         </DropdownMenuItem>
         <DropdownMenuItem
-          disabled={!canStash}
+          disabled={!canStash || state.staged.length === 0}
           onSelect={() => void stash('keep-staged')}
           className="group items-start py-2"
         >
@@ -106,7 +120,7 @@ export function StashMenu({
             <Archive className="h-3.5 w-3.5" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="whitespace-nowrap text-[13px] font-medium leading-5">
+            <span className="text-[13px] font-medium leading-5">
               Stash All and Keep Staged (--keep-index)
             </span>
             <span className="text-[11px] leading-snug text-muted-foreground">
@@ -119,15 +133,7 @@ export function StashMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={stashes.length === 0 || blocked || busy}
-          onSelect={() => {
-            const latest = stashes[0]?.ref;
-            if (!latest) return;
-            void actions.stashRestore('pop', latest).then(() => {
-              void queryClient.invalidateQueries({
-                queryKey: queryKeys.gitWorkspaceState(project.id),
-              });
-            });
-          }}
+          onSelect={() => void popLatest()}
         >
           <Undo className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">

@@ -1,5 +1,5 @@
 import type { RdpAgentHistoryRun, SshAgentHistoryRun } from '@shared/apiTypes';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 import { SshAgentHistoryDialog } from './SshAgentHistoryDialog';
@@ -31,7 +31,101 @@ const rdpRun: RdpAgentHistoryRun = {
   ],
 };
 
+/**
+ * jsdom has no layout, so a squeezed card can't be measured here. This pins what caused it: in a
+ * flex column a child that may shrink (the command and action cards are overflow-hidden, so they
+ * can go all the way down to their borders) is squeezed once a long task overflows the pane.
+ * Either the timeline is not a flex container, or none of its children is allowed to shrink.
+ */
+function expectNoShrinkingChildren(timeline: HTMLElement): void {
+  const isFlex = timeline.classList.contains('flex');
+  const shrinkable = [...timeline.children].filter(
+    (child) => isFlex && !child.classList.contains('shrink-0'),
+  );
+  expect(
+    shrinkable,
+    'the timeline is a flex column and some entries can shrink, so a long task squeezes them flat',
+  ).toHaveLength(0);
+}
+
 describe('SshAgentHistoryDialog', () => {
+  it('keeps every command of a long task readable instead of squeezing the cards flat', async () => {
+    const at = Date.now();
+    const commands: SshAgentHistoryRun['entries'] = Array.from({ length: 79 }, (_, i) => ({
+      kind: 'command' as const,
+      at: at - (80 - i) * 1000,
+      command: `du -sh /var/lib/app-${i}`,
+      output: `${i}M\t/var/lib/app-${i}`,
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const run: SshAgentHistoryRun = {
+      id: 'run-long',
+      sessionId: 'ssh-1',
+      prompt: 'Check the disk and delete the data that is not used',
+      aiLabel: 'Claude Code CLI',
+      startedAt: at - 90_000,
+      endedAt: null,
+      status: 'running',
+      entries: [
+        ...commands.slice(0, 40),
+        { kind: 'error', at: at - 40_000, text: 'Paused: this task has run for 30 minutes.' },
+        { kind: 'continued', at: at - 39_000 },
+        ...commands.slice(40),
+      ],
+    };
+    renderWithProviders(
+      <SshAgentHistoryDialog
+        sessionId="ssh-1"
+        sessionTitle="web-1"
+        open
+        onOpenChange={() => undefined}
+      />,
+      { bridge: { 'sshAgent.history': [run] } },
+    );
+
+    const timeline = await screen.findByTestId('agent-timeline');
+    // Every command is on the page with its output, from the first to the last.
+    expect(within(timeline).getAllByText(/^du -sh \/var\/lib\/app-\d+$/)).toHaveLength(79);
+    expect(within(timeline).getByText('0M /var/lib/app-0')).toBeInTheDocument();
+    expect(within(timeline).getByText('78M /var/lib/app-78')).toBeInTheDocument();
+    expect(within(timeline).getByText(/Paused: this task has run for 30 minutes/)).toBeVisible();
+    expectNoShrinkingChildren(timeline);
+  });
+
+  it('does not let a long desktop task squeeze its action cards either', async () => {
+    const at = Date.now();
+    const run: RdpAgentHistoryRun = {
+      ...rdpRun,
+      id: 'run-long-rdp',
+      entries: Array.from({ length: 60 }, (_, i) => ({
+        kind: 'action' as const,
+        at: at - (61 - i) * 1000,
+        action: `CLICK ${i} ${i}`,
+        outcome: `Clicked at ${i}, ${i}`,
+        ok: true,
+      })),
+    };
+    renderWithProviders(
+      <SshAgentHistoryDialog
+        sessionId="rdp-1"
+        sessionTitle="Office PC"
+        open
+        onOpenChange={() => undefined}
+        source={{
+          kind: 'rdp',
+          queryKey: ['rdp-agent-history', 'rdp-1'],
+          load: async () => [run],
+          live: undefined,
+        }}
+      />,
+    );
+
+    const timeline = await screen.findByTestId('agent-timeline');
+    expect(within(timeline).getAllByText(/^CLICK \d+ \d+$/)).toHaveLength(60);
+    expectNoShrinkingChildren(timeline);
+  });
+
   it('loads from a custom source and shows desktop actions', async () => {
     const load = vi.fn(async () => [rdpRun]);
     renderWithProviders(

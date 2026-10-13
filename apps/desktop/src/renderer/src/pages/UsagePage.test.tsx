@@ -396,6 +396,13 @@ describe('UsagePage card views', () => {
     expect(within(card).getByText('Chat')).toBeTruthy();
     expect(within(card).getByText('Code completions')).toBeTruthy();
     expect(within(card).getByText('CLI')).toBeTruthy();
+    // Cost leads the headline, usage follows it.
+    const headline = headlineFor(card, 'tokens today');
+    const headlineCost = within(headline).getByText('$0.42');
+    const headlineTokens = within(headline).getByText('4.3K');
+    expect(
+      headlineCost.compareDocumentPosition(headlineTokens) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('adds a provider card to the dashboard and takes it off again', async () => {

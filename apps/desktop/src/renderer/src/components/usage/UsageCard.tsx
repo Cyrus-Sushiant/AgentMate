@@ -195,20 +195,40 @@ export function UsageCardBody({
       <PeriodChips value={activePeriod} onChange={setPeriod} />
 
       <div className="flex min-w-0 items-baseline gap-2">
-        <CountUp
-          value={primaryTokens}
-          format={formatTokens}
-          className="text-2xl font-semibold tabular-nums tracking-tight"
-        />
-        <span className="shrink-0 text-[11px] text-muted-foreground">tokens {primaryLabel}</span>
-        {cost && (
-          <span className="ml-auto shrink-0" style={{ color: accent }}>
+        {/* Cost leads the headline in the provider accent; usage follows it. Without a
+            price the tokens keep the headline on their own, as before. */}
+        {cost ? (
+          <>
+            <span
+              className="shrink-0 text-2xl font-semibold tabular-nums tracking-tight"
+              style={{ color: accent }}
+            >
+              <CountUp
+                value={costUsd ?? 0}
+                format={(n) => formatCost(n) ?? '$0.00'}
+                className="tabular-nums"
+              />
+            </span>
             <CountUp
-              value={costUsd ?? 0}
-              format={(n) => formatCost(n) ?? '$0.00'}
-              className="text-sm font-medium tabular-nums"
+              value={primaryTokens}
+              format={formatTokens}
+              className="shrink-0 text-sm font-medium tabular-nums text-muted-foreground"
             />
-          </span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              tokens {primaryLabel}
+            </span>
+          </>
+        ) : (
+          <>
+            <CountUp
+              value={primaryTokens}
+              format={formatTokens}
+              className="text-2xl font-semibold tabular-nums tracking-tight"
+            />
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              tokens {primaryLabel}
+            </span>
+          </>
         )}
       </div>
 

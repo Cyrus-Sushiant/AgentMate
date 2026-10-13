@@ -8,27 +8,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * card. The network is stubbed per test, so no real GitHub account is touched.
  */
 
-const { fetchCopilotApiUsage, fetchCopilotUsage, parseCopilotLine } = await import('./copilot');
+const { fetchCopilotApiUsage, fetchCopilotUsage, parseCopilotUsageRecord } = await import(
+  './copilot'
+);
 
 const DAY_MS = 86_400_000;
 const NOW = Date.UTC(2026, 9, 13, 12, 0, 0);
 
-function claudeStyleLine(at: number, model = 'gpt-5'): string {
+/** A real `session.usage_record` line, as the CLI writes it under session-state. */
+function usageRecord(
+  at: number,
+  fields: { model?: string; input?: number; output?: number; cacheRead?: number; id?: string } = {},
+): string {
   return `${JSON.stringify({
+    type: 'session.usage_record',
+    id: fields.id ?? 'evt-1',
     timestamp: new Date(at).toISOString(),
-    message: {
-      model,
-      id: 'msg-1',
-      usage: { input_tokens: 100, output_tokens: 50 },
+    data: {
+      usage: {
+        model: fields.model ?? 'gpt-6-luna',
+        inputTokens: fields.input ?? 100,
+        outputTokens: fields.output ?? 50,
+        cacheReadTokens: fields.cacheRead ?? 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 10,
+      },
     },
-  })}\n`;
-}
-
-function openaiStyleLine(at: number): string {
-  return `${JSON.stringify({
-    timestamp: new Date(at).toISOString(),
-    model: 'gpt-5-mini',
-    usage: { prompt_tokens: 200, completion_tokens: 40 },
   })}\n`;
 }
 
@@ -67,36 +72,43 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('parseCopilotLine', () => {
-  it('reads a Claude-style transcript line with message.usage', () => {
-    const entry = parseCopilotLine(claudeStyleLine(NOW - 1_000).trim());
+describe('parseCopilotUsageRecord', () => {
+  it('reads a session.usage_record line with its model and token counts', () => {
+    const entry = parseCopilotUsageRecord(usageRecord(NOW - 1_000).trim());
 
-    expect(entry).toMatchObject({ model: 'gpt-5', input: 100, output: 50, id: 'msg-1' });
+    expect(entry).toMatchObject({
+      model: 'gpt-6-luna',
+      input: 100,
+      output: 50,
+      id: 'evt-1',
+    });
     expect(entry?.at).toBe(NOW - 1_000);
   });
 
-  it('reads an OpenAI-style line with prompt/completion tokens', () => {
-    const entry = parseCopilotLine(openaiStyleLine(NOW - 2_000).trim());
+  it('never counts reasoning tokens on top of the output total', () => {
+    const entry = parseCopilotUsageRecord(usageRecord(NOW - 1_000).trim());
 
-    expect(entry).toMatchObject({ model: 'gpt-5-mini', input: 200, output: 40 });
+    // reasoningTokens is a share of outputTokens; the total must stay input + output.
+    expect(entry?.output).toBe(50);
   });
 
-  it('prices a line without a model with the fallback model, so the card keeps its cost', () => {
-    const entry = parseCopilotLine(
-      JSON.stringify({
-        timestamp: new Date(NOW - 1_000).toISOString(),
-        usage: { input_tokens: 10, output_tokens: 5 },
-      }),
-    );
+  it('uses the session model for a record that names none, and the fallback otherwise', () => {
+    const noModel = JSON.parse(usageRecord(NOW - 1_000)) as {
+      data: { usage: Record<string, unknown> };
+    };
+    delete noModel.data.usage.model;
 
-    expect(entry?.model).toBe('gpt-5');
+    expect(parseCopilotUsageRecord(JSON.stringify(noModel), 'gpt-4o')?.model).toBe('gpt-4o');
+    expect(parseCopilotUsageRecord(JSON.stringify(noModel))?.model).toBe('gpt-5');
   });
 
-  it('ignores lines without usage, invalid JSON, and missing timestamps', () => {
-    expect(parseCopilotLine('{"type":"user","text":"hi"}')).toBeNull();
-    expect(parseCopilotLine('not json at all')).toBeNull();
+  it('ignores other event types, invalid JSON, and missing timestamps', () => {
+    expect(parseCopilotUsageRecord('{"type":"user.message","data":{}}')).toBeNull();
+    expect(parseCopilotUsageRecord('not json at all')).toBeNull();
     expect(
-      parseCopilotLine(JSON.stringify({ message: { model: 'x', usage: { input_tokens: 1 } } })),
+      parseCopilotUsageRecord(
+        JSON.stringify({ type: 'session.usage_record', data: { usage: { inputTokens: 1 } } }),
+      ),
     ).toBeNull();
   });
 });

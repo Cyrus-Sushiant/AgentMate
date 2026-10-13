@@ -49,7 +49,7 @@ Projects come from the folder each Claude Code or Codex session ran in. A folder
 
 ### GitHub Copilot
 
-Copilot gets the same card as every other provider, with one extra: a **By feature** split into **Chat**, **Code completions** and **CLI**, each with tokens and cost. The CLI's own logs are read automatically and priced at list rates, so the card shows its **Cost** section like the Codex card. For IDE completions and chat, the card accepts an optional personal access token plus your organization (stored with the provider's settings): it then reads your org's Copilot metrics API (the token needs `manage_billing:copilot`, `read:org` or `read:enterprise` scope) and falls back to the local logs if that call fails.
+Copilot gets the same card as every other provider, with one extra: a **By feature** split into **Chat**, **Code completions** and **CLI**, each with tokens and cost. The headline leads with the cost in the provider's accent colour and the tokens after it. The CLI's own logs are read automatically and priced at list rates, so the card shows its **Cost** section like the Codex card. For IDE completions and chat, the card accepts an optional personal access token plus your organization (stored with the provider's settings): it then reads your org's Copilot metrics API (the token needs `manage_billing:copilot`, `read:org` or `read:enterprise` scope) and falls back to the local logs if that call fails.
 
 ### Provider cards
 

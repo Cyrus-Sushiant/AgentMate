@@ -2,13 +2,22 @@ import type { WorkspaceGitState } from '@shared/apiTypes';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
-import { Check, ChevronDown, CloudUpload, Plus, Sparkles, Spinner } from '@/components/icons';
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  CloudUpload,
+  Plus,
+  Sparkles,
+  Spinner,
+} from '@/components/icons';
 import { Notice } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -50,9 +59,10 @@ function CommitMenuItem({
         {icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {/* Wraps the shortcut under the title rather than cutting the title off. */}
+        {/* A long title wraps inside the menu rather than running into its border. The shortcut
+            wraps under the title. */}
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="whitespace-nowrap text-[13px] font-medium leading-5">{title}</span>
+          <span className="text-[13px] font-medium leading-5">{title}</span>
           {shortcut ? (
             <kbd className="ml-auto shrink-0 font-sans text-[11px] leading-5 tracking-wide text-muted-foreground">
               {shortcut}
@@ -100,7 +110,7 @@ export function CommitBox({
   const message = useCommitDrafts((s) => s.drafts[projectId] ?? '');
   const setMessage = (value: string): void =>
     useCommitDrafts.setState((s) => ({ drafts: { ...s.drafts, [projectId]: value } }));
-  const [busy, setBusy] = useState<'commit' | 'push' | null>(null);
+  const [busy, setBusy] = useState<'commit' | 'push' | 'stash' | null>(null);
   const generating = useCommitDrafts((s) => s.generating[projectId] ?? null);
   const setGenerating = (value: string | null): void =>
     useCommitDrafts.setState((s) => ({ generating: { ...s.generating, [projectId]: value } }));
@@ -114,6 +124,13 @@ export function CommitBox({
   const canCommit =
     message.trim().length > 0 && !nothingToCommit && !blockedByConflicts && busy === null;
   const canPush = state.hasRemote && !state.detached && state.branch !== null;
+  // Stashing needs no message, but like committing it waits for conflicts and any
+  // merge/rebase/cherry-pick/revert to finish first.
+  const stashBlocked = blockedByConflicts || state.operation !== null;
+  const canStash = !nothingToCommit && !stashBlocked && busy === null;
+  // Keeping the staged changes in place needs something staged. With nothing staged, that
+  // is just a stash of everything, so the item waits for a staged file.
+  const canKeepStaged = canStash && stagedCount > 0;
 
   const commitLabel = useShortcutLabel('commit.commit');
   const pushLabel = useShortcutLabel('commit.commitAndPush');
@@ -158,6 +175,16 @@ export function CommitBox({
     }
   }
 
+  async function stash(mode: 'all' | 'keep-staged'): Promise<void> {
+    if (!canStash) return;
+    setBusy('stash');
+    try {
+      await actions.stash(mode);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function generate(): Promise<void> {
     if (generating) {
       void window.agentmat.git.cancelSuggestCommitMessage(generating);
@@ -194,14 +221,43 @@ export function CommitBox({
 
   const changesLabel = `${pendingCount} ${pendingCount === 1 ? 'change' : 'changes'}`;
   const stagedLabel = `${stagedCount} staged ${stagedCount === 1 ? 'file' : 'files'}`;
+  const totalCount = stagedCount + pendingCount;
+  const totalLabel = `${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`;
+  const stashWhyBlocked = blockedByConflicts
+    ? 'Resolve the conflicts below first'
+    : state.operation
+      ? `Finish or abort the ${state.operation} first`
+      : null;
+  const stashAllDescription =
+    stashWhyBlocked ??
+    (nothingToCommit
+      ? 'There are no changes to stash'
+      : `Stash all ${totalLabel}, untracked files included`);
+  const keepStagedDescription =
+    stashWhyBlocked ??
+    (stagedCount === 0
+      ? 'Stage something first, or use Stash All'
+      : `Stash everything but keep ${stagedLabel} in place`);
+  // Why Commit can't run, or null when there is no such reason to show.
+  const commitWhyBlocked = blockedByConflicts
+    ? 'Resolve the conflicts below first'
+    : message.trim().length === 0
+      ? 'Write a commit message first'
+      : null;
+  const commitDescription =
+    commitWhyBlocked ??
+    (stageAllFirst
+      ? `Stage all ${changesLabel}, then commit locally`
+      : `Commit ${stagedLabel} locally`);
   const pushTarget = state.upstream ? `push to ${state.upstream}` : `publish ${state.branch}`;
   const pushDescription = !state.hasRemote
     ? 'Add a remote to push this repository'
     : !canPush
       ? 'Check out a branch to push'
-      : stageAllFirst
-        ? `Stage all ${changesLabel}, commit, then ${pushTarget}`
-        : `Commit ${stagedLabel}, then ${pushTarget}`;
+      : (commitWhyBlocked ??
+        (stageAllFirst
+          ? `Stage all ${changesLabel}, commit, then ${pushTarget}`
+          : `Commit ${stagedLabel}, then ${pushTarget}`));
 
   return (
     <div className={cn('@container/commit space-y-2 px-2.5 pb-2.5 pt-2', HAIRLINE_BELOW)}>
@@ -291,7 +347,8 @@ export function CommitBox({
                 <Button
                   size="xs"
                   aria-label="More commit options"
-                  disabled={!canCommit}
+                  // Stashing needs no message, so the menu stays open for that alone.
+                  disabled={!canCommit && !canStash}
                   // The divider is an inset shadow: the app's global border colour would repaint
                   // a border here.
                   className="w-6 rounded-l-none px-0 shadow-[inset_1px_0_0_hsl(var(--primary-foreground)/0.25)]"
@@ -303,12 +360,9 @@ export function CommitBox({
                 <CommitMenuItem
                   icon={<Check className="h-3.5 w-3.5" />}
                   title="Commit"
-                  description={
-                    stageAllFirst
-                      ? `Stage all ${changesLabel}, then commit locally`
-                      : `Commit ${stagedLabel} locally`
-                  }
+                  description={commitDescription}
                   shortcut={commitLabel}
+                  disabled={!canCommit}
                   onSelect={() => void commit(false)}
                 />
                 <CommitMenuItem
@@ -316,8 +370,25 @@ export function CommitBox({
                   title="Commit & push"
                   description={pushDescription}
                   shortcut={pushLabel}
-                  disabled={!canPush}
+                  disabled={!canCommit || !canPush}
                   onSelect={() => void commit(true)}
+                />
+                <DropdownMenuSeparator />
+                <CommitMenuItem
+                  icon={<Archive className="h-3.5 w-3.5" />}
+                  title="Stash All (--include-untracked)"
+                  description={stashAllDescription}
+                  shortcut={null}
+                  disabled={!canStash}
+                  onSelect={() => void stash('all')}
+                />
+                <CommitMenuItem
+                  icon={<Archive className="h-3.5 w-3.5" />}
+                  title="Stash All and Keep Staged (--keep-index)"
+                  description={keepStagedDescription}
+                  shortcut={null}
+                  disabled={!canKeepStaged}
+                  onSelect={() => void stash('keep-staged')}
                 />
               </DropdownMenuContent>
             </DropdownMenu>
@@ -339,6 +410,11 @@ export function CommitBox({
         <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" /> Committing and
           pushing…
+        </p>
+      ) : null}
+      {busy === 'stash' ? (
+        <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Spinner className="h-2.5 w-2.5 animate-spin motion-reduce:animate-none" /> Stashing…
         </p>
       ) : null}
     </div>

@@ -417,14 +417,18 @@ function RunTimeline({ run }: { run: AgentRun }): React.JSX.Element {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   });
 
+  // A plain block with spaced children, not a flex column. In a flex column the command and
+  // action cards (overflow-hidden, so free to shrink to nothing) get squeezed to their borders
+  // as soon as a long task has more entries than fit, and the whole timeline reads as blank rules.
   return (
     <div
       ref={scrollRef}
+      data-testid="agent-timeline"
       onScroll={(e) => {
         const el = e.currentTarget;
         stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
       }}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
+      className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
     >
       <Bubble from="you" at={run.startedAt}>
         {run.prompt}

@@ -110,12 +110,59 @@ function writeCodexLog(name: string, lines: string[]): string {
   return file;
 }
 
+/** One Copilot session directory, as the CLI lays it out under session-state. */
+function writeCopilotLog(sessionId: string, lines: string[]): string {
+  const dir = join(root, 'copilot', 'session-state', sessionId);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, 'events.jsonl');
+  writeFileSync(file, lines.join(''), 'utf-8');
+  return file;
+}
+
+function copilotStart(at: number, cwd: string): string {
+  return `${JSON.stringify({
+    type: 'session.start',
+    id: 'evt-start',
+    timestamp: new Date(at).toISOString(),
+    data: { sessionId: 'ses-1', context: { cwd } },
+  })}\n`;
+}
+
+function copilotUsage(fields: {
+  at: number;
+  model?: string;
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  id?: string;
+}): string {
+  return `${JSON.stringify({
+    type: 'session.usage_record',
+    id: fields.id ?? 'evt-1',
+    timestamp: new Date(fields.at).toISOString(),
+    data: {
+      usage: {
+        model: fields.model ?? 'gpt-6-luna',
+        inputTokens: fields.input ?? 0,
+        outputTokens: fields.output ?? 0,
+        cacheReadTokens: fields.cacheRead ?? 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 5,
+      },
+    },
+  })}\n`;
+}
+
 async function scanClaude(cache: ScanCache = {}, sinceMs = now - 7 * 24 * HOUR_MS) {
   return scanProviderLogs('claude-code', cache, sinceMs);
 }
 
 async function scanCodex(cache: ScanCache = {}, sinceMs = now - 7 * 24 * HOUR_MS) {
   return scanProviderLogs('codex', cache, sinceMs);
+}
+
+async function scanCopilot(cache: ScanCache = {}, sinceMs = now - 7 * 24 * HOUR_MS) {
+  return scanProviderLogs('copilot', cache, sinceMs);
 }
 
 beforeEach(() => {
@@ -125,6 +172,7 @@ beforeEach(() => {
   vi.setSystemTime(now);
   vi.stubEnv('CLAUDE_CONFIG_DIR', join(root, 'claude'));
   vi.stubEnv('CODEX_HOME', join(root, 'codex'));
+  vi.stubEnv('COPILOT_HOME', join(root, 'copilot'));
   // homedir() is the fallback root, and it must not be reached during a test.
   vi.stubEnv('HOME', join(root, 'home'));
   vi.stubEnv('USERPROFILE', join(root, 'home'));
@@ -522,6 +570,53 @@ describe('Codex logs', () => {
     writeCodexLog('rollout.jsonl', [codexTokenCount({ at: now, input: 10, output: 1 })]);
 
     expect((await scanCodex()).limits).toBeUndefined();
+  });
+});
+
+describe('Copilot logs', () => {
+  it('reads usage records with the model that served them', async () => {
+    writeCopilotLog('ses-1', [
+      copilotStart(now - 2 * HOUR_MS, 'E:\\work\\shop'),
+      copilotUsage({ at: now - HOUR_MS, input: 100, output: 20, cacheRead: 5, id: 'evt-1' }),
+    ]);
+
+    const result = await scanCopilot();
+
+    expect(result.entries).toEqual([
+      {
+        at: now - HOUR_MS,
+        model: 'gpt-6-luna',
+        input: 100,
+        output: 20,
+        cacheRead: 5,
+        cacheWrite: 0,
+        id: 'evt-1',
+      },
+    ]);
+  });
+
+  it('attributes entries to the folder the session ran in', async () => {
+    writeCopilotLog('ses-1', [
+      copilotStart(now - 2 * HOUR_MS, 'E:\\work\\shop'),
+      copilotUsage({ at: now - HOUR_MS, input: 10, output: 1 }),
+    ]);
+
+    const result = await scanCopilot();
+
+    expect(result.sources).toEqual([{ folder: 'E:\\work\\shop', count: 1 }]);
+  });
+
+  it('skips the tool-call chatter between usage records', async () => {
+    writeCopilotLog('ses-1', [
+      copilotStart(now - 2 * HOUR_MS, 'E:\\work\\shop'),
+      '{"type":"tool.execution_start","id":"t1","timestamp":"2026-09-17T11:00:00.000Z","data":{}}\n',
+      'not json at all\n',
+      copilotUsage({ at: now - HOUR_MS, input: 10, output: 1 }),
+    ]);
+
+    const result = await scanCopilot();
+
+    expect(result.entries).toHaveLength(1);
   });
 });
 
