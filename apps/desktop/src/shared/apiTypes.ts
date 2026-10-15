@@ -1927,7 +1927,7 @@ export interface CloneIntoResult extends GitOpResult {
 }
 
 export type PackageManagerEcosystem = 'node' | 'dotnet' | 'dart';
-export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'nuget' | 'pub';
+export type PackageManagerKind = 'npm' | 'yarn' | 'pnpm' | 'bun' | 'nuget' | 'pub';
 
 export interface PackageInfo {
   name: string;

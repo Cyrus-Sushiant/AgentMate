@@ -59,6 +59,7 @@ function ecosystemLabel(section: PackageManagerSection): string {
   if (section.ecosystem === 'dart') return 'pub (Dart / Flutter)';
   if (section.manager === 'yarn') return 'Yarn';
   if (section.manager === 'pnpm') return 'pnpm';
+  if (section.manager === 'bun') return 'Bun';
   return 'npm';
 }
 
@@ -542,7 +543,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
         <SectionEmptyState
           icon={Package}
           title="No package manifests in this folder"
-          description="AgentMate looks for package.json, yarn.lock, pnpm-lock.yaml, pubspec.yaml, and .NET project files."
+          description="AgentMate looks for package.json, yarn.lock, pnpm-lock.yaml, bun.lock, pubspec.yaml, and .NET project files."
           action={
             <Button
               variant="outline"

@@ -37,6 +37,7 @@ function installHint(section: PackageManagerSection): string {
   }
   if (section.manager === 'yarn') return 'yarn add <name>@<version> (add -D for dev dependencies)';
   if (section.manager === 'pnpm') return 'pnpm add <name>@<version> (add -D for dev dependencies)';
+  if (section.manager === 'bun') return 'bun add <name>@<version> (add -d for dev dependencies)';
   return 'npm install <name>@<version> (add -D for dev dependencies)';
 }
 

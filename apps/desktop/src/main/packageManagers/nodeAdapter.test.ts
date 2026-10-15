@@ -325,6 +325,121 @@ describe('listPackages with pnpm and yarn', () => {
   });
 });
 
+/** Real `bun outdated` output from bun 1.4. It has no JSON mode and lists only outdated rows. */
+const BUN_OUTDATED = [
+  'bun outdated v1.4.3 (c6da4a4d3)',
+  '|----------------------------------------------|',
+  '| Package          | Current | Update | Latest |',
+  '|------------------|---------|--------|--------|',
+  '| left-pad         | 1.2.0   | 1.3.0  | 1.3.0  |',
+  '|------------------|---------|--------|--------|',
+  '| vitest (dev)     | 3.0.0   | 3.0.0  | 3.2.4  |',
+  '|----------------------------------------------|',
+].join('\n');
+
+describe('listPackages with bun', () => {
+  it('reads the bun outdated table when a bun lockfile is present', async () => {
+    writeTree(root, { 'package.json': MANIFEST, 'bun.lock': '{}' });
+    cliState.answers.set('bun', { stdout: BUN_OUTDATED });
+    const requested = stubRegistry({});
+
+    const section = await nodeAdapter.listPackages(root);
+
+    expect(cliState.calls[0]).toMatchObject({
+      command: 'bun',
+      args: ['outdated', '--no-progress'],
+    });
+    expect(section.manager).toBe('bun');
+    // The "(dev)" suffix is bun's decoration, not part of the name.
+    expect(section.packages.find((p) => p.name === 'vitest')).toMatchObject({
+      currentVersion: '3.0.0',
+      latestVersion: '3.2.4',
+      isOutdated: true,
+    });
+    expect(requested).toEqual([]);
+  });
+
+  it('treats a clean run without a table as everything up to date', async () => {
+    writeTree(root, {
+      'package.json': MANIFEST,
+      'bun.lockb': '',
+      'node_modules/left-pad/package.json': '{"version":"1.3.0"}',
+    });
+    cliState.answers.set('bun', { stdout: 'bun outdated v1.4.3 (c6da4a4d3)\n' });
+    const requested = stubRegistry({});
+
+    const section = await nodeAdapter.listPackages(root);
+
+    expect(section.packages.find((p) => p.name === 'left-pad')).toMatchObject({
+      currentVersion: '1.3.0',
+      latestVersion: '1.3.0',
+      isOutdated: false,
+    });
+    expect(requested).toEqual([]);
+  });
+
+  it('falls back to the registry when bun fails before printing a table', async () => {
+    writeTree(root, { 'package.json': MANIFEST, 'bun.lock': '{}' });
+    cliState.answers.set('bun', {
+      stdout: 'bun outdated v1.4.3 (c6da4a4d3)\n',
+      stderr: 'error: missing lockfile, nothing outdated',
+      code: 1,
+    });
+    const requested = stubRegistry({ 'left-pad': '1.3.0', vitest: '3.2.4' });
+
+    await nodeAdapter.listPackages(root);
+
+    expect(requested.sort()).toEqual(['left-pad', 'vitest']);
+  });
+
+  it('reads the older box-drawn table', async () => {
+    writeTree(root, { 'package.json': MANIFEST, 'bun.lock': '{}' });
+    cliState.answers.set('bun', {
+      stdout: [
+        'bun outdated v1.1.30 (7996d06b)',
+        '┌──────────┬─────────┬────────┬────────┐',
+        '│ Package  │ Current │ Update │ Latest │',
+        '├──────────┼─────────┼────────┼────────┤',
+        '│ left-pad │ 1.2.0   │ 1.3.0  │ 1.3.0  │',
+        '└──────────┴─────────┴────────┴────────┘',
+      ].join('\n'),
+    });
+    stubRegistry({});
+
+    const section = await nodeAdapter.listPackages(root);
+
+    expect(section.packages.find((p) => p.name === 'left-pad')).toMatchObject({
+      latestVersion: '1.3.0',
+      isOutdated: true,
+    });
+  });
+
+  it('uses the workspace root lockfile for a member package', async () => {
+    writeTree(root, {
+      'package.json': JSON.stringify({ name: 'monorepo', workspaces: ['packages/*'] }),
+      'bun.lock': '{}',
+      'packages/app/package.json': JSON.stringify({
+        name: '@demo/app',
+        dependencies: { '@demo/lib': 'workspace:*', 'left-pad': '^1.2.0' },
+      }),
+      // Hoisted to the root, the member has no node_modules of its own.
+      'node_modules/left-pad/package.json': '{"version":"1.2.0"}',
+    });
+    cliState.answers.set('bun', { code: 1 });
+    const requested = stubRegistry({ 'left-pad': '1.3.0', '@demo/lib': '9.9.9' });
+
+    const section = await nodeAdapter.listPackages(root);
+
+    expect(cliState.calls.map((call) => call.command)).toEqual(['bun', 'bun']);
+    expect(section.packages.find((p) => p.name === 'left-pad')).toMatchObject({
+      currentVersion: '1.2.0',
+      isInstalled: true,
+    });
+    // A workspace sibling is never looked up on the public registry.
+    expect(requested).toEqual(['left-pad']);
+  });
+});
+
 describe('registry fallback', () => {
   beforeEach(() => {
     writeTree(root, {
@@ -471,12 +586,33 @@ describe('updatePackages', () => {
   it.each([
     ['pnpm-lock.yaml', 'pnpm', 'update'],
     ['yarn.lock', 'yarn', 'upgrade'],
+    ['bun.lock', 'bun', 'add'],
   ])('uses the %s manager verb', async (lockfile, command, verb) => {
     writeTree(root, { 'package.json': MANIFEST, [lockfile]: '' });
 
     await nodeAdapter.updatePackages(root, [request({})], () => undefined);
 
     expect(cliState.calls[0]).toMatchObject({ command, args: [verb, 'left-pad@1.3.0'] });
+  });
+
+  it('updates a workspace member with the manager of the root lockfile', async () => {
+    writeTree(root, {
+      'package.json': MANIFEST,
+      'bun.lock': '{}',
+      'packages/app/package.json': MANIFEST,
+    });
+
+    await nodeAdapter.updatePackages(
+      root,
+      [request({ manifestPath: join(root, 'packages', 'app', 'package.json') })],
+      () => undefined,
+    );
+
+    expect(cliState.calls[0]).toMatchObject({
+      command: 'bun',
+      args: ['add', 'left-pad@1.3.0'],
+      cwd: join(root, 'packages', 'app'),
+    });
   });
 
   it('groups by manifest folder so each sub-project gets its own manager', async () => {

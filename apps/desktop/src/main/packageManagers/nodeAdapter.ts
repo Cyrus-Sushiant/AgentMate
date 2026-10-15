@@ -9,6 +9,7 @@ import type {
   PackageUpdateRequest,
   PackageUpdateResult,
 } from '../../shared/apiTypes';
+import { stripAnsi } from '../process/spawnStreaming';
 import { CliNotFoundError, mapWithConcurrency, runCli, tryParseJson } from './execUtils';
 import type { PackageManagerAdapter, UpdateProgressTick } from './types';
 
@@ -59,9 +60,34 @@ async function findPackageJsonFiles(root: string, dir = root, depth = 0): Promis
   return found;
 }
 
-function detectManager(folderPath: string): PackageManagerKind {
-  if (existsSync(join(folderPath, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (existsSync(join(folderPath, 'yarn.lock'))) return 'yarn';
+/** Yields folderPath and each parent up to and including rootFolder. */
+function* foldersUpTo(folderPath: string, rootFolder: string): Generator<string> {
+  let dir = folderPath;
+  while (true) {
+    yield dir;
+    const parent = dirname(dir);
+    if (parent === dir || relative(rootFolder, parent).startsWith('..')) return;
+    dir = parent;
+  }
+}
+
+function lockfileManager(dir: string): PackageManagerKind | null {
+  if (existsSync(join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (existsSync(join(dir, 'yarn.lock'))) return 'yarn';
+  if (existsSync(join(dir, 'bun.lock')) || existsSync(join(dir, 'bun.lockb'))) return 'bun';
+  if (existsSync(join(dir, 'package-lock.json'))) return 'npm';
+  return null;
+}
+
+/**
+ * Workspace members have no lockfile of their own (it sits at the workspace root), so the
+ * nearest lockfile between the manifest folder and the scanned project root decides.
+ */
+function detectManager(folderPath: string, rootFolder = folderPath): PackageManagerKind {
+  for (const dir of foldersUpTo(folderPath, rootFolder)) {
+    const manager = lockfileManager(dir);
+    if (manager) return manager;
+  }
   return 'npm';
 }
 
@@ -74,20 +100,66 @@ async function readPackageJson(manifestPath: string): Promise<PackageJsonShape |
   }
 }
 
-async function readInstalledVersion(folderPath: string, name: string): Promise<string | null> {
-  try {
-    const raw = await readFile(join(folderPath, 'node_modules', name, 'package.json'), 'utf-8');
-    const parsed = JSON.parse(raw) as { version?: string };
-    return parsed.version ?? null;
-  } catch {
-    return null;
+/** Resolves the way Node does, so a dependency hoisted to the workspace root still counts. */
+async function readInstalledVersion(
+  folderPath: string,
+  rootFolder: string,
+  name: string,
+): Promise<string | null> {
+  for (const dir of foldersUpTo(folderPath, rootFolder)) {
+    try {
+      const raw = await readFile(join(dir, 'node_modules', name, 'package.json'), 'utf-8');
+      const parsed = JSON.parse(raw) as { version?: string };
+      return parsed.version ?? null;
+    } catch {
+      // Not installed at this level, keep walking up.
+    }
   }
+  return null;
 }
 
 interface OutdatedEntry {
   current?: string;
   wanted?: string;
   latest?: string;
+}
+
+/**
+ * `bun outdated` has no JSON mode, so this reads its table. Recent versions draw it with `|`,
+ * older ones with box characters, and dev/peer/optional rows carry a suffix like "(dev)".
+ * Bun lists only outdated packages and prints no table at all when everything is current,
+ * so a clean exit without a table means nothing is outdated. A failed run without a table
+ * (no lockfile yet, for example) returns null so the registry fallback takes over.
+ */
+export function parseBunOutdated(
+  stdout: string,
+  code: number,
+): Record<string, OutdatedEntry> | null {
+  let nameIdx = -1;
+  let currentIdx = -1;
+  let latestIdx = -1;
+  const map: Record<string, OutdatedEntry> = {};
+  for (const line of stripAnsi(stdout).split(/\r?\n/)) {
+    if (!/[|│]/.test(line)) continue;
+    const cells = line
+      .split(/[|│]/)
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.every((cell) => /^[-─┼]*$/.test(cell))) continue;
+    if (nameIdx === -1) {
+      if (cells.includes('Package') && cells.includes('Latest')) {
+        nameIdx = cells.indexOf('Package');
+        currentIdx = cells.indexOf('Current');
+        latestIdx = cells.indexOf('Latest');
+      }
+      continue;
+    }
+    const name = cells[nameIdx]?.replace(/\s+\((dev|peer|optional)\)$/, '');
+    if (!name) continue;
+    map[name] = { current: cells[currentIdx], latest: cells[latestIdx] };
+  }
+  if (nameIdx === -1) return code === 0 ? {} : null;
+  return map;
 }
 
 async function runOutdated(
@@ -102,6 +174,11 @@ async function runOutdated(
     if (manager === 'pnpm') {
       const { stdout } = await runCli('pnpm', ['outdated', '--format', 'json'], folderPath);
       return tryParseJson<Record<string, OutdatedEntry>>(stdout.trim() || '{}');
+    }
+    if (manager === 'bun') {
+      // npm can't follow bun's isolated node_modules layout and reports nothing as outdated.
+      const { stdout, code } = await runCli('bun', ['outdated', '--no-progress'], folderPath);
+      return parseBunOutdated(stdout, code);
     }
     // yarn classic: NDJSON, one line per event; the "table" line holds the data we want.
     const { stdout } = await runCli('yarn', ['outdated', '--json'], folderPath);
@@ -169,7 +246,7 @@ async function listPackagesForManifest(
   manifestPath: string,
 ): Promise<ProjectScanOutcome> {
   const folderPath = dirname(manifestPath);
-  const manager = detectManager(folderPath);
+  const manager = detectManager(folderPath, rootFolder);
   const pkgJson = await readPackageJson(manifestPath);
   if (!pkgJson) {
     return { status: 'error', message: `Failed to read ${manifestPath}`, packages: [] };
@@ -200,16 +277,15 @@ async function listPackagesForManifest(
     declared,
     REGISTRY_CONCURRENCY,
     async (dep) => {
-      const installedVersion = await readInstalledVersion(folderPath, dep.name);
+      const installedVersion = await readInstalledVersion(folderPath, rootFolder, dep.name);
       const entry = outdated?.[dep.name];
-      const currentVersion =
-        entry?.current ??
-        installedVersion ??
-        pkgJson.dependencies?.[dep.name] ??
-        pkgJson.devDependencies?.[dep.name] ??
-        'unknown';
+      const declaredRange = pkgJson.dependencies?.[dep.name] ?? pkgJson.devDependencies?.[dep.name];
+      const currentVersion = entry?.current ?? installedVersion ?? declaredRange ?? 'unknown';
       let latestVersion = entry?.latest ?? null;
-      if (latestVersion === null && needsFallback) {
+      // A workspace sibling or local path isn't on the registry, and a public package that
+      // happens to share its name would show up as a bogus update.
+      const isLocal = /^(workspace|file|link|portal):/.test(declaredRange ?? '');
+      if (latestVersion === null && needsFallback && !isLocal) {
         latestVersion = await fetchLatestFromRegistry(dep.name);
       }
       const isOutdated = latestVersion !== null && latestVersion !== currentVersion;
@@ -272,11 +348,13 @@ function updateArgsFor(
   const targets = updates.map((u) => `${u.name}@${u.targetVersion}`);
   if (manager === 'yarn') return { command: 'yarn', args: ['upgrade', ...targets] };
   if (manager === 'pnpm') return { command: 'pnpm', args: ['update', ...targets] };
+  // bun add keeps a dev dependency under devDependencies, so one call covers both kinds.
+  if (manager === 'bun') return { command: 'bun', args: ['add', ...targets] };
   return { command: 'npm', args: ['install', ...targets] };
 }
 
 async function updatePackages(
-  _folderPath: string,
+  folderPath: string,
   updates: PackageUpdateRequest[],
   onProgress: (tick: UpdateProgressTick) => void,
 ): Promise<PackageUpdateResult> {
@@ -300,7 +378,7 @@ async function updatePackages(
   let ok = true;
 
   for (const [dir, groupUpdates] of groups) {
-    const manager = detectManager(dir);
+    const manager = detectManager(dir, folderPath);
     const { command, args } = updateArgsFor(manager, groupUpdates);
     const { code, stdout, stderr } = await runCli(command, args, dir, 5 * 60 * 1000);
     const groupOk = code === 0;

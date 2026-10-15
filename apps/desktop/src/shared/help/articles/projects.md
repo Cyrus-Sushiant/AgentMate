@@ -237,7 +237,7 @@ The report shows a verdict (**Nothing serious found**, **Worth a look**, **Needs
 
 ### Packages
 
-The Packages section lists the dependencies of the project and which are outdated. It reads `package.json` with npm, Yarn or pnpm, `pubspec.yaml` for Dart and Flutter, and .NET project files for NuGet. If it finds none it says so and offers **Scan again**.
+The Packages section lists the dependencies of the project and which are outdated. It reads `package.json` with npm, Yarn, pnpm or Bun, `pubspec.yaml` for Dart and Flutter, and .NET project files for NuGet. If it finds none it says so and offers **Scan again**.
 
 - The top shows the number of packages, how many are outdated (or **All current**) and the ecosystems found, with a **Refresh** button.
 - **Search packages** and the filters **All**, **Outdated** and **Dev** narrow the lists.
