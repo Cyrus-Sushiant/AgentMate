@@ -12,6 +12,7 @@ import {
   configuredRunCommands,
   DIFFRAY_TOOL_ID,
   notificationHookChannel,
+  runCommandSummary,
 } from '@agentmat/core';
 import type {
   ApplyVersionResult,
@@ -1311,7 +1312,8 @@ function ProjectTerminalSection({
         </Button>
         {runCommands.length > 0 ? (
           <Button variant="soft" onClick={onRun}>
-            <Run /> {runCommands.length === 1 ? `Run ${runCommands[0].command}` : 'Run'}
+            <Run />{' '}
+            {runCommands.length === 1 ? `Run ${runCommandSummary(runCommands[0].command)}` : 'Run'}
           </Button>
         ) : (
           <Button variant="soft" onClick={onSetRun}>

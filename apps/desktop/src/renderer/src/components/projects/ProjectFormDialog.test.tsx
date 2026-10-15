@@ -1,10 +1,15 @@
-import type { Project } from '@agentmat/core';
-import { screen, waitFor, within } from '@testing-library/react';
+import type { Project, ProjectRunCommand } from '@agentmat/core';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 import { ProjectFormDialog } from './ProjectFormDialog';
 
-function project(): Project {
+const DEFAULT_RUN_COMMANDS: ProjectRunCommand[] = [
+  { id: 'dev', label: 'Dev', command: 'pnpm dev' },
+  { id: 'prod', label: 'Prod', command: 'pnpm start' },
+];
+
+function project(runCommands: ProjectRunCommand[] = DEFAULT_RUN_COMMANDS): Project {
   return {
     id: 'p1',
     name: 'Apollo',
@@ -13,10 +18,7 @@ function project(): Project {
     tags: [],
     agentType: 'claude-code',
     notes: '',
-    runCommands: [
-      { id: 'dev', label: 'Dev', command: 'pnpm dev' },
-      { id: 'prod', label: 'Prod', command: 'pnpm start' },
-    ],
+    runCommands,
     cliId: null,
     iconDataUrl: null,
     iconBgColor: null,
@@ -58,5 +60,138 @@ describe('ProjectFormDialog focusRunCommands', () => {
       'pnpm start',
     );
     await waitFor(() => expect(within(dialog).getByLabelText('Environment 1')).toHaveFocus());
+  });
+});
+
+function renderWithCommands(runCommands: ProjectRunCommand[]) {
+  const onSubmit = vi.fn();
+  const view = renderWithProviders(
+    <ProjectFormDialog
+      open
+      onOpenChange={vi.fn()}
+      initial={project(runCommands)}
+      onSubmit={onSubmit}
+      focusRunCommands
+    />,
+    { bridge: { 'settings.get': {} } },
+  );
+  return { ...view, onSubmit };
+}
+
+describe('ProjectFormDialog run command inputs', () => {
+  it('gives every command a button that asks for a value, named by its row', async () => {
+    renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+
+    expect(
+      within(dialog).getByRole('button', { name: 'Ask for a value in command 1' }),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole('button', { name: 'Ask for a value in command 2' }),
+    ).toBeTruthy();
+  });
+
+  it('explains that button in a styled tooltip, never a native title', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+
+    await user.hover(within(dialog).getByRole('button', { name: 'Ask for a value in command 1' }));
+
+    expect((await screen.findAllByText('Ask for a value when this command runs'))[0]).toBeTruthy();
+    expect(document.querySelectorAll('[title]')).toHaveLength(0);
+  });
+
+  it('adds a placeholder at the end when the command has never been clicked into', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Ask for a value in command 1' }));
+
+    const command = within(dialog).getByLabelText('Command 1') as HTMLInputElement;
+    expect(command.value).toBe('pnpm dev {{value}}');
+    expect(command).toHaveFocus();
+    expect([command.selectionStart, command.selectionEnd]).toEqual([11, 16]);
+  });
+
+  it('adds a placeholder at the caret once the command has been clicked into', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+    const command = within(dialog).getByLabelText('Command 1') as HTMLInputElement;
+    await user.click(command);
+    command.setSelectionRange(5, 5);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Ask for a value in command 1' }));
+
+    expect(command.value).toBe('pnpm {{value}} dev');
+  });
+
+  it('turns selected text into the default, and leaves the new name selected', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+    const command = within(dialog).getByLabelText('Command 1') as HTMLInputElement;
+    await user.click(command);
+    command.setSelectionRange(5, 8);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Ask for a value in command 1' }));
+
+    expect(command.value).toBe('pnpm {{value=dev}}');
+    expect(command.value.slice(command.selectionStart ?? 0, command.selectionEnd ?? 0)).toBe(
+      'value',
+    );
+  });
+
+  it('keeps focus in the command field when its button is pressed', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByLabelText('Command 1'));
+
+    const button = within(dialog).getByRole('button', {
+      name: 'Ask for a value in command 1',
+    });
+    expect(fireEvent.mouseDown(button)).toBe(false);
+  });
+
+  it('says what a command asks for under its row, linked to the command field', async () => {
+    renderWithCommands([
+      { id: 'serve', label: 'serve', command: 'pnpm dev -- --port {{port=3000}} {{args?}}' },
+      { id: 'prod', label: 'prod', command: 'pnpm start' },
+    ]);
+    const dialog = await screen.findByRole('dialog');
+
+    const line = within(dialog).getByText('Asks for: port (default 3000), args (optional)');
+    expect(within(dialog).getByLabelText('Command 1')).toHaveAttribute('aria-describedby', line.id);
+    expect(within(dialog).getAllByText(/Asks for:/)).toHaveLength(1);
+    expect(within(dialog).getByLabelText('Command 2')).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('adds a row that asks for a value, with the caret at the start of its command', async () => {
+    const { user } = renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Add command that asks for input' }),
+    );
+
+    const command = within(dialog).getByLabelText('Command 3') as HTMLInputElement;
+    expect(command.value).toBe('{{value}}');
+    expect(command).toHaveFocus();
+    expect([command.selectionStart, command.selectionEnd]).toEqual([0, 0]);
+  });
+
+  it('explains the placeholder syntax in the run commands hint', async () => {
+    renderDialog(true);
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText(/\{\{name\}\}/)).toBeTruthy();
+  });
+
+  it('saves a command with a placeholder exactly as it was written', async () => {
+    const command = { id: 'serve', label: 'serve', command: 'pnpm dev -- --port {{port=3000}}' };
+    const { user, onSubmit } = renderWithCommands([command]);
+    const dialog = await screen.findByRole('dialog');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ runCommands: [command] }));
   });
 });

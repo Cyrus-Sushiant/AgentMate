@@ -6,6 +6,7 @@ import type { GrammarSettings } from '../grammar/languagetool.js';
 import type { ProxySettings } from '../network/proxy.js';
 import type { EffortLevel } from '../promptBuilder/runRecommendation.js';
 import type { DesktopPromptBuildWidgetInstance } from '../promptBuilder/types.js';
+import { runCommandSummary } from '../run/runInputs.js';
 import type {
   DesktopWidgetInstance,
   StatusBarUsageSettings,
@@ -776,12 +777,13 @@ export function configuredRunCommands(project: Pick<Project, 'runCommands'>): Pr
 
 /** Label shown in pickers and tooltips: the environment name, or the command if unnamed. */
 export function projectRunCommandTitle(entry: ProjectRunCommand): string {
-  return entry.label.trim() || entry.command;
+  return entry.label.trim() || runCommandSummary(entry.command);
 }
 
 export function projectRunCommandHint(entry: ProjectRunCommand): string {
   const title = entry.label.trim();
-  return title ? `${title}: ${entry.command}` : entry.command;
+  const command = runCommandSummary(entry.command);
+  return title ? `${title}: ${command}` : command;
 }
 
 /** Where a WordPress item lives: wp-content/themes, wp-content/plugins or wp-content/mu-plugins. */

@@ -3,7 +3,7 @@ title: Projects
 category: Getting started
 order: 50
 summary: Add and organise your projects, then use each project's page for its prompts and Blueprint, git, token usage and cost, security scans, packages, Docker, bootstrap files, skills, MCP servers, hooks and environments.
-keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts, usage, cost, tokens, spend
+keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, placeholder, run input, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts, usage, cost, tokens, spend
 route: /projects
 ---
 
@@ -39,7 +39,7 @@ Each project card or row shows its icon, name, "Updated ..." time, description, 
 - **Pin to top** or **Unpin project**, and **Archive project** or **Restore project**, appear on hover. Archiving moves a project out of the way without deleting it.
 - The agent badge (for example Claude Code) opens that agent's CLI in a terminal in the project folder. Generic projects have no CLI, so their badge does nothing.
 - The folder link opens the project folder in your file manager. The globe and branch icons open its website and its repository.
-- **Run** starts the project's run command in a terminal. If the project has several commands it opens a **Run command** dialog to pick one. If it has none, a message says to set one and the project page opens. See [Run commands](#run-commands).
+- **Run** starts the project's run command in a terminal. If the project has several commands it opens a **Run command** dialog to pick one. A command that asks for values opens a short form for them first. If it has none, a message says to set one and the project page opens. See [Run commands](#run-commands).
 - A small group of three icon buttons: **Open the Git section** (the project's Git tab), **Review with diffray** (the review wizard) and **Build a prompt for this project** (the Build Prompt dialog).
 
 An empty list shows "No projects yet" with a **New Project** button. If a search matches nothing, the page says so and offers **Clear filters**.
@@ -86,6 +86,21 @@ Run commands are what the **Run** button executes in the project folder. The lis
 The order matters. **Run** lists the commands top to bottom, and a project with one command runs it straight away. Drag a row by its grip to reorder, or focus the grip and use the arrow keys.
 
 When you click **Run**, AgentMate opens a terminal in the project folder, types the command and runs it, and shows a message such as `Running "dev".` The status bar then shows the run with its port, CPU and memory, and `Shift+F5` stops the run in the drawer (or the newest run). If the project still has Docker containers running when you stop, AgentMate asks whether to stop them too, see [Docker](docker.md#when-you-stop-a-run). See [Interface tour](interface-tour.md).
+
+### Commands that ask for a value
+
+A command can leave a value open until you run it. Write a name in double braces where the value goes, for example `npm run dev -- --port {{port}}`. When you click **Run**, AgentMate opens a short form with one field per name, shows the command exactly as it will run, and starts it in the project folder once you press Enter or **Run**.
+
+- `{{port}}` is required. The run waits until the field has a value.
+- `{{port=3000}}` is required, and the field starts with 3000.
+- `{{args?}}` is optional. Left empty, it is dropped from the command.
+- `{{args?=--watch}}` is optional, and the field starts with `--watch`.
+
+Values go in exactly as typed, with no quoting. If a value can hold spaces, put the quotes in the command, for example `open "{{path}}"`. A name used more than once asks only once.
+
+To add one, click **Ask for a value** on a command's row, or use **Add command that asks for input**. Typed values show in the status bar and stay with the terminal tab, so do not type a password or token into one.
+
+To keep `{{name}}` as plain text, put spaces inside the braces, as in `{{ name }}`. Go template text such as `{{range .Items}}` is left alone.
 
 ## A project's page
 
@@ -253,7 +268,7 @@ The Docker section lists containers started with `docker compose` from this exac
 
 ### Terminal
 
-The Terminal section opens a shell in the project folder. **Open terminal here** opens it in the terminal drawer, **Run** (or **Run** followed by the command, if there is only one) starts the project, and **Set a run command** opens Edit project on the run commands when there are none. Terminals already open for this project are listed under **Open here** with a **Show** button. Hiding the drawer does not stop the shell.
+The Terminal section opens a shell in the project folder. **Open terminal here** opens it in the terminal drawer, **Run** (or **Run** followed by the command, if there is only one) starts the project, asking for any values first, and **Set a run command** opens Edit project on the run commands when there are none. Terminals already open for this project are listed under **Open here** with a **Show** button. Hiding the drawer does not stop the shell.
 
 ### Bootstrap
 

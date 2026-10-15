@@ -140,7 +140,7 @@ The branch switcher at the left of the buttons shows **main checkout** or the br
 
 The play button starts the project's run command, for example `pnpm dev`. Its tooltip names the command, and `F5` does the same. The command runs in the terminal drawer at the bottom of the app, not in a pane. Use `Shift+F5` to stop it.
 
-- With one run command, it starts right away. With several, a picker asks which one.
+- With one run command, it starts right away. With several, a picker asks which one. A command that asks for values opens a form for them first.
 - Right-click the button to list the project's commands and pick one, or choose **Edit run commands** (or **Add a run command** when there are none).
 - With no command set, a message says **{project} has no run command yet** and offers **Edit run commands**.
 

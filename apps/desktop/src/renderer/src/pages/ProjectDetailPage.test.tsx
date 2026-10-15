@@ -170,6 +170,21 @@ describe('ProjectDetailPage shell', () => {
     expect(await screen.findByRole('button', { name: /^Run/ })).toBeTruthy();
   });
 
+  it('names a command with placeholders by its readable form in the Terminal section', async () => {
+    const { user } = renderPage({}, [
+      project({
+        runCommands: [{ id: 'r1', label: 'serve', command: 'npm run dev -- --port {{port=3000}}' }],
+      }),
+    ]);
+    await screen.findByRole('heading', { name: 'Apollo' });
+
+    await openSection(user, /^Terminal/);
+
+    expect(
+      await screen.findByRole('button', { name: 'Run npm run dev -- --port <port>' }),
+    ).toBeTruthy();
+  });
+
   it('copies the folder path to the clipboard', async () => {
     const { user } = renderPage();
     await screen.findByRole('heading', { name: 'Apollo' });

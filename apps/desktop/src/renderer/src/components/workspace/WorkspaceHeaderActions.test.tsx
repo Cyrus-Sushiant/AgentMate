@@ -244,3 +244,25 @@ describe('WorkspaceHeaderActions run menu', () => {
     );
   });
 });
+
+describe('WorkspaceHeaderActions run labels for placeholders', () => {
+  const ask = { id: 'serve', label: 'serve', command: 'pnpm dev -- --port {{port=3000}}' };
+
+  it('names the Run button by the readable command', async () => {
+    await renderHeader([{ ...project('a'), runCommands: [ask] }]);
+
+    expect(
+      screen.getByRole('button', { name: 'Run A (pnpm dev -- --port <port>)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('marks a templated command in the run menu, and leaves a plain one as it was', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev, ask] }]);
+    const menu = await openRunMenu(user, 'Run A: pick a command');
+
+    const [plain, templated] = within(menu).getAllByRole('menuitem');
+    expect(plain?.textContent).toBe('Devpnpm dev');
+    expect(templated).toHaveTextContent('pnpm dev -- --port <port>');
+    expect(templated).toHaveTextContent('Asks for input');
+  });
+});

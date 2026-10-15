@@ -86,7 +86,7 @@ These work only on the Workspace page.
 | Zoom pane | `Ctrl+Shift+Enter` | Lets the focused pane fill the workspace, or puts it back. |
 | Toggle changes panel | `Ctrl+Shift+G` | Shows or hides the git changes panel on the right. |
 | New worktree | `Ctrl+Shift+N` | Starts a git worktree of the project on screen. |
-| Run project | `F5` | Does what the header's Run button does: starts the project's run command, or asks which one when there are several. |
+| Run project | `F5` | Does what the header's Run button does: starts the project's run command, or asks which one when there are several, and for any values the command needs. |
 | Search files and code | `Ctrl+P` | Finds files, types, members and text in the project, with a preview. On the Workspace it takes `Ctrl+P` from Go to Projects. |
 | Go to tab 1 to 9 | `Alt+1` to `Alt+9` | Picks a tab in the focused pane by its position. |
 | Next change in diff | `F7` | Jumps to the next changed block of the diff in the focused pane. |

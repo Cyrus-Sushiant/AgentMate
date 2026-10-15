@@ -1,13 +1,15 @@
-import type { AgentType, Project, ProjectRunCommand } from '@agentmat/core';
+import type { AgentType, Project, ProjectRunCommand, RunInput } from '@agentmat/core';
 import {
   AGENT_TYPES,
   browsableRepoUrl,
   CLI_REGISTRY,
   configuredRunCommands,
+  insertRunInput,
   isClonableGithubUrl,
+  parseRunInputs,
 } from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { cliOptionIcon } from '@/components/cliLogos';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
@@ -17,6 +19,7 @@ import {
   GitBranch,
   Globe,
   GripVertical,
+  Keyboard,
   Pencil,
   Plus,
   Sparkles,
@@ -124,6 +127,18 @@ function folderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? '';
 }
 
+/** What a command asks for, for the line under its row: `port (default 3000), args (optional)`. */
+function describeInputs(inputs: RunInput[]): string {
+  return inputs
+    .map((input) => {
+      const notes: string[] = [];
+      if (input.defaultValue) notes.push(`default ${input.defaultValue}`);
+      if (!input.required) notes.push('optional');
+      return notes.length > 0 ? `${input.name} (${notes.join(', ')})` : input.name;
+    })
+    .join(', ');
+}
+
 function emptyRunCommand(): ProjectRunCommand {
   return { id: crypto.randomUUID(), label: '', command: '' };
 }
@@ -169,6 +184,17 @@ export function ProjectFormDialog({
   // Same idea for the repository lookup: one git call per folder, not one per blur.
   const detectedRepoPath = useRef<string | null>(null);
   const runCommandsRef = useRef<HTMLDivElement>(null);
+  // Command fields by row, and the rows that have been clicked into. Together they decide where
+  // "Ask for a value" puts its placeholder: at the caret if the field was used, else at the end.
+  const commandInputs = useRef(new Map<string, HTMLInputElement>());
+  const touchedCommands = useRef(new Set<string>());
+  // Where the caret or selection should land after a placeholder is added. A new object each time,
+  // so the layout effect below runs for every request.
+  const [caretRequest, setCaretRequest] = useState<{
+    id: string;
+    start: number;
+    end: number;
+  } | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: this fills the form when the dialog opens, and detectRepoUrl is rebuilt on every render
   useEffect(() => {
@@ -184,6 +210,8 @@ export function ProjectFormDialog({
     setRunCommands(draftsFromProject(initial));
     setDraggedRunId(null);
     setRunDropId(null);
+    touchedCommands.current.clear();
+    setCaretRequest(null);
     setCliId(initial?.cliId ?? APP_DEFAULT_CLI);
     setIconDataUrl(initial?.iconDataUrl ?? null);
     setIconBgColor(initial?.iconBgColor ?? null);
@@ -209,6 +237,15 @@ export function ProjectFormDialog({
     });
     return () => cancelAnimationFrame(frame);
   }, [open, focusRunCommands]);
+
+  // Runs once the new text is on screen, so the caret lands in the field that now holds it.
+  useLayoutEffect(() => {
+    if (!caretRequest) return;
+    const field = commandInputs.current.get(caretRequest.id);
+    if (!field) return;
+    field.focus();
+    field.setSelectionRange(caretRequest.start, caretRequest.end);
+  }, [caretRequest]);
 
   /**
    * Fills the repository field from the folder's origin remote. `current` is passed
@@ -365,6 +402,30 @@ export function ProjectFormDialog({
       next.splice(to, 0, moved);
       return next;
     });
+  }
+
+  /**
+   * Puts a placeholder into a command: at the caret when that field has been clicked into, at the
+   * end otherwise. Selected text becomes the default, which is the core helper's doing.
+   */
+  function askForValue(row: ProjectRunCommand): void {
+    const field = touchedCommands.current.has(row.id)
+      ? commandInputs.current.get(row.id)
+      : undefined;
+    const from = field?.selectionStart ?? row.command.length;
+    const to = field?.selectionEnd ?? from;
+    const edit = insertRunInput(row.command, from, to);
+    setRunCommands((prev) =>
+      prev.map((item) => (item.id === row.id ? { ...item, command: edit.command } : item)),
+    );
+    setCaretRequest({ id: row.id, start: edit.selectionStart, end: edit.selectionEnd });
+  }
+
+  /** A new command that is only a placeholder. The caret starts at the front, so a program name can go in before it. */
+  function addCommandThatAsks(): void {
+    const row: ProjectRunCommand = { ...emptyRunCommand(), command: '{{value}}' };
+    setRunCommands((prev) => [...prev, row]);
+    setCaretRequest({ id: row.id, start: 0, end: 0 });
   }
 
   function handleSubmit(): void {
@@ -717,7 +778,7 @@ export function ProjectFormDialog({
 
               <Field
                 label="Run commands"
-                hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run lists them in this order, so drag the one you reach for most to the top."
+                hint="What the Run button executes in the project folder. Add one per environment if you need more than one; Run lists them in this order, so drag the one you reach for most to the top. Put {{name}} where a value should go and Run asks for it first."
               >
                 <div ref={runCommandsRef} className="space-y-2">
                   <div className="flex gap-2 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
@@ -725,127 +786,167 @@ export function ProjectFormDialog({
                     <span className="w-[7.5rem] shrink-0 px-1">Environment</span>
                     <span className="min-w-0 flex-1 px-1">Command</span>
                     <span className="w-9 shrink-0" />
+                    <span className="w-9 shrink-0" />
                   </div>
-                  {runCommands.map((row, index) => (
-                    <div
-                      key={row.id}
-                      className={cn(
-                        'flex items-center gap-2 rounded-md border border-transparent transition-colors',
-                        draggedRunId === row.id && 'opacity-40',
-                        runDropId === row.id && draggedRunId !== row.id && 'border-primary/50',
-                      )}
-                      onDragOver={(e) => {
-                        if (!draggedRunId || draggedRunId === row.id) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        setRunDropId(row.id);
-                      }}
-                      onDragLeave={() =>
-                        setRunDropId((current) => (current === row.id ? null : current))
-                      }
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        dropRunCommandOn(row.id);
-                      }}
-                    >
-                      <div className="flex w-11 shrink-0 items-center gap-1">
-                        <span className="w-4 text-right text-xs tabular-nums text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <SimpleTooltip
-                          label={
-                            runCommands.length > 1
-                              ? 'Drag to reorder, or focus this and use the arrow keys'
-                              : 'Add another command to set an order'
+                  {runCommands.map((row, index) => {
+                    const inputs = parseRunInputs(row.command);
+                    const asksId = `${ids}-asks-${row.id}`;
+                    return (
+                      <div key={row.id} className="space-y-1">
+                        <div
+                          className={cn(
+                            'flex items-center gap-2 rounded-md border border-transparent transition-colors',
+                            draggedRunId === row.id && 'opacity-40',
+                            runDropId === row.id && draggedRunId !== row.id && 'border-primary/50',
+                          )}
+                          onDragOver={(e) => {
+                            if (!draggedRunId || draggedRunId === row.id) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            setRunDropId(row.id);
+                          }}
+                          onDragLeave={() =>
+                            setRunDropId((current) => (current === row.id ? null : current))
                           }
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            dropRunCommandOn(row.id);
+                          }}
                         >
-                          <span
-                            draggable={runCommands.length > 1}
-                            role="button"
-                            tabIndex={runCommands.length > 1 ? 0 : -1}
-                            aria-label={`Reorder command ${index + 1}`}
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = 'move';
-                              // A drag carrying no payload is refused outright by
-                              // some engines, so set one even though the drop
-                              // reads the id off state.
-                              e.dataTransfer.setData('text/plain', row.id);
-                              setDraggedRunId(row.id);
+                          <div className="flex w-11 shrink-0 items-center gap-1">
+                            <span className="w-4 text-right text-xs tabular-nums text-muted-foreground">
+                              {index + 1}
+                            </span>
+                            <SimpleTooltip
+                              label={
+                                runCommands.length > 1
+                                  ? 'Drag to reorder, or focus this and use the arrow keys'
+                                  : 'Add another command to set an order'
+                              }
+                            >
+                              <span
+                                draggable={runCommands.length > 1}
+                                role="button"
+                                tabIndex={runCommands.length > 1 ? 0 : -1}
+                                aria-label={`Reorder command ${index + 1}`}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  // A drag carrying no payload is refused outright by
+                                  // some engines, so set one even though the drop
+                                  // reads the id off state.
+                                  e.dataTransfer.setData('text/plain', row.id);
+                                  setDraggedRunId(row.id);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedRunId(null);
+                                  setRunDropId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                                  e.preventDefault();
+                                  reorderRunCommands(
+                                    row.id,
+                                    e.key === 'ArrowUp' ? index - 1 : index + 1,
+                                  );
+                                }}
+                                className={cn(
+                                  'flex h-8 w-6 items-center justify-center rounded-md text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                  runCommands.length > 1
+                                    ? 'cursor-grab hover:bg-accent hover:text-accent-foreground active:cursor-grabbing'
+                                    : 'cursor-not-allowed text-muted-foreground/25',
+                                )}
+                              >
+                                <GripVertical className="h-3.5 w-3.5" />
+                              </span>
+                            </SimpleTooltip>
+                          </div>
+                          <Input
+                            value={row.label}
+                            onChange={(e) =>
+                              setRunCommands((prev) =>
+                                prev.map((item) =>
+                                  item.id === row.id ? { ...item, label: e.target.value } : item,
+                                ),
+                              )
+                            }
+                            placeholder="dev"
+                            aria-label={`Environment ${index + 1}`}
+                            className="w-[7.5rem] shrink-0"
+                          />
+                          <Input
+                            value={row.command}
+                            onChange={(e) =>
+                              setRunCommands((prev) =>
+                                prev.map((item) =>
+                                  item.id === row.id ? { ...item, command: e.target.value } : item,
+                                ),
+                              )
+                            }
+                            placeholder="npm run dev"
+                            aria-label={`Command ${index + 1}`}
+                            aria-describedby={inputs.length > 0 ? asksId : undefined}
+                            ref={(element) => {
+                              if (element) commandInputs.current.set(row.id, element);
+                              else commandInputs.current.delete(row.id);
                             }}
-                            onDragEnd={() => {
-                              setDraggedRunId(null);
-                              setRunDropId(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-                              e.preventDefault();
-                              reorderRunCommands(
-                                row.id,
-                                e.key === 'ArrowUp' ? index - 1 : index + 1,
-                              );
-                            }}
-                            className={cn(
-                              'flex h-8 w-6 items-center justify-center rounded-md text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                              runCommands.length > 1
-                                ? 'cursor-grab hover:bg-accent hover:text-accent-foreground active:cursor-grabbing'
-                                : 'cursor-not-allowed text-muted-foreground/25',
-                            )}
+                            onFocus={() => touchedCommands.current.add(row.id)}
+                            className="min-w-0 flex-1 font-mono text-xs"
+                          />
+                          <SimpleTooltip label="Ask for a value when this command runs">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Ask for a value in command ${index + 1}`}
+                              className="h-9 w-9 shrink-0"
+                              // Pressing the button must not move focus out of the command field,
+                              // or the caret position it reads would be lost.
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => askForValue(row)}
+                            >
+                              <Keyboard className="h-3.5 w-3.5" />
+                            </Button>
+                          </SimpleTooltip>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove command ${index + 1}`}
+                            className="h-9 w-9 shrink-0"
+                            onClick={() =>
+                              setRunCommands((prev) => {
+                                const next = prev.filter((item) => item.id !== row.id);
+                                return next.length > 0 ? next : [emptyRunCommand()];
+                              })
+                            }
                           >
-                            <GripVertical className="h-3.5 w-3.5" />
-                          </span>
-                        </SimpleTooltip>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        {inputs.length > 0 ? (
+                          <p
+                            id={asksId}
+                            className="ml-[11.25rem] text-[11px] leading-relaxed text-muted-foreground"
+                          >
+                            Asks for: {describeInputs(inputs)}
+                          </p>
+                        ) : null}
                       </div>
-                      <Input
-                        value={row.label}
-                        onChange={(e) =>
-                          setRunCommands((prev) =>
-                            prev.map((item) =>
-                              item.id === row.id ? { ...item, label: e.target.value } : item,
-                            ),
-                          )
-                        }
-                        placeholder="dev"
-                        aria-label={`Environment ${index + 1}`}
-                        className="w-[7.5rem] shrink-0"
-                      />
-                      <Input
-                        value={row.command}
-                        onChange={(e) =>
-                          setRunCommands((prev) =>
-                            prev.map((item) =>
-                              item.id === row.id ? { ...item, command: e.target.value } : item,
-                            ),
-                          )
-                        }
-                        placeholder="npm run dev"
-                        aria-label={`Command ${index + 1}`}
-                        className="min-w-0 flex-1 font-mono text-xs"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remove command ${index + 1}`}
-                        className="h-9 w-9 shrink-0"
-                        onClick={() =>
-                          setRunCommands((prev) => {
-                            const next = prev.filter((item) => item.id !== row.id);
-                            return next.length > 0 ? next : [emptyRunCommand()];
-                          })
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRunCommands((prev) => [...prev, emptyRunCommand()])}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add command
-                  </Button>
+                    );
+                  })}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRunCommands((prev) => [...prev, emptyRunCommand()])}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add command
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={addCommandThatAsks}>
+                      <Keyboard className="h-3.5 w-3.5" /> Add command that asks for input
+                    </Button>
+                  </div>
                 </div>
               </Field>
 

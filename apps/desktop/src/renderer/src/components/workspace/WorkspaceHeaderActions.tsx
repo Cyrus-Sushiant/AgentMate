@@ -1,8 +1,13 @@
-import { configuredRunCommands, projectRunCommandTitle } from '@agentmat/core';
+import {
+  configuredRunCommands,
+  parseRunInputs,
+  projectRunCommandTitle,
+  runCommandSummary,
+} from '@agentmat/core';
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Cpu, FolderOpen, Pencil, Play, Run, Tag } from '@/components/icons';
+import { Cpu, FolderOpen, Keyboard, Pencil, Play, Run, Tag } from '@/components/icons';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { Button } from '@/components/ui/button';
 import {
@@ -73,7 +78,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const commands = configuredRunCommands(project);
   const runLabel =
     commands.length === 1
-      ? `Run ${project.name} (${commands[0]?.command})`
+      ? `Run ${project.name} (${runCommandSummary(commands[0]?.command ?? '')})`
       : commands.length > 1
         ? `Run ${project.name}: pick a command`
         : `Set a run command for ${project.name}`;
@@ -105,13 +110,20 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
               {commands.map((entry) => {
                 const title = projectRunCommandTitle(entry);
                 const showCommand = entry.label.trim().length > 0;
+                const asksForInput = parseRunInputs(entry.command).length > 0;
                 return (
                   <ContextMenuItem key={entry.id} onSelect={() => runCommand(project, entry)}>
                     <Play className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{title}</span>
+                    {asksForInput ? (
+                      <>
+                        <Keyboard aria-hidden className="h-3 w-3 shrink-0 text-primary" />
+                        <span className="sr-only">Asks for input</span>
+                      </>
+                    ) : null}
                     {showCommand ? (
                       <span className="ml-auto max-w-[9rem] truncate pl-4 font-mono text-[11px] text-muted-foreground">
-                        {entry.command}
+                        {runCommandSummary(entry.command)}
                       </span>
                     ) : null}
                   </ContextMenuItem>
