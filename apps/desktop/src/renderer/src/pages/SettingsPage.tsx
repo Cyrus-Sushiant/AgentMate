@@ -175,6 +175,9 @@ const LAUNCH_DEFAULTS_KEYWORDS =
 const BLUEPRINT_PRESET_KEYWORDS =
   'blueprint preset presets snippet snippets default defaults wizard steps idea architecture stack backend frontend ci cd pipeline quality testing product manager phases epics docs';
 
+const PIPELINE_FAILURE_KEYWORDS =
+  'pipeline pipelines failure failed fails error github actions ci build run notification toast message pet bubble open click inbox unread badge';
+
 const VAULT_KEYWORDS =
   'vault password passwords manager credentials auto-lock lock idle clipboard clear master password reset sleep';
 
@@ -231,9 +234,9 @@ const TAB_META: {
   {
     id: 'notifications',
     label: 'Notifications',
-    description: 'Where AgentMate reaches you when you are away from the app.',
+    description: 'Where AgentMate reaches you when a pipeline fails or you are away from the app.',
     icon: Bell,
-    keywords: 'telegram bot chat notify',
+    keywords: `telegram bot chat notify ${PIPELINE_FAILURE_KEYWORDS}`,
   },
   {
     id: 'network',
@@ -396,6 +399,11 @@ const SECTIONS = {
     title: 'Build Prompt sizing',
     keywords:
       'build prompt modal dialog size sizing sized auto automatic recommended run model effort generate translate chip cost',
+  },
+  pipelineFailures: {
+    tab: 'notifications',
+    title: 'Pipeline failures',
+    keywords: PIPELINE_FAILURE_KEYWORDS,
   },
   telegram: {
     tab: 'notifications',
@@ -871,6 +879,15 @@ export default function SettingsPage(): React.JSX.Element {
       window.agentmat.settings.update({ terminalAiNotifications }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
+
+  const pipelineFailureMutation = useMutation({
+    mutationFn: (patch: Partial<AppSettings>) => window.agentmat.settings.update(patch),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+  // The switch shows what was just clicked until the saved value comes back.
+  const pipelineFailureDraft = pipelineFailureMutation.isPending
+    ? pipelineFailureMutation.variables
+    : undefined;
 
   const checkToolUpdatesMutation = useMutation({
     mutationFn: (checkToolUpdatesEnabled: boolean) =>
@@ -2367,6 +2384,67 @@ export default function SettingsPage(): React.JSX.Element {
                 )}
 
                 {searchGroupLabel('notifications')}
+
+                {show('pipelineFailures') && settingsQuery.data ? (
+                  <Card className="glass settings-rows">
+                    <SettingsRow
+                      icon={Bell}
+                      title="Show failed pipelines in notifications"
+                      description="When a GitHub Actions run fails, flash a message in the corner, keep it in Recent messages and mark Pipelines as unread."
+                      control={
+                        <Switch
+                          checked={
+                            (pipelineFailureDraft?.pipelineFailureNotify ??
+                              settingsQuery.data.pipelineFailureNotify) !== false
+                          }
+                          onCheckedChange={(checked) =>
+                            pipelineFailureMutation.mutate({ pipelineFailureNotify: checked })
+                          }
+                          aria-label="Show failed pipelines in notifications"
+                        />
+                      }
+                    />
+                    <SettingsRow
+                      icon={Paw}
+                      title="Show failed pipelines on my AI Pet"
+                      description={
+                        settingsQuery.data.desktopPetEnabled
+                          ? 'The pet says which workflow failed in a short message next to it.'
+                          : 'The pet says which workflow failed. Turn on My AI Pet in the AI Pet tab first.'
+                      }
+                      control={
+                        <Switch
+                          checked={
+                            (pipelineFailureDraft?.desktopPetPipelineOnFail ??
+                              settingsQuery.data.desktopPetPipelineOnFail) === true
+                          }
+                          disabled={!settingsQuery.data.desktopPetEnabled}
+                          onCheckedChange={(checked) =>
+                            pipelineFailureMutation.mutate({ desktopPetPipelineOnFail: checked })
+                          }
+                          aria-label="Show failed pipelines on my AI Pet"
+                        />
+                      }
+                    />
+                    <SettingsRow
+                      icon={Route}
+                      title="Open Pipelines when I click a failure"
+                      description="Clicking the message, its row in Recent messages or the pet's bubble opens that run on the Pipelines page. Off, a click only dismisses it."
+                      control={
+                        <Switch
+                          checked={
+                            (pipelineFailureDraft?.pipelineFailureOpen ??
+                              settingsQuery.data.pipelineFailureOpen) !== false
+                          }
+                          onCheckedChange={(checked) =>
+                            pipelineFailureMutation.mutate({ pipelineFailureOpen: checked })
+                          }
+                          aria-label="Open Pipelines when I click a failure"
+                        />
+                      }
+                    />
+                  </Card>
+                ) : null}
 
                 {show('telegram') && (
                   <SettingsCard

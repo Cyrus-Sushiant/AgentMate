@@ -108,6 +108,12 @@ AgentMate checks your watched workflows about every 45 seconds while the app is 
 
 If you turned on the desktop pet's pipeline messages in Settings, the pet also speaks when a run fails or passes, and clicking the pet's bubble opens that run on this page and highlights it with a blinking ring. See [Widgets and desktop pet](widgets-desktop-pet.md).
 
+You can change all of this under Settings, **Notifications**, **Pipeline failures**:
+
+- **Show failed pipelines in notifications** turns the unread notice, the toast and the Recent messages row for failures on or off.
+- **Show failed pipelines on my AI Pet** turns the pet's failure bubble on or off.
+- **Open Pipelines when I click a failure** decides whether clicking a failure alert (the toast's **Open** button, its row in Recent messages or the pet's bubble) takes you to the run here. Off, the click only dismisses it.
+
 Other notices land in the same inbox: updates for CLI tools and alerts from Deploy servers. Notices that have no run to attach to appear above the run list, each with a **New** badge. Click one to mark it read and open the page it belongs to.
 
 > [!TIP]

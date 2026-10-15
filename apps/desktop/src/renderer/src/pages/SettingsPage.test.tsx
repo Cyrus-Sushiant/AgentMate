@@ -226,6 +226,54 @@ describe('SettingsPage appearance', () => {
   });
 });
 
+describe('SettingsPage pipeline failures', () => {
+  const NOTIFY = 'Show failed pipelines in notifications';
+  const PET = 'Show failed pipelines on my AI Pet';
+  const OPEN = 'Open Pipelines when I click a failure';
+
+  it('saves each way of hearing about a failure on its own', async () => {
+    const { user, bridge } = renderSettings(
+      { 'settings.get': { ...settings, desktopPetEnabled: true } },
+      '/settings?tab=notifications',
+    );
+    await screen.findByText(NOTIFY);
+
+    // A profile saved before these existed has neither key, and that has to read as "on".
+    expect(screen.getByRole('switch', { name: NOTIFY })).toBeChecked();
+    expect(screen.getByRole('switch', { name: OPEN })).toBeChecked();
+    expect(screen.getByRole('switch', { name: PET })).not.toBeChecked();
+
+    await user.click(screen.getByRole('switch', { name: NOTIFY }));
+    await user.click(screen.getByRole('switch', { name: PET }));
+    await user.click(screen.getByRole('switch', { name: OPEN }));
+
+    await waitFor(() => {
+      const update = bridge.$fn('settings.update');
+      expect(update).toHaveBeenCalledWith({ pipelineFailureNotify: false });
+      expect(update).toHaveBeenCalledWith({ desktopPetPipelineOnFail: true });
+      expect(update).toHaveBeenCalledWith({ pipelineFailureOpen: false });
+    });
+  });
+
+  it('keeps the pet switch off-limits until the pet itself is turned on', async () => {
+    renderSettings({}, '/settings?tab=notifications');
+    await screen.findByText(NOTIFY);
+
+    expect(screen.getByRole('switch', { name: PET })).toBeDisabled();
+    expect(screen.getByText(/Turn on My AI Pet in the AI Pet tab first/)).toBeInTheDocument();
+  });
+
+  it('is found by searching for a failed build', async () => {
+    const { user } = renderSettings();
+    await screen.findByText('Keep terminals running');
+
+    await user.type(screen.getByLabelText('Search settings'), 'unread badge');
+
+    expect(await screen.findByText(NOTIFY)).toBeInTheDocument();
+    expect(screen.queryByText('Keep terminals running')).toBeNull();
+  });
+});
+
 describe('SettingsPage general rows', () => {
   it('saves a switch from the shared card the moment it flips', async () => {
     const { user, bridge } = renderSettings();

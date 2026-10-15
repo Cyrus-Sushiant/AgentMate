@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AppNotification, Project } from '@agentmat/core';
+import type { AppNotification, AppSettings, Project } from '@agentmat/core';
 import type { GithubWorkflowRunInfo } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import type { PetPipelineMessage, PetPipelineRunRef } from '../../shared/pet';
@@ -69,13 +69,13 @@ async function appendRunNotification(input: {
   broadcastNotificationsChanged();
 }
 
-async function maybeSpeak(
+function maybeSpeak(
+  settings: AppSettings,
   kind: 'pass' | 'fail',
   project: Project,
   workflowName: string,
   run?: PetPipelineRunRef,
-): Promise<void> {
-  const settings = await store.getSettings();
+): void {
   if (!settings.desktopPetEnabled) return;
   if (kind === 'fail' && !settings.desktopPetPipelineOnFail) return;
   if (kind === 'pass' && !settings.desktopPetPipelineOnPass) return;
@@ -90,7 +90,9 @@ async function maybeSpeak(
     text: petSpeech(kind, project.name, workflowName),
     projectName: project.name,
     workflowName,
-    run,
+    // Without the ref the bubble is not a link, which is how "don't open it on click" reaches
+    // the pet: no "Click to open" hint and the click just waves the bubble away.
+    run: settings.pipelineFailureOpen === false ? undefined : run,
   };
   petManager.sendPipelineMessage(payload);
 }
@@ -123,16 +125,20 @@ function processWatchedWorkflow(
   return {
     changed: true,
     announce: async () => {
+      const settings = await store.getSettings();
       for (const run of fresh) {
         const name = workflowName || run.name;
         if (isFailedConclusion(run.conclusion)) {
-          await appendRunNotification({ project, workflowName: name, run, passed: false });
+          // Missing counts as on, so a profile from before the setting existed keeps its notices.
+          if (settings.pipelineFailureNotify !== false) {
+            await appendRunNotification({ project, workflowName: name, run, passed: false });
+          }
           // The ref rides along so clicking the bubble opens this run on the
           // Pipelines page instead of just raising the window.
-          await maybeSpeak('fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
+          maybeSpeak(settings, 'fail', project, name, { runId: run.id, repo: `${owner}/${repo}` });
         } else if (run.conclusion === 'success') {
           await appendRunNotification({ project, workflowName: name, run, passed: true });
-          await maybeSpeak('pass', project, name);
+          maybeSpeak(settings, 'pass', project, name);
         }
       }
     },

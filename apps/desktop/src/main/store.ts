@@ -207,6 +207,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetCardView: 'tokens',
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
+  pipelineFailureNotify: true,
+  pipelineFailureOpen: true,
   desktopPetNetworkQuality: false,
   desktopPetAgentStatus: false,
   keepTerminalsRunning: true,
@@ -314,6 +316,8 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetCardView: normalizeDesktopPetCardView(settings.desktopPetCardView),
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
+    pipelineFailureNotify: settings.pipelineFailureNotify !== false,
+    pipelineFailureOpen: settings.pipelineFailureOpen !== false,
     pingIpVersion: isPingIpVersion(settings.pingIpVersion) ? settings.pingIpVersion : 'ipv4',
     pingTargetsIpv6: Array.isArray(settings.pingTargetsIpv6)
       ? settings.pingTargetsIpv6.filter((host) => typeof host === 'string')

@@ -33,6 +33,7 @@ function notification(overrides: Partial<AppNotification> = {}): AppNotification
 
 let inbox: AppNotification[] = [];
 let changed: (() => void) | null = null;
+let savedSettings: Record<string, unknown> = {};
 
 function Probe(): React.JSX.Element {
   useAppNotificationMessages();
@@ -59,10 +60,12 @@ async function inboxChanged(next: AppNotification[]): Promise<void> {
 beforeEach(() => {
   inbox = [];
   changed = null;
+  savedSettings = {};
   useToastHistoryStore.setState({ items: [], open: false });
   for (const fn of Object.values(toastFns)) fn.mockReset();
   Object.assign(window, {
     agentmat: {
+      settings: { get: vi.fn(async () => savedSettings) },
       shell: { openExternal: vi.fn(async () => undefined) },
       appNotifications: {
         list: vi.fn(async () => inbox),
@@ -129,6 +132,61 @@ describe('useAppNotificationMessages', () => {
     );
     expect(window.agentmat.appNotifications.markRead).toHaveBeenCalledWith('n1');
     expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  describe('when clicking a failure should not open it', () => {
+    it('flashes the failure with no Open button and files a row with nothing to open', async () => {
+      savedSettings = { pipelineFailureOpen: false };
+      await mount();
+      await inboxChanged([notification()]);
+
+      expect(toastFns.error).toHaveBeenCalledTimes(1);
+      const [title, options] = toastFns.error.mock.calls[0];
+      expect(title).toBe('CI failed');
+      expect(options.action).toBeUndefined();
+
+      const items = useToastHistoryStore.getState().items;
+      expect(items).toHaveLength(1);
+      // Still a red, tagged row for the right project, only the link is gone.
+      expect(items[0]).toMatchObject({ kind: 'error', tag: 'Failed', projectId: 'p1' });
+      expect(items[0].link).toBeUndefined();
+      expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
+    });
+
+    it('leaves a pass and a server alert linked', async () => {
+      savedSettings = { pipelineFailureOpen: false };
+      await mount();
+      await inboxChanged([
+        notification({ id: 'n2', kind: 'pipeline-success', title: 'CI passed' }),
+        notification({
+          id: 'n3',
+          kind: 'deploy-warning',
+          htmlUrl: null,
+          route: '/deploy?server=srv-1',
+        }),
+      ]);
+
+      expect(toastFns.success.mock.calls[0][1].action.label).toBe('Open');
+      expect(toastFns.warning.mock.calls[0][1].action.label).toBe('Open');
+    });
+
+    it('keeps the link when the setting cannot be read', async () => {
+      window.agentmat.settings.get = vi.fn(async () => {
+        throw new Error('settings unavailable');
+      });
+      await mount();
+      await inboxChanged([notification()]);
+
+      // A failed read must not cost the user the way into a failure they were told about.
+      expect(toastFns.error.mock.calls[0][1].action.label).toBe('Open');
+    });
+
+    it('keeps the link while the setting has never been saved', async () => {
+      await mount();
+      await inboxChanged([notification()]);
+
+      expect(toastFns.error.mock.calls[0][1].action.label).toBe('Open');
+    });
   });
 
   it("shows a server alert by its severity and opens that server's page", async () => {

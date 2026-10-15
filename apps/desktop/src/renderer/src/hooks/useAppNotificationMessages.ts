@@ -20,6 +20,16 @@ export function appRoute(item: AppNotification): string | null {
   return pipelineRunRoute(item.htmlUrl);
 }
 
+/** Whether a pipeline failure's alert opens it on click. On unless the user switched it off. */
+async function failuresOpenOnClick(): Promise<boolean> {
+  try {
+    const settings = await window.agentmat.settings.get();
+    return settings.pipelineFailureOpen !== false;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Turns inbox entries (pipeline results, CLI updates, server alerts) into in-app messages: a
  * toast when one arrives, and a row in Recent messages after. What was already in the inbox at
@@ -44,28 +54,35 @@ export function useAppNotificationMessages(): void {
         primed = true;
         return;
       }
+      const openFailures = fresh.some((item) => item.kind === 'pipeline-failure')
+        ? await failuresOpenOnClick()
+        : true;
+      if (disposed) return;
       // The inbox is newest first; announce oldest first so the newest ends up on top.
-      for (const item of fresh.reverse()) announce(item);
+      for (const item of fresh.reverse()) announce(item, openFailures);
     }
 
-    function announce(item: AppNotification): void {
+    function announce(item: AppNotification, openFailures: boolean): void {
       const style = KIND[item.kind] ?? KIND['tool-update-available'];
+      const base = {
+        kind: style.kind,
+        title: item.title,
+        description: item.body,
+        projectId: item.projectId,
+        projectName: item.projectName,
+        tag: style.tag,
+      };
+      // The user can turn off opening a failure from its alert. The message still shows, it
+      // just has no Open button and no link for its row in Recent messages.
+      if (item.kind === 'pipeline-failure' && !openFailures) {
+        showLinkedToast(base);
+        return;
+      }
       const route = appRoute(item);
       const link: ToastHistoryLink = { notificationId: item.id };
       if (route) link.route = route;
       else if (item.htmlUrl) link.url = item.htmlUrl;
-      showLinkedToast(
-        {
-          kind: style.kind,
-          title: item.title,
-          description: item.body,
-          link,
-          projectId: item.projectId,
-          projectName: item.projectName,
-          tag: style.tag,
-        },
-        () => openMessageLink(link, navigate),
-      );
+      showLinkedToast({ ...base, link }, () => openMessageLink(link, navigate));
     }
 
     const run = (): void => {

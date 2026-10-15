@@ -475,6 +475,57 @@ describe('pet settings', () => {
     expect(pet.messages.map((message) => message.kind)).toEqual(['pass']);
   });
 
+  it('keeps a failure out of the inbox when failure notices are off, but the pet still speaks', async () => {
+    const window = new FakeBrowserWindow();
+    state.settings = petSettings({ pipelineFailureNotify: false });
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
+    );
+
+    await tickOnce();
+
+    expect(state.notifications).toEqual([]);
+    expect(window.webContents.sentOn(IPC.appNotifications.onChanged)).toHaveLength(0);
+    expect(pet.messages.map((message) => message.kind)).toEqual(['fail']);
+  });
+
+  it('still logs a pass when failure notices are off', async () => {
+    state.settings = petSettings({ pipelineFailureNotify: false });
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'success' })]]]),
+    );
+
+    await tickOnce();
+
+    // The switch is about failures, a green run keeps its read entry.
+    expect(state.notifications.map((item) => item.kind)).toEqual(['pipeline-success']);
+  });
+
+  it('sends the failure without a run to open when clicking should not open it', async () => {
+    state.settings = petSettings({ pipelineFailureOpen: false });
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
+    );
+
+    await tickOnce();
+
+    // No ref means the bubble is not a link, and the notice itself is unaffected.
+    expect(pet.messages).toHaveLength(1);
+    expect(pet.messages[0].run).toBeUndefined();
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it('treats a profile with neither new setting as having both on', async () => {
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
+    );
+
+    await tickOnce();
+
+    expect(state.notifications).toHaveLength(1);
+    expect(pet.messages[0].run).toEqual({ runId: 10, repo: 'acme/demo' });
+  });
+
   it('uses the built-in character name when there is no nickname', async () => {
     state.settings = petSettings({ desktopPetName: '', desktopPetCharacterId: 'unknown-id' });
     github.listRepoRunsByWorkflow.mockResolvedValue(

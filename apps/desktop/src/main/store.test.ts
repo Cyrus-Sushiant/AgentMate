@@ -298,6 +298,29 @@ describe('settings migrations', () => {
     expect(settings.vaultLockOnSystemLock).toBe(false);
   });
 
+  it('keeps pipeline failure notices and click-to-open on for a profile that predates them', async () => {
+    userData.writeData('settings.json', { theme: 'dark' });
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    expect(settings.pipelineFailureNotify).toBe(true);
+    expect(settings.pipelineFailureOpen).toBe(true);
+  });
+
+  it('remembers pipeline failure notices and click-to-open once they are switched off', async () => {
+    userData.writeData('settings.json', {
+      pipelineFailureNotify: false,
+      pipelineFailureOpen: false,
+    });
+    const { store } = await loadStore();
+
+    const settings = await store.getSettings();
+
+    expect(settings.pipelineFailureNotify).toBe(false);
+    expect(settings.pipelineFailureOpen).toBe(false);
+  });
+
   it('remembers the 3D rope and parachute once it is switched off', async () => {
     userData.writeData('settings.json', { desktopPetGear3d: false });
     const { store } = await loadStore();

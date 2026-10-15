@@ -167,6 +167,16 @@ The **AI** tab has API keys, local models, voice input, the Help search model an
 
 ## Notifications
 
+### Pipeline failures
+
+The **Pipeline failures** card at the top of the **Notifications** tab chooses how a failed GitHub Actions run reaches you. It has three switches, and each one saves as soon as you flip it.
+
+- **Show failed pipelines in notifications** (on by default). A failed or timed out run flashes a message in the corner, is kept in Recent messages and puts an unread count on **Pipelines**. Turn it off to keep failures out of all three. Passed runs are not affected.
+- **Show failed pipelines on my AI Pet** (off by default). The pet says which workflow failed. This is the same switch as **Tell me when a pipeline fails** on the **AI Pet** tab, and it stays greyed out until My AI Pet is turned on.
+- **Open Pipelines when I click a failure** (on by default). Clicking the message, its row in Recent messages or the pet's bubble opens that run on the Pipelines page, as before. Turn it off and a click only dismisses the alert: the message has no **Open** button and the pet's bubble no longer says "Click to open it in AgentMate".
+
+You can still open Pipelines yourself from the sidebar at any time. See [Pipelines](pipelines.md#notifications-and-the-unread-badge).
+
 ### Telegram bot
 
 The **Notifications** tab has the **Telegram bot** card, used by project notification hooks, scheduled task updates and usage reset alerts. A badge shows **Ready** once both a token and a chat ID are filled in, otherwise **Not configured**.

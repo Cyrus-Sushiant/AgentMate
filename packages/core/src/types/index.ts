@@ -595,6 +595,17 @@ export interface AppSettings {
   /** When true the desktop pet speaks if a watched GitHub Actions run passes. */
   desktopPetPipelineOnPass: boolean;
   /**
+   * When true a watched GitHub Actions run that fails raises a notice: a toast, a row in Recent
+   * messages and an unread mark on Pipelines. Off keeps failures out of the inbox, the pet has
+   * its own switch (`desktopPetPipelineOnFail`).
+   */
+  pipelineFailureNotify: boolean;
+  /**
+   * When true, clicking a failure alert (the toast's Open button, a Recent messages row or the
+   * pet's bubble) opens that run on the Pipelines page. Off leaves the click as a plain dismiss.
+   */
+  pipelineFailureOpen: boolean;
+  /**
    * When true the desktop pet speaks if internet quality changes (offline,
    * back online, or a clear drop or improvement).
    */

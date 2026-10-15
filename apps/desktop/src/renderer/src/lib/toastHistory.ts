@@ -62,11 +62,12 @@ export function replayToast(kind: ToastHistoryKind, title: string, description: 
 /**
  * Flash a toast that carries a link (an "Open" button) and keep it in history with the
  * same link, so the row in Recent messages opens it too. The auto-capture is held off
- * for the call so the message lands in history once, with its link.
+ * for the call so the message lands in history once, with its link. Without a link there
+ * is no button and the history row has nothing to open, the message is only shown.
  */
 export function showLinkedToast(
-  message: Omit<ToastHistoryItemInput, 'link'> & { link: ToastHistoryLink },
-  onOpen: () => void,
+  message: Omit<ToastHistoryItemInput, 'link'> & { link?: ToastHistoryLink },
+  onOpen?: () => void,
 ): void {
   const { kind, title, description } = message;
   suppressRecord += 1;
@@ -74,7 +75,7 @@ export function showLinkedToast(
     const fn = kind === 'message' ? toast.message : toast[kind];
     fn(title, {
       description: description || undefined,
-      action: { label: 'Open', onClick: onOpen },
+      action: onOpen ? { label: 'Open', onClick: onOpen } : undefined,
     });
   } finally {
     suppressRecord -= 1;
