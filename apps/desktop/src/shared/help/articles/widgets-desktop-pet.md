@@ -103,7 +103,7 @@ The right-click menu has **Open AgentMate** (or **Open the failed run**), **Stop
 
 The **Alerts** card has four switches, all of which need the pet to be on:
 
-- **Tell me when a pipeline fails** and **Tell me when a pipeline passes**, for GitHub Actions runs you watch. A bubble for a failed run opens that run in Pipelines when you click it, unless you turned off **Open Pipelines when I click a failure** in Settings, **Notifications**. The failure switch also appears there, under **Pipeline failures**.
+- **Tell me when a pipeline fails** and **Tell me when a pipeline passes**, for GitHub Actions runs you watch. A bubble for a failed run opens that run in Pipelines when you click it. In Settings, **Notifications**, **Pipeline failures**, you can send the click to the project's Workspace instead, or turn it off. The failure switch appears there too.
 - **Tell me when internet quality changes**, when the connection drops, comes back, or clearly gets better or worse.
 - **Tell me when a CLI needs input or finishes**, for Workspace terminals you are not looking at.
 

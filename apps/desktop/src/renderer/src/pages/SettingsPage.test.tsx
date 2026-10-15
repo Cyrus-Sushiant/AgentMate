@@ -64,6 +64,8 @@ const settings = {
   checkToolUpdatesEnabled: true,
   startupPage: 'last',
   stopDockerWithRun: 'ask',
+  idleResourceMinutes: 20,
+  idleResourceNotify: true,
 } as AppSettings;
 
 function renderSettings(bridge: Record<string, unknown> = {}, route = '/settings') {
@@ -230,30 +232,48 @@ describe('SettingsPage appearance', () => {
 describe('SettingsPage pipeline failures', () => {
   const NOTIFY = 'Show failed pipelines in notifications';
   const PET = 'Show failed pipelines on my AI Pet';
-  const OPEN = 'Open Pipelines when I click a failure';
+  const CLICK = 'When I click a failure';
 
   it('saves each way of hearing about a failure on its own', async () => {
     const { user, bridge } = renderSettings(
-      { 'settings.get': { ...settings, desktopPetEnabled: true } },
+      {
+        'settings.get': { ...settings, desktopPetEnabled: true, pipelineFailureOpen: 'pipelines' },
+      },
       '/settings?tab=notifications',
     );
     await screen.findByText(NOTIFY);
 
-    // A profile saved before these existed has neither key, and that has to read as "on".
+    // A profile saved before the notice switch existed has no key, and that has to read as "on".
     expect(screen.getByRole('switch', { name: NOTIFY })).toBeChecked();
-    expect(screen.getByRole('switch', { name: OPEN })).toBeChecked();
     expect(screen.getByRole('switch', { name: PET })).not.toBeChecked();
+    expect(screen.getByRole('combobox', { name: CLICK })).toHaveTextContent('Pipelines page');
 
     await user.click(screen.getByRole('switch', { name: NOTIFY }));
     await user.click(screen.getByRole('switch', { name: PET }));
-    await user.click(screen.getByRole('switch', { name: OPEN }));
 
     await waitFor(() => {
       const update = bridge.$fn('settings.update');
       expect(update).toHaveBeenCalledWith({ pipelineFailureNotify: false });
       expect(update).toHaveBeenCalledWith({ desktopPetPipelineOnFail: true });
-      expect(update).toHaveBeenCalledWith({ pipelineFailureOpen: false });
     });
+  });
+
+  it.each([
+    ['Project workspace', 'workspace'],
+    ['Just dismiss it', 'none'],
+  ])('saves %s as the place a failure click goes', async (label, value) => {
+    const { user, bridge } = renderSettings(
+      { 'settings.get': { ...settings, pipelineFailureOpen: 'pipelines' } },
+      '/settings?tab=notifications',
+    );
+    await screen.findByText(NOTIFY);
+
+    await user.click(screen.getByRole('combobox', { name: CLICK }));
+    await user.click(await screen.findByRole('option', { name: label }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenCalledWith({ pipelineFailureOpen: value }),
+    );
   });
 
   it('keeps the pet switch off-limits until the pet itself is turned on', async () => {
@@ -420,6 +440,99 @@ describe('SettingsPage Docker containers when a run stops', () => {
     expect(await screen.findByText(TITLE)).toBeInTheDocument();
     expect(screen.queryByText('Keep terminals running')).toBeNull();
   });
+});
+
+describe('SettingsPage idle Docker containers and emulators', () => {
+  const TITLE = 'Idle Docker containers and emulators';
+  const ALERTS = 'Idle resource alerts';
+  const MINUTES = 'Minutes before a container or emulator counts as idle';
+
+  it('shows 20 minutes by default, in the same card as the other behavior rows', async () => {
+    renderSettings();
+    await screen.findByText(TITLE);
+
+    expect(screen.getByRole('spinbutton', { name: MINUTES })).toHaveValue(20);
+    expect(card(TITLE)).toBe(card('Keep terminals running'));
+  });
+
+  it('shows the threshold saved earlier', async () => {
+    renderSettings({ 'settings.get': { ...settings, idleResourceMinutes: 90 } });
+    await screen.findByText(TITLE);
+
+    await waitFor(() => expect(screen.getByRole('spinbutton', { name: MINUTES })).toHaveValue(90));
+  });
+
+  it('saves a new threshold when the box is left', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText(TITLE);
+
+    const input = screen.getByRole('spinbutton', { name: MINUTES });
+    await user.clear(input);
+    await user.type(input, '45');
+    await user.tab();
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ idleResourceMinutes: 45 }),
+    );
+  });
+
+  it.each([
+    ['0', 1],
+    ['99999', 1440],
+  ])('clamps %s minutes to %s before saving', async (typed, saved) => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText(TITLE);
+
+    const input = screen.getByRole('spinbutton', { name: MINUTES });
+    await user.clear(input);
+    await user.type(input, `${typed}{Enter}`);
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({
+        idleResourceMinutes: saved,
+      }),
+    );
+  });
+
+  it('saves nothing while the box is empty', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText(TITLE);
+
+    const input = screen.getByRole('spinbutton', { name: MINUTES });
+    await user.clear(input);
+    await user.tab();
+
+    expect(() => bridge.$fn('settings.update')).toThrow();
+    expect(input).toHaveValue(20);
+  });
+
+  it('turns the alerts off and back on', async () => {
+    const { user, bridge } = renderSettings();
+    await screen.findByText(ALERTS);
+
+    const toggle = screen.getByRole('switch', {
+      name: 'Notify when a container or emulator goes idle',
+    });
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ idleResourceNotify: false }),
+    );
+  });
+
+  it.each(['idle', 'unused', 'emulator', 'android'])(
+    'is found by searching for %s',
+    async (query) => {
+      const { user } = renderSettings();
+      await screen.findByText(TITLE);
+
+      await user.type(screen.getByLabelText('Search settings'), query);
+
+      expect(await screen.findByText(TITLE)).toBeInTheDocument();
+      expect(screen.queryByText('Keep terminals running')).toBeNull();
+    },
+  );
 });
 
 describe('SettingsPage search', () => {

@@ -182,6 +182,14 @@ export const IPC = {
     // main -> Remote Desktop window: the task's status changed (thinking, proposed an action, ...)
     onProgress: 'rdpAgent:onProgress',
   },
+  runProposals: {
+    list: 'runProposals:list',
+    decide: 'runProposals:decide',
+    getEnabled: 'runProposals:getEnabled',
+    setEnabled: 'runProposals:setEnabled',
+    /** Main tells every window the pending run command suggestions changed. */
+    onChanged: 'runProposals:onChanged',
+  },
   projects: {
     list: 'projects:list',
     create: 'projects:create',
@@ -536,6 +544,11 @@ export const IPC = {
     restart: 'docker:restart',
     remove: 'docker:remove',
   },
+  /** The Dashboard's Docker and emulator usage chart, and the list of idle ones. */
+  resourceActivity: {
+    snapshot: 'resourceActivity:snapshot',
+    stop: 'resourceActivity:stop',
+  },
   /** The Android page: the SDK behind it, AVDs, emulators and adb devices. */
   android: {
     sdk: 'android:sdk',
@@ -575,6 +588,7 @@ export const IPC = {
     list: 'usage:list',
     get: 'usage:get',
     refresh: 'usage:refresh',
+    refreshProvider: 'usage:refreshProvider',
     setProviderConfig: 'usage:setProviderConfig',
     listWidgets: 'usage:listWidgets',
     getWidget: 'usage:getWidget',

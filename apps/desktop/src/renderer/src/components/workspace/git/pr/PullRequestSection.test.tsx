@@ -102,6 +102,15 @@ describe('PullRequestSection states', () => {
     expect(screen.getByText('No GitHub remote')).toBeInTheDocument();
   });
 
+  it('keeps the raw gh error in a tooltip instead of printing it', async () => {
+    const raw = 'Command failed: gh pr view feature --json number,title,url';
+    const { user } = renderSection(status({ pr: null, error: raw }));
+    expect(screen.getByText('Could not read the pull request')).toBeInTheDocument();
+    expect(screen.queryByText(raw)).not.toBeInTheDocument();
+    await user.hover(screen.getByText(/GitHub did not return this pull request/));
+    expect((await screen.findAllByText(raw)).length).toBeGreaterThan(0);
+  });
+
   it('asks for a branch on the default branch', async () => {
     const { user } = renderSection(status({ branch: 'master', onDefaultBranch: true, pr: null }));
     expect(screen.getByText('Pull requests start from a branch')).toBeInTheDocument();

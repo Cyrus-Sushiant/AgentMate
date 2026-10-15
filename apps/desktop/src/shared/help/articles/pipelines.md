@@ -112,7 +112,7 @@ You can change all of this under Settings, **Notifications**, **Pipeline failure
 
 - **Show failed pipelines in notifications** turns the unread notice, the toast and the Recent messages row for failures on or off.
 - **Show failed pipelines on my AI Pet** turns the pet's failure bubble on or off.
-- **Open Pipelines when I click a failure** decides whether clicking a failure alert (the toast's **Open** button, its row in Recent messages or the pet's bubble) takes you to the run here. Off, the click only dismisses it.
+- **When I click a failure** decides where a failure alert (the toast's **Open** button, its row in Recent messages or the pet's bubble) takes you: this page on the run, the **Pipelines** section in the project's Workspace Git panel (see [Workspace: Git](workspace-git.md#pipelines)), or nowhere.
 
 Other notices land in the same inbox: updates for CLI tools and alerts from Deploy servers. Notices that have no run to attach to appear above the run list, each with a **New** badge. Click one to mark it read and open the page it belongs to.
 

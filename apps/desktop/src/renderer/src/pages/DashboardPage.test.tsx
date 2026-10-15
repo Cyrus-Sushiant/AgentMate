@@ -436,6 +436,34 @@ describe('DashboardPage editing the layout', () => {
     expect(screen.getByText('CPU Usage')).toBeTruthy();
   });
 
+  it('brings back the Docker and emulator cards from the Add card menu', async () => {
+    const without = DASHBOARD_CHART_IDS.filter(
+      (id) => id !== 'resource-usage' && id !== 'idle-resources',
+    );
+    seedLayout(['cpu'], { chartCards: without });
+    const { user } = renderPage(withStats());
+    await user.click(screen.getByRole('button', { name: 'Edit layout' }));
+    expect(screen.queryByText('Idle Docker and Emulators')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /Add card/ }));
+    await user.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Idle Docker and Emulators' }),
+    );
+    await waitFor(() =>
+      expect(useDashboardLayoutStore.getState().chartCards).toContain('idle-resources'),
+    );
+    expect(screen.getByText('Idle Docker and Emulators')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Add card/ }));
+    await user.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Docker and Emulator Usage' }),
+    );
+    await waitFor(() =>
+      expect(useDashboardLayoutStore.getState().chartCards).toContain('resource-usage'),
+    );
+    expect(screen.getByText('Docker and Emulator Usage')).toBeTruthy();
+  });
+
   it('pins a Token Usage summary tile from the Add card menu', async () => {
     seedLayout(['cpu']);
     const { user } = renderPage(withStats({ 'settings.get': {}, 'usage.list': [claudeUsage] }));
@@ -463,7 +491,7 @@ describe('DashboardPage editing the layout', () => {
 
     await waitFor(() =>
       expect(useDashboardLayoutStore.getState().rows.map((row) => row.columns)).toEqual([
-        4, 2, 3, 2,
+        4, 2, 3, 2, 2,
       ]),
     );
     const state = useDashboardLayoutStore.getState();
@@ -542,5 +570,96 @@ describe('DashboardPage updates card', () => {
     expect(toast.info).toHaveBeenCalledWith(
       'Press Enter in the terminal to update Claude Code CLI.',
     );
+  });
+});
+
+describe('DashboardPage Docker and emulator cards', () => {
+  const MIN = 60_000;
+  const IDLE_SETTINGS = { idleResourceMinutes: 20, idleResourceNotify: true };
+  const idleSnapshot = {
+    generatedAt: 10_000_000,
+    watchingSince: 0,
+    idleMinutes: 20,
+    docker: 'ready',
+    emulators: 'ready',
+    resources: [
+      {
+        key: 'docker:a',
+        kind: 'docker',
+        id: 'a',
+        name: 'postgres',
+        detail: 'postgres:16',
+        cpuPercent: 0.2,
+        memBytes: 50 * 1024 ** 2,
+        measurable: true,
+        firstSeenAt: 0,
+        lastActiveAt: 0,
+        idleForMs: 33 * MIN,
+        idle: true,
+      },
+    ],
+    history: [
+      {
+        at: 1_000,
+        dockerCpu: 1,
+        dockerMem: 50 * 1024 ** 2,
+        dockerCount: 1,
+        emulatorCpu: 0,
+        emulatorMem: 0,
+        emulatorCount: 0,
+      },
+      {
+        at: 2_000,
+        dockerCpu: 2,
+        dockerMem: 50 * 1024 ** 2,
+        dockerCount: 1,
+        emulatorCpu: 0,
+        emulatorMem: 0,
+        emulatorCount: 0,
+      },
+    ],
+  };
+
+  it('draws the usage chart and the idle list from what the main process tracked', async () => {
+    seedLayout(['resource-usage', 'idle-resources']);
+    renderPage(
+      withStats({
+        'resourceActivity.snapshot': async () => idleSnapshot,
+        'settings.get': IDLE_SETTINGS,
+      }),
+    );
+
+    const usage = await waitFor(() => cardFor('Docker and Emulator Usage'));
+    await waitFor(() => expect(within(usage).getByText('2.0%')).toBeTruthy());
+    expect(within(usage).getByText('1 container')).toBeTruthy();
+
+    const idle = cardFor('Idle Docker and Emulators');
+    expect(await within(idle).findByText('postgres')).toBeTruthy();
+    expect(within(idle).getByText('idle 33 min')).toBeTruthy();
+    expect(within(idle).getByText('idle of 1 running')).toBeTruthy();
+  });
+
+  it('removes each card in edit mode and says so', async () => {
+    seedLayout(['resource-usage', 'idle-resources']);
+    const { user } = renderPage(
+      withStats({
+        'resourceActivity.snapshot': async () => idleSnapshot,
+        'settings.get': IDLE_SETTINGS,
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Edit layout' }));
+
+    await user.click(
+      within(cardFor('Idle Docker and Emulators')).getByRole('button', {
+        name: 'Remove from dashboard',
+      }),
+    );
+
+    await waitFor(() => expect(screen.queryByText('Idle Docker and Emulators')).toBeNull());
+    expect(useDashboardLayoutStore.getState().chartCards).not.toContain('idle-resources');
+    expect(toast.info).toHaveBeenCalledWith(
+      'Idle Docker and Emulators removed from the dashboard.',
+    );
+    expect(screen.getByText('Docker and Emulator Usage')).toBeTruthy();
   });
 });

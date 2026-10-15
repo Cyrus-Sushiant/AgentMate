@@ -1,18 +1,19 @@
-import type {
-  DesktopWidgetInstance,
-  OpenWidgetOptions,
-  ProviderUsage,
-  UsageResetAlertSettings,
-  UsageThresholdAlertSettings,
-  WidgetMode,
-  WidgetSize,
-  WidgetStyle,
+import {
+  type DesktopWidgetInstance,
+  getUsageProvider,
+  type OpenWidgetOptions,
+  type ProviderUsage,
+  type UsageResetAlertSettings,
+  type UsageThresholdAlertSettings,
+  type WidgetMode,
+  type WidgetSize,
+  type WidgetStyle,
 } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import type { SetUsageProviderConfigInput } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { store } from '../store';
-import { clearUsageCache, getAllUsage, getProviderUsage } from '../usage';
+import { clearUsageCache, getAllUsage, getProviderUsage, refreshProviderUsage } from '../usage';
 import { refreshResetAlerts, sendResetAlertTest } from '../usage/resetAlerts';
 import { sendThresholdAlertTest } from '../usage/thresholdAlerts';
 import { widgetManager } from '../usage/widgetWindows';
@@ -33,6 +34,18 @@ export function registerUsageHandlers(): void {
     const settings = await store.getSettings();
     return getAllUsage(settings.usageProviderConfigs ?? {}, true);
   });
+
+  // One provider, re-read from scratch. The renderer swaps the result into the list it already has.
+  ipcMain.handle(
+    IPC.usage.refreshProvider,
+    async (_e, providerId: string): Promise<ProviderUsage> => {
+      if (typeof providerId !== 'string' || !getUsageProvider(providerId)) {
+        throw new Error(`Unknown usage provider: ${String(providerId)}`);
+      }
+      const settings = await store.getSettings();
+      return refreshProviderUsage(providerId, settings.usageProviderConfigs?.[providerId]);
+    },
+  );
 
   ipcMain.handle(
     IPC.usage.setProviderConfig,

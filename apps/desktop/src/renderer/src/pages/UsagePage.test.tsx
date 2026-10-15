@@ -419,6 +419,46 @@ describe('UsagePage card views', () => {
     ).toBeTruthy();
   });
 
+  it('draws a Cursor card whose read failed with its plan limits and a note in place of the tokens', async () => {
+    renderPage({
+      'settings.get': { usageCardModes: { cursor: 'subscription' } },
+      'usage.list': [
+        usage({
+          providerId: 'cursor',
+          status: 'error',
+          error: 'Cursor did not answer in time.',
+          subscription,
+        }),
+      ],
+    });
+
+    await screen.findByText('Cursor');
+    const card = cardFor('Cursor');
+    await waitFor(() => expect(within(card).getByText('Session (5h)')).toBeTruthy());
+    expect(within(card).getByText('Token totals could not be loaded')).toBeTruthy();
+    expect(within(card).queryByText(/tokens today/)).toBeNull();
+  });
+
+  it('keeps the error text on a failed Cursor card in the tokens view', async () => {
+    renderPage({
+      'settings.get': {},
+      'usage.list': [
+        usage({
+          providerId: 'cursor',
+          status: 'error',
+          error: 'Cursor did not answer in time.',
+          subscription,
+        }),
+      ],
+    });
+
+    await screen.findByText('Cursor');
+    const card = cardFor('Cursor');
+    await waitFor(() =>
+      expect(within(card).getByText('Cursor did not answer in time.')).toBeTruthy(),
+    );
+  });
+
   it('draws the OpenCode card with the same chart UI as a Codex card', async () => {
     const { user } = renderPage({
       'settings.get': {},

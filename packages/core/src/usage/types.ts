@@ -162,6 +162,14 @@ export interface SubscriptionUsage {
   estimateReason?: string;
 }
 
+/** Plan limits read on an earlier attempt, kept while the provider cannot be read now. */
+export interface LastKnownLimits {
+  plan: SubscriptionPlan | null;
+  windows: SubscriptionWindow[];
+  /** ISO datetime the limits were read. */
+  readAt: string;
+}
+
 /**
  * What one project (or one folder that is not a project) spent on each of the last days. The arrays
  * are index-aligned with `ProjectDaily.endDay`: the last entry is that day, the first the oldest.
@@ -202,6 +210,14 @@ export interface ProviderUsage {
   window?: UsageWindow;
   /** Plan + rolling-limit state, when the provider is on a subscription. */
   subscription?: SubscriptionUsage;
+  /**
+   * The plan limits this provider last reported, attached only when this snapshot has no current
+   * ones because the read failed. Kept apart from `subscription` so nothing that treats limits as
+   * current (the Usage page, widgets, the alert watchers) mistakes them for fresh numbers.
+   */
+  lastLimits?: LastKnownLimits;
+  /** Set when the plan limits could not be read this time, which is not the same as having none. */
+  limitsError?: string;
   /** Recent per-hour (or per-day) token totals for the burn-rate sparkline. */
   series?: number[];
   /** Daily cost totals aligned with `series`, when the source can price calls. */

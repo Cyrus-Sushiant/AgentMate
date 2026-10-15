@@ -65,6 +65,18 @@ export function isStartupPage(value: unknown): value is StartupPage {
   return STARTUP_PAGES.includes(value as StartupPage);
 }
 
+/**
+ * Where clicking a pipeline failure alert (the toast's Open button, a Recent messages row or the
+ * pet's bubble) takes you: the Pipelines section of that project's Workspace, the all-projects
+ * Pipelines page, or nowhere.
+ */
+export const PIPELINE_FAILURE_OPEN_TARGETS = ['workspace', 'pipelines', 'none'] as const;
+export type PipelineFailureOpen = (typeof PIPELINE_FAILURE_OPEN_TARGETS)[number];
+
+export function isPipelineFailureOpen(value: unknown): value is PipelineFailureOpen {
+  return PIPELINE_FAILURE_OPEN_TARGETS.includes(value as PipelineFailureOpen);
+}
+
 export type AiProvider = 'openai' | 'ollama' | 'gemini';
 
 export const DESKTOP_PET_IDS = [
@@ -339,8 +351,20 @@ export const DASHBOARD_CHART_IDS = [
   'pings',
   'github',
   'github-actions',
+  'resource-usage',
+  'idle-resources',
 ] as const;
 export type DashboardChartId = (typeof DASHBOARD_CHART_IDS)[number];
+
+/**
+ * Charts added after the first release. A profile saved before one existed does not list it as
+ * introduced, so it gets appended to that dashboard once instead of being treated as hidden.
+ */
+export const LATE_DASHBOARD_CHART_IDS: readonly DashboardChartId[] = [
+  'github-actions',
+  'resource-usage',
+  'idle-resources',
+];
 
 /** Built-in Dashboard stat tiles, movable and hideable like any other dashboard card. */
 export const DASHBOARD_STAT_IDS = [
@@ -385,6 +409,7 @@ export const DEFAULT_DASHBOARD: {
     { id: 'default-row-2', columns: 2, items: ['network', 'pings', 'cpu', 'gpu'] },
     { id: 'default-row-3', columns: 3, items: ['usage:claude-code', 'memory', 'disk'] },
     { id: 'default-row-4', columns: 2, items: ['github', 'github-actions'] },
+    { id: 'default-row-5', columns: 2, items: ['resource-usage', 'idle-resources'] },
   ],
 };
 
@@ -613,10 +638,11 @@ export interface AppSettings {
    */
   pipelineFailureNotify: boolean;
   /**
-   * When true, clicking a failure alert (the toast's Open button, a Recent messages row or the
-   * pet's bubble) opens that run on the Pipelines page. Off leaves the click as a plain dismiss.
+   * What clicking a failure alert (the toast's Open button, a Recent messages row or the pet's
+   * bubble) opens. 'pipelines' is the all-projects page on the failed run, 'workspace' the
+   * Pipelines section of that project's Workspace, 'none' leaves the click as a plain dismiss.
    */
-  pipelineFailureOpen: boolean;
+  pipelineFailureOpen: PipelineFailureOpen;
   /**
    * When true the desktop pet speaks if internet quality changes (offline,
    * back online, or a clear drop or improvement).
@@ -690,6 +716,13 @@ export interface AppSettings {
   androidStopEmulatorsOnQuit: boolean;
   /** Where Android screenshots and recordings are written. Null uses Pictures and Videos. */
   androidCapturePath: string | null;
+  /**
+   * Minutes a Docker container or Android emulator can sit quiet before the Dashboard lists it
+   * as idle. Clamped to 1..1440 when read.
+   */
+  idleResourceMinutes: number;
+  /** Send a system notification when a container or emulator first goes idle. */
+  idleResourceNotify: boolean;
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

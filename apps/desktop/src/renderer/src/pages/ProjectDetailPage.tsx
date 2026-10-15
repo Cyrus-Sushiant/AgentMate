@@ -524,6 +524,32 @@ export default function ProjectDetailPage(): React.JSX.Element {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Whether an agent in this project may suggest run commands. The switch writes the project's
+  // .mcp.json entry, so the state is read back from the project folder, not from AgentMate's records.
+  const runSuggestionsQuery = useQuery({
+    queryKey: queryKeys.runProposalsEnabled(projectId ?? ''),
+    queryFn: async () => Boolean(await window.agentmat.runProposals.getEnabled(projectId!)),
+    enabled: Boolean(projectId),
+  });
+  const runSuggestionsMutation = useMutation({
+    mutationFn: (enabled: boolean) => window.agentmat.runProposals.setEnabled(projectId!, enabled),
+    onSuccess: (result, enabled) => {
+      if (!result.ok) {
+        toast.error(result.error);
+      } else {
+        toast.success(
+          enabled
+            ? 'Agents here can suggest run commands now.'
+            : 'Agents here can no longer suggest run commands.',
+        );
+      }
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.runProposalsEnabled(projectId ?? ''),
+      });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change that.'),
+  });
+
   const removeMcpServerMutation = useMutation({
     mutationFn: (serverId: string) =>
       window.agentmat.mcp.remove({ projectId: projectId!, serverId }),
@@ -1053,6 +1079,25 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 </Button>
               }
             >
+              <div className={cn(ROW, 'mb-2')}>
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="project-run-suggestions" className="font-medium">
+                    Let agents suggest run commands
+                  </Label>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    An agent here can suggest a run command. You approve each one in AgentMate
+                    before it is saved.
+                  </p>
+                </div>
+                <Switch
+                  id="project-run-suggestions"
+                  checked={runSuggestionsQuery.data ?? false}
+                  disabled={
+                    !project.folderPath || runSuggestionsQuery.isPending || runSuggestionsMutation.isPending
+                  }
+                  onCheckedChange={(checked) => runSuggestionsMutation.mutate(checked)}
+                />
+              </div>
               {installedMcpServersQuery.data?.length === 0 ? (
                 <SectionEmptyState
                   inset

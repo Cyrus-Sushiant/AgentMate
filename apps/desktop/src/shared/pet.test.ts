@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { PetPipelineRunRef } from './pet';
-import { PET_BOX, PET_SNOOZE_MAX_MINUTES, PET_SNOOZE_OPTIONS, pipelineRunRoute } from './pet';
+import {
+  PET_BOX,
+  PET_SNOOZE_MAX_MINUTES,
+  PET_SNOOZE_OPTIONS,
+  pipelineRunRoute,
+  workspacePipelinesRoute,
+} from './pet';
 
 /**
  * The companion overlay is a transparent, click-through window: these numbers
@@ -29,6 +35,20 @@ describe('pipelineRunRoute', () => {
     const params = new URLSearchParams(pipelineRunRoute(run).split('?')[1]);
     expect(params.get('run')).toBe(String(run.runId));
     expect(params.get('repo')).toBe(run.repo);
+  });
+
+  it("opens the project's workspace Pipelines section when the ref asks for it", () => {
+    const run: PetPipelineRunRef = { runId: 1234, repo: 'a/b', workspaceProjectId: 'proj-1' };
+
+    expect(pipelineRunRoute(run)).toBe('/workspace/proj-1?panel=pipelines');
+    expect(pipelineRunRoute(run)).toBe(workspacePipelinesRoute('proj-1'));
+  });
+
+  it('escapes the project id so it cannot add a query of its own', () => {
+    const route = workspacePipelinesRoute('a/b?panel=explorer');
+
+    expect(route).toBe('/workspace/a%2Fb%3Fpanel%3Dexplorer?panel=pipelines');
+    expect(new URLSearchParams(route.split('?').slice(1).join('?')).get('panel')).toBe('pipelines');
   });
 
   it('keeps large run ids intact as text', () => {

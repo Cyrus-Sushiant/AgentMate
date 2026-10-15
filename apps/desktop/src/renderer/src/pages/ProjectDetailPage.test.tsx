@@ -255,6 +255,23 @@ describe('ProjectDetailPage sections', () => {
     expect(screen.queryByText('No skills installed')).toBeNull();
   });
 
+  it('lets the agent in this project suggest run commands once the switch is turned on', async () => {
+    const { user, bridge } = renderPage({
+      'mcp.listInstalled': [],
+      'runProposals.getEnabled': false,
+      'runProposals.setEnabled': { ok: true },
+    });
+    await screen.findByRole('heading', { name: 'Apollo' });
+
+    await openSection(user, /^MCP/);
+    const toggle = await screen.findByRole('switch', { name: 'Let agents suggest run commands' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(toggle);
+
+    expect(bridge.$fn('runProposals.setEnabled')).toHaveBeenCalledWith(expect.any(String), true);
+  });
+
   it('sends an old Schedule link to the Scheduled tab of Prompts', async () => {
     renderWithProviders(<ProjectDetailPage />, {
       route: '/projects/p1?tab=schedule',

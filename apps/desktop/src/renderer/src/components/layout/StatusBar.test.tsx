@@ -1,9 +1,15 @@
 import type { AndroidSdkStatus } from '@agentmat/core';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { queryKeys } from '@/lib/queryKeys';
 import { useRunSessionStore } from '@/stores/runSessionStore';
 import { type TerminalSessionMeta, useTerminalStore } from '@/stores/terminalStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
+
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }),
+);
+vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 const navigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -460,5 +466,240 @@ describe('the plan limits entries', () => {
 
     await user.click(within(panel).getByRole('button', { name: 'Open Token Usage' }));
     expect(navigate).toHaveBeenCalledWith('/usage?provider=codex');
+  });
+});
+
+/**
+ * A read that fails must not take a provider off the bar. Its item keeps the last limits it had,
+ * dimmed and marked, or shows a warning when it never had any. Its panel has a refresh button that
+ * re-reads only that provider.
+ */
+describe('the plan limits entries when a read fails', () => {
+  const inHours = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString();
+  const PRO_PLUS = { id: 'pro-plus', label: 'Pro+' };
+  const CHIP = 'Cursor: Monthly usage limit';
+  const STALE = 'Cursor: Monthly usage limit, may be out of date';
+
+  function cursorLimit(percent: number) {
+    return {
+      mode: 'subscription',
+      plan: PRO_PLUS,
+      windows: [{ key: 'month', label: 'Monthly usage', percent, resetAt: inHours(300) }],
+      source: 'account',
+    };
+  }
+
+  /** A Cursor snapshot, as the usage list hands it out. */
+  function cursor(over: Record<string, unknown> = {}) {
+    return {
+      providerId: 'cursor',
+      status: 'ok',
+      updatedAt: new Date().toISOString(),
+      subscription: cursorLimit(41),
+      ...over,
+    };
+  }
+
+  /** The limits a failed read keeps from its last good read. */
+  const LAST_KNOWN = {
+    plan: PRO_PLUS,
+    windows: [{ key: 'month', label: 'Monthly usage', percent: 41, resetAt: inHours(300) }],
+    readAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+  };
+
+  function limitsOf(providerId: string, plan: string, windows: unknown[]) {
+    return {
+      providerId,
+      status: 'ok',
+      updatedAt: new Date().toISOString(),
+      subscription: {
+        mode: 'subscription',
+        plan: { id: plan.toLowerCase(), label: plan },
+        windows,
+        source: 'account',
+      },
+    };
+  }
+
+  function usageBar(list: unknown[], extra: Record<string, unknown> = {}) {
+    return setup({ 'android.sdk': NO_SDK, 'usage.list': list, 'settings.get': {}, ...extra });
+  }
+
+  it('keeps the chip, dimmed and marked, with its last numbers when a read fails', async () => {
+    const { bridge, queryClient } = usageBar([cursor()]);
+    await screen.findByRole('button', { name: CHIP });
+
+    bridge.$set('usage.list', [
+      cursor({
+        status: 'error',
+        error: 'Cursor did not answer in time.',
+        subscription: undefined,
+        lastLimits: LAST_KNOWN,
+      }),
+    ]);
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: queryKeys.usageList });
+    });
+
+    const chip = await screen.findByRole('button', { name: STALE });
+    expect(within(chip).getByText('41%')).toBeInTheDocument();
+  });
+
+  it('marks the chip the same way when only its limits failed to load', async () => {
+    const { bridge, queryClient } = usageBar([cursor()]);
+    await screen.findByRole('button', { name: CHIP });
+
+    bridge.$set('usage.list', [
+      cursor({
+        subscription: undefined,
+        limitsError: 'Cursor returned HTTP 500',
+        lastLimits: LAST_KNOWN,
+      }),
+    ]);
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: queryKeys.usageList });
+    });
+
+    expect(await screen.findByRole('button', { name: STALE })).toBeInTheDocument();
+  });
+
+  it('shows only a warning for a provider that has never been read', async () => {
+    usageBar([
+      cursor({ status: 'error', error: 'Could not reach Cursor.', subscription: undefined }),
+    ]);
+
+    const chip = await screen.findByRole('button', { name: 'Cursor: usage unavailable' });
+    expect(within(chip).queryByText(/%/)).not.toBeInTheDocument();
+  });
+
+  it('takes the item out of the bar once the account is signed out', async () => {
+    const { bridge, queryClient } = usageBar([cursor()]);
+    await screen.findByRole('button', { name: CHIP });
+
+    bridge.$set('usage.list', [
+      { providerId: 'cursor', status: 'connect', updatedAt: new Date().toISOString() },
+    ]);
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: queryKeys.usageList });
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /^Cursor:/ })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('opens the panel without moving focus onto its refresh button', async () => {
+    const { user } = usageBar([cursor()]);
+
+    await user.click(await screen.findByRole('button', { name: CHIP }));
+
+    const panel = await screen.findByRole('dialog');
+    expect(within(panel).getByRole('button', { name: 'Refresh Cursor usage' })).not.toHaveFocus();
+  });
+
+  it('re-reads one provider from its panel and leaves the other providers as they were', async () => {
+    const { user, bridge, queryClient } = usageBar(
+      [
+        cursor(),
+        limitsOf('claude-code', 'Max 5×', [
+          { key: 'session', label: 'Session (5h)', percent: 64, resetAt: inHours(3) },
+        ]),
+        limitsOf('codex', 'Plus', [
+          { key: 'session', label: 'Session (5h)', percent: 22, resetAt: inHours(2) },
+        ]),
+      ],
+      { 'usage.refreshProvider': async () => cursor({ subscription: cursorLimit(55) }) },
+    );
+    await user.click(await screen.findByRole('button', { name: CHIP }));
+    const listCallsBefore = bridge.$fn('usage.list').mock.calls.length;
+
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Refresh Cursor usage',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('button', { name: CHIP })).getByText('55%'),
+      ).toBeInTheDocument(),
+    );
+    expect(bridge.$fn('usage.refreshProvider')).toHaveBeenCalledWith('cursor');
+    expect(bridge.$fn('usage.list')).toHaveBeenCalledTimes(listCallsBefore);
+    expect(
+      within(screen.getByRole('button', { name: 'Claude Code: Session (5h) limit' })).getByText(
+        '64%',
+      ),
+    ).toBeInTheDocument();
+    // The refresh draws its own spinner, so it must not raise the full-page loading overlay.
+    expect(
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .every((m) => m.options.meta?.silentLoading === true),
+    ).toBe(true);
+  });
+
+  it('shows the refresh as busy while it runs, and ignores a second press', async () => {
+    let finish!: (value: unknown) => void;
+    const reply = new Promise<unknown>((resolve) => {
+      finish = resolve;
+    });
+    const { user, bridge } = usageBar([cursor()], { 'usage.refreshProvider': () => reply });
+    await user.click(await screen.findByRole('button', { name: CHIP }));
+    const refresh = within(await screen.findByRole('dialog')).getByRole('button', {
+      name: 'Refresh Cursor usage',
+    });
+
+    await user.click(refresh);
+    await waitFor(() => expect(refresh).toHaveAttribute('aria-busy', 'true'));
+    expect(refresh).toHaveAttribute('aria-disabled', 'true');
+    await user.click(refresh);
+    expect(bridge.$fn('usage.refreshProvider')).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finish(cursor({ subscription: cursorLimit(55) }));
+    });
+    await waitFor(() => expect(refresh).toHaveAttribute('aria-busy', 'false'));
+  });
+
+  it('keeps the chip dimmed when the refresh itself comes back with a failed read', async () => {
+    const { user } = usageBar([cursor()], {
+      'usage.refreshProvider': async () =>
+        cursor({
+          status: 'error',
+          error: 'Cursor did not answer in time.',
+          subscription: undefined,
+          lastLimits: LAST_KNOWN,
+        }),
+    });
+    await user.click(await screen.findByRole('button', { name: CHIP }));
+
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Refresh Cursor usage',
+      }),
+    );
+
+    const chip = await screen.findByRole('button', { name: STALE });
+    await waitFor(() => expect(within(chip).getByText('41%')).toBeInTheDocument());
+  });
+
+  it('tells the user when a refresh cannot be made, and keeps the chip', async () => {
+    const { user } = usageBar([cursor()], {
+      'usage.refreshProvider': () => Promise.reject(new Error('IPC down')),
+    });
+    await user.click(await screen.findByRole('button', { name: CHIP }));
+
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Refresh Cursor usage',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not refresh Cursor usage: IPC down'),
+    );
+    expect(screen.getByRole('button', { name: CHIP })).toBeInTheDocument();
   });
 });

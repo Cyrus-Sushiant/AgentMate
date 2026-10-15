@@ -613,6 +613,28 @@ export interface InstalledMcpServerRecord {
   installedAt: string;
 }
 
+/**
+ * A run command an AI agent in a project asked to add. It stays pending until the user approves
+ * it in AgentMate, and nothing is saved or run before that.
+ */
+export interface RunProposal {
+  id: string;
+  projectId: string;
+  projectName: string;
+  /** Empty when the agent did not name the command. The command is shown instead. */
+  label: string;
+  command: string;
+  proposedAt: string;
+}
+
+export type RunProposalDecision = 'add' | 'discard';
+
+export interface RunProposalsChanged {
+  pending: RunProposal[];
+}
+
+export type RunProposalResult = { ok: true } | { ok: false; error: string };
+
 /** A single hit from a live skills.sh search, before its description has been fetched. */
 export interface SkillsShSearchResult {
   id: string;

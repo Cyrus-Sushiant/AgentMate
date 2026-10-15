@@ -4,12 +4,35 @@ import {
   type ProcessRow,
   type ProcessSample,
   parseProcStat,
+  selectPreviousSample,
   summarizeProcessTrees,
 } from './processTree.js';
 
 function row(pid: number, ppid: number, cpuTimeSec = 0, memBytes = 0, startedAt?: number) {
   return { pid, ppid, name: `p${pid}`, cpuTimeSec, memBytes, startedAt } satisfies ProcessRow;
 }
+
+describe('selectPreviousSample', () => {
+  const last: ProcessSample = { at: 1_000, processes: [] };
+
+  it('keeps a sample that is inside the allowed gap', () => {
+    expect(selectPreviousSample(last, 16_000, 15_000)).toBe(last);
+    expect(selectPreviousSample(last, 31_000, 30_000)).toBe(last);
+  });
+
+  it('drops a sample that is older than the allowed gap', () => {
+    expect(selectPreviousSample(last, 16_001, 15_000)).toBeNull();
+    expect(selectPreviousSample(last, 31_001, 30_000)).toBeNull();
+  });
+
+  it('drops a sample from the future, which means the clock moved', () => {
+    expect(selectPreviousSample(last, 500, 15_000)).toBeNull();
+  });
+
+  it('has nothing to keep without a previous sample', () => {
+    expect(selectPreviousSample(null, 1_000, 15_000)).toBeNull();
+  });
+});
 
 describe('descendantPids', () => {
   it('walks nested children', () => {

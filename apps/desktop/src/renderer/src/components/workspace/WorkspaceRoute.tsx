@@ -6,7 +6,7 @@ import { useWorkspaceProject } from '@/hooks/useWorktrees';
 import { queryKeys } from '@/lib/queryKeys';
 import { usePageHeader } from '@/stores/pageHeaderStore';
 import { useVersionDialogStore } from '@/stores/versionDialogStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { isSourceControlSection, useWorkspaceStore } from '@/stores/workspaceStore';
 
 /**
  * The route element for `/workspace` and `/workspace/:projectId`. The page itself is the
@@ -18,6 +18,7 @@ export default function WorkspaceRoute(): null {
   const navigate = useNavigate();
   const openProject = useWorkspaceStore((s) => s.openProject);
   const activateTab = useWorkspaceStore((s) => s.activateTab);
+  const revealPanelSection = useWorkspaceStore((s) => s.revealPanelSection);
   // The id in the URL is a project's, or a worktree's scope id (`<project>~<worktree>`).
   const { project, projects, isPending } = useWorkspaceProject(projectId ?? null);
   const queryClient = useQueryClient();
@@ -61,6 +62,17 @@ export default function WorkspaceRoute(): null {
     next.delete('session');
     setSearchParams(next, { replace: true });
   }, [projectId, session, searchParams, setSearchParams, activateTab]);
+
+  // `?panel=pipelines` comes from a pipeline failure alert: unfold that section of the Git panel.
+  // Only Source control sections are accepted, so a hand-edited link cannot reach anything else.
+  const panel = searchParams.get('panel');
+  useEffect(() => {
+    if (!projectId || !panel) return;
+    if (isSourceControlSection(panel)) revealPanelSection(panel);
+    const next = new URLSearchParams(searchParams);
+    next.delete('panel');
+    setSearchParams(next, { replace: true });
+  }, [projectId, panel, searchParams, setSearchParams, revealPanelSection]);
 
   // `?tag=1` comes from a "version files updated" notification: reopen that flow.
   const openTagDialog = searchParams.get('tag');

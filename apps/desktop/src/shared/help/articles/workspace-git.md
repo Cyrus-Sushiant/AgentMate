@@ -194,6 +194,8 @@ If the pull request was merged elsewhere and you are still on its branch, a card
 
 The **Pipelines** section lists each GitHub Actions workflow of the repository with its latest run, failures first. Click a row to open the run on GitHub. A failed run has **Fix with AI** and **Copy error** buttons. It needs `gh` installed and signed in, and shows the same notices as the pull request section if not. For a list across all your projects, see [Pipelines](pipelines.md).
 
+A failure alert can land here: in Settings, **Notifications**, **Pipeline failures**, set **When I click a failure** to **Project workspace**, and clicking the message or the pet's bubble opens this project's Workspace with the **Pipelines** section unfolded. See [Settings](settings.md#pipeline-failures).
+
 ## Worktrees section
 
 The **Worktrees** section lists the project's worktrees, with a **New worktree** button in its header. Everything about it is in [Worktrees](worktrees.md).

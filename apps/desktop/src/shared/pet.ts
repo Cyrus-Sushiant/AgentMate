@@ -29,6 +29,11 @@ export interface PetPipelineRunRef {
   runId: number;
   /** owner/repo, matching the rows on the Pipelines page. */
   repo: string;
+  /**
+   * Set when a click should land on the Pipelines section of this project's Workspace instead
+   * of the Pipelines page.
+   */
+  workspaceProjectId?: string;
 }
 
 export interface PetPipelineMessage {
@@ -41,8 +46,17 @@ export interface PetPipelineMessage {
   run?: PetPipelineRunRef;
 }
 
-/** Route the Pipelines page uses to show one run, picked out of the list. */
+/** A project's Workspace with the Pipelines section of its Git panel unfolded. */
+export function workspacePipelinesRoute(projectId: string): string {
+  return `/workspace/${encodeURIComponent(projectId)}?panel=pipelines`;
+}
+
+/**
+ * Where a pipeline failure's click goes: the project's Workspace when the ref asks for it,
+ * otherwise the route the Pipelines page uses to show one run, picked out of the list.
+ */
 export function pipelineRunRoute(run: PetPipelineRunRef): string {
+  if (run.workspaceProjectId) return workspacePipelinesRoute(run.workspaceProjectId);
   const params = new URLSearchParams({ run: String(run.runId), repo: run.repo });
   return `/pipelines?${params.toString()}`;
 }

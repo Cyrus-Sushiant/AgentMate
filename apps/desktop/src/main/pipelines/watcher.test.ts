@@ -502,7 +502,7 @@ describe('pet settings', () => {
   });
 
   it('sends the failure without a run to open when clicking should not open it', async () => {
-    state.settings = petSettings({ pipelineFailureOpen: false });
+    state.settings = petSettings({ pipelineFailureOpen: 'none' });
     github.listRepoRunsByWorkflow.mockResolvedValue(
       new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
     );
@@ -513,6 +513,32 @@ describe('pet settings', () => {
     expect(pet.messages).toHaveLength(1);
     expect(pet.messages[0].run).toBeUndefined();
     expect(state.notifications).toHaveLength(1);
+  });
+
+  it("points the bubble at the project's workspace when that is where clicks should go", async () => {
+    state.settings = petSettings({ pipelineFailureOpen: 'workspace' });
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
+    );
+
+    await tickOnce();
+
+    expect(pet.messages[0].run).toEqual({
+      runId: 10,
+      repo: 'acme/demo',
+      workspaceProjectId: 'proj-1',
+    });
+  });
+
+  it('keeps the Pipelines page when the setting names it', async () => {
+    state.settings = petSettings({ pipelineFailureOpen: 'pipelines' });
+    github.listRepoRunsByWorkflow.mockResolvedValue(
+      new Map([[100, [run({ id: 10, conclusion: 'failure' })]]]),
+    );
+
+    await tickOnce();
+
+    expect(pet.messages[0].run).toEqual({ runId: 10, repo: 'acme/demo' });
   });
 
   it('treats a profile with neither new setting as having both on', async () => {

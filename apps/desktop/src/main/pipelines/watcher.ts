@@ -69,6 +69,22 @@ async function appendRunNotification(input: {
   broadcastNotificationsChanged();
 }
 
+/**
+ * What the pet's bubble opens when clicked. Without a ref the bubble is not a link, which is how
+ * "don't open it on click" reaches the pet: no "Click to open" hint and the click just waves the
+ * bubble away. A missing setting counts as the Pipelines page, the way it always behaved.
+ */
+function clickTarget(
+  settings: AppSettings,
+  project: Project,
+  run?: PetPipelineRunRef,
+): PetPipelineRunRef | undefined {
+  if (!run || settings.pipelineFailureOpen === 'none') return undefined;
+  return settings.pipelineFailureOpen === 'workspace'
+    ? { ...run, workspaceProjectId: project.id }
+    : run;
+}
+
 function maybeSpeak(
   settings: AppSettings,
   kind: 'pass' | 'fail',
@@ -90,9 +106,7 @@ function maybeSpeak(
     text: petSpeech(kind, project.name, workflowName),
     projectName: project.name,
     workflowName,
-    // Without the ref the bubble is not a link, which is how "don't open it on click" reaches
-    // the pet: no "Click to open" hint and the click just waves the bubble away.
-    run: settings.pipelineFailureOpen === false ? undefined : run,
+    run: clickTarget(settings, project, run),
   };
   petManager.sendPipelineMessage(payload);
 }

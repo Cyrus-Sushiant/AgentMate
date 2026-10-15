@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { CliLogo } from '@/components/cliLogos';
 import { ArrowDown, ArrowUp, GripVertical, RefreshCw } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { ReorderableGroup } from '@/components/ui/ReorderableGroup';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { orderedClis } from '@/components/workspace/useAgentChoices';
 import { queryKeys } from '@/lib/queryKeys';
@@ -11,7 +12,7 @@ import { useCliStore } from '@/stores/cliStore';
 
 /**
  * The order agents are offered in when launching one: the Workspace "+" menu, the tiles of an
- * empty pane, and the digit keys that pick them. Drag a row, or use the arrows.
+ * empty pane, and the digit keys that pick them. Drag a row by its grip, or use the arrows.
  */
 export function CliOrderSettings(): React.JSX.Element {
   const cliOrder = useCliStore((s) => s.cliOrder);
@@ -24,21 +25,22 @@ export function CliOrderSettings(): React.JSX.Element {
     meta: { silentLoading: true },
   });
   const installed = new Set((status.data ?? []).filter((c) => c.installed).map((c) => c.id));
-  const clis = orderedClis(cliOrder);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  // Memoized so the list keeps the order it's dropped into until the store catches up.
+  const clis = useMemo(() => orderedClis(cliOrder), [cliOrder]);
 
-  function move(id: string, to: number): void {
+  function moveTo(from: number, to: number): void {
     const ids = clis.map((cli) => cli.id);
-    const from = ids.indexOf(id);
-    if (from === -1) return;
-    ids.splice(from, 1);
-    ids.splice(Math.max(0, Math.min(to, ids.length)), 0, id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
     setCliOrder(ids);
   }
 
   // Digit hints count installed agents only, since those are the ones a launcher lists.
-  let installedPosition = 0;
+  const digits = new Map<string, number>();
+  let position = 0;
+  for (const cli of clis) {
+    if (installed.has(cli.id)) digits.set(cli.id, ++position);
+  }
 
   return (
     <div className="space-y-2">
@@ -50,55 +52,33 @@ export function CliOrderSettings(): React.JSX.Element {
           <RefreshCw /> Default order
         </Button>
       </div>
-      <ol
+      <ReorderableGroup
+        as="ol"
+        items={clis}
+        getId={(cli) => cli.id}
+        enabled
         className="overflow-hidden rounded-lg border border-border/70"
-        onDragOver={(event) => {
-          if (!dragging) return;
-          event.preventDefault();
-          const rows = Array.from(
-            event.currentTarget.querySelectorAll<HTMLElement>('[data-cli-row]'),
-          );
-          const index = rows.findIndex((row) => {
-            const rect = row.getBoundingClientRect();
-            return event.clientY < rect.top + rect.height / 2;
-          });
-          setDropIndex(index === -1 ? rows.length : index);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          if (dragging && dropIndex !== null) {
-            const from = clis.findIndex((cli) => cli.id === dragging);
-            move(dragging, from < dropIndex ? dropIndex - 1 : dropIndex);
-          }
-          setDragging(null);
-          setDropIndex(null);
-        }}
-      >
-        {clis.map((cli, index) => {
+        onMove={moveTo}
+        renderItem={(cli, motion, index) => {
           const isInstalled = installed.has(cli.id);
-          const digit = isInstalled ? ++installedPosition : null;
+          const digit = digits.get(cli.id) ?? null;
           return (
             <li
-              key={cli.id}
-              data-cli-row
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
-                setDragging(cli.id);
-              }}
-              onDragEnd={() => {
-                setDragging(null);
-                setDropIndex(null);
-              }}
+              {...motion.itemProps}
               className={cn(
-                'relative flex h-10 cursor-grab items-center gap-3 border-b border-border/50 bg-background/40 px-3 last:border-b-0 active:cursor-grabbing',
-                dragging === cli.id && 'opacity-40',
+                'relative flex h-10 items-center gap-3 border-b border-border/50 px-3 last:border-b-0',
+                motion.dragging
+                  ? 'z-10 bg-popover shadow-lg ring-1 ring-foreground/10 transition-none'
+                  : 'bg-background/40 transition-transform duration-200 ease-out motion-reduce:transition-none',
               )}
             >
-              {dropIndex === index && dragging ? (
-                <span className="absolute inset-x-2 -top-px h-0.5 rounded-full bg-primary" />
-              ) : null}
-              <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+              <span
+                onPointerDown={motion.onGripPointerDown}
+                aria-hidden
+                className="flex h-6 w-4 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/60 active:cursor-grabbing"
+              >
+                <GripVertical className="h-3 w-3" />
+              </span>
               <CliLogo cliId={cli.id} className="h-4 w-4" />
               <span
                 className={cn('flex-1 truncate text-sm', !isInstalled && 'text-muted-foreground')}
@@ -121,7 +101,7 @@ export function CliOrderSettings(): React.JSX.Element {
                     size="icon-xs"
                     aria-label={`Move ${cli.name} up`}
                     disabled={index === 0}
-                    onClick={() => move(cli.id, index - 1)}
+                    onClick={() => moveTo(index, index - 1)}
                   >
                     <ArrowUp />
                   </Button>
@@ -132,7 +112,7 @@ export function CliOrderSettings(): React.JSX.Element {
                     size="icon-xs"
                     aria-label={`Move ${cli.name} down`}
                     disabled={index === clis.length - 1}
-                    onClick={() => move(cli.id, index + 1)}
+                    onClick={() => moveTo(index, index + 1)}
                   >
                     <ArrowDown />
                   </Button>
@@ -140,11 +120,8 @@ export function CliOrderSettings(): React.JSX.Element {
               </span>
             </li>
           );
-        })}
-      </ol>
-      {dropIndex === clis.length && dragging ? (
-        <span className="block h-0.5 rounded-full bg-primary" />
-      ) : null}
+        }}
+      />
     </div>
   );
 }

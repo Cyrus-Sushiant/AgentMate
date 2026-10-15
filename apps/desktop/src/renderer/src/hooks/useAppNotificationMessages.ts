@@ -1,4 +1,6 @@
-import type { AppNotification } from '@agentmat/core';
+import type { AppNotification, PipelineFailureOpen } from '@agentmat/core';
+import { isPipelineFailureOpen } from '@agentmat/core';
+import { workspacePipelinesRoute } from '@shared/pet';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openMessageLink, pipelineRunRoute } from '@/lib/messageLink';
@@ -20,14 +22,28 @@ export function appRoute(item: AppNotification): string | null {
   return pipelineRunRoute(item.htmlUrl);
 }
 
-/** Whether a pipeline failure's alert opens it on click. On unless the user switched it off. */
-async function failuresOpenOnClick(): Promise<boolean> {
+/**
+ * Where a pipeline failure's alert goes on click. The Pipelines page unless the user chose
+ * otherwise, and also when the setting cannot be read, so a failed read never costs the way in.
+ */
+async function failureClickTarget(): Promise<PipelineFailureOpen> {
   try {
     const settings = await window.agentmat.settings.get();
-    return settings.pipelineFailureOpen !== false;
+    return isPipelineFailureOpen(settings.pipelineFailureOpen)
+      ? settings.pipelineFailureOpen
+      : 'pipelines';
   } catch {
-    return true;
+    return 'pipelines';
   }
+}
+
+/**
+ * The route a failure's alert opens: that project's Workspace when asked for and the alert knows
+ * its project, otherwise the page the item itself points at (the run on the Pipelines page).
+ */
+function failureRoute(item: AppNotification, target: PipelineFailureOpen): string | null {
+  if (target === 'workspace' && item.projectId) return workspacePipelinesRoute(item.projectId);
+  return appRoute(item);
 }
 
 /**
@@ -54,15 +70,15 @@ export function useAppNotificationMessages(): void {
         primed = true;
         return;
       }
-      const openFailures = fresh.some((item) => item.kind === 'pipeline-failure')
-        ? await failuresOpenOnClick()
-        : true;
+      const target = fresh.some((item) => item.kind === 'pipeline-failure')
+        ? await failureClickTarget()
+        : 'pipelines';
       if (disposed) return;
       // The inbox is newest first; announce oldest first so the newest ends up on top.
-      for (const item of fresh.reverse()) announce(item, openFailures);
+      for (const item of fresh.reverse()) announce(item, target);
     }
 
-    function announce(item: AppNotification, openFailures: boolean): void {
+    function announce(item: AppNotification, failureTarget: PipelineFailureOpen): void {
       const style = KIND[item.kind] ?? KIND['tool-update-available'];
       const base = {
         kind: style.kind,
@@ -72,13 +88,14 @@ export function useAppNotificationMessages(): void {
         projectName: item.projectName,
         tag: style.tag,
       };
+      const failure = item.kind === 'pipeline-failure';
       // The user can turn off opening a failure from its alert. The message still shows, it
       // just has no Open button and no link for its row in Recent messages.
-      if (item.kind === 'pipeline-failure' && !openFailures) {
+      if (failure && failureTarget === 'none') {
         showLinkedToast(base);
         return;
       }
-      const route = appRoute(item);
+      const route = failure ? failureRoute(item, failureTarget) : appRoute(item);
       const link: ToastHistoryLink = { notificationId: item.id };
       if (route) link.route = route;
       else if (item.htmlUrl) link.url = item.htmlUrl;

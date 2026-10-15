@@ -15,7 +15,6 @@ import {
   type WidgetMode,
 } from '@agentmat/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -54,6 +53,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ReorderableGroup } from '@/components/ui/ReorderableGroup';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
@@ -105,7 +105,6 @@ export default function UsagePage(): React.JSX.Element {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [thresholdAlertsOpen, setThresholdAlertsOpen] = useState(false);
   const [pinTarget, setPinTarget] = useState<string | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
   // Off by default so the drag handle doesn't clutter the everyday view, same
   // pattern as the Dashboard's layout-edit mode.
   const [editing, setEditing] = useState(false);
@@ -137,6 +136,8 @@ export default function UsagePage(): React.JSX.Element {
     () => orderedProviderIds(settings?.usageCardOrder ?? [], settings?.usageProviderConfigs ?? {}),
     [settings],
   );
+  // Only ids with a provider behind them become cards, so the list and the cards on screen match.
+  const cardIds = useMemo(() => displayedIds.filter((id) => getUsageProvider(id)), [displayedIds]);
   const pinDef = pinTarget ? getUsageProvider(pinTarget) : undefined;
 
   // `/usage?provider=claude`, the route a threshold-alert notification opens. Cleared from the
@@ -193,14 +194,11 @@ export default function UsagePage(): React.JSX.Element {
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings });
   }
 
-  function handleDrop(targetId: string): void {
-    if (!dragId || dragId === targetId) {
-      setDragId(null);
-      return;
-    }
-    const next = displayedIds.filter((id) => id !== dragId);
-    next.splice(next.indexOf(targetId), 0, dragId);
-    setDragId(null);
+  /** A dragged card landed at a new index, so the saved card order changes. */
+  function moveCard(from: number, to: number): void {
+    const next = [...cardIds];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
     void persistOrder(next);
   }
 
@@ -449,21 +447,31 @@ export default function UsagePage(): React.JSX.Element {
 
       <ProjectWeekdayChart className={GLASS_CARD} />
 
-      {/* Provider cards */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {/* Which providers are tracked comes from settings, so until those land
-            there are no cards to shimmer individually, so stand in for a few. */}
-        {settingsQuery.isPending &&
-          Array.from({ length: 6 }, (_, i) => (
-            <div key={`placeholder-${i}`} className={cn(GLASS_CARD, 'flex h-full flex-col p-4')}>
-              <div className="mb-2 flex h-7 items-center gap-2">
-                <Skeleton className="h-5 w-5 rounded-full" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-              <UsageCardBodySkeleton />
-            </div>
-          ))}
-        {displayedIds.map((id) => {
+      {/* Provider cards. Which providers are tracked comes from settings, so until those land
+          there are no cards to shimmer individually, so stand in for a few. */}
+      <ReorderableGroup
+        items={cardIds}
+        getId={(id) => id}
+        enabled={editing}
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+        onMove={moveCard}
+        leading={
+          settingsQuery.isPending
+            ? Array.from({ length: 6 }, (_, i) => (
+                <div
+                  key={`placeholder-${i}`}
+                  className={cn(GLASS_CARD, 'flex h-full flex-col p-4')}
+                >
+                  <div className="mb-2 flex h-7 items-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded-full" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <UsageCardBodySkeleton />
+                </div>
+              ))
+            : null
+        }
+        renderItem={(id, motion) => {
           const def = getUsageProvider(id);
           if (!def) return null;
           const usage = usageById.get(id);
@@ -475,24 +483,25 @@ export default function UsagePage(): React.JSX.Element {
           const ownsResetAlerts = id === resetAlerts.providerId;
           const ownsThresholdAlerts = id === thresholdAlerts.providerId;
           return (
-            <motion.div
-              key={id}
+            <div
+              {...motion.itemProps}
               ref={(node) => {
                 if (node) cardNodes.current.set(id, node);
                 else cardNodes.current.delete(id);
               }}
-              layout
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              className={cn(
+                'h-full',
+                motion.dragging
+                  ? 'z-10 transition-none'
+                  : 'transition-transform duration-200 ease-out motion-reduce:transition-none',
+              )}
             >
               <div
                 className={cn(
-                  GLASS_CARD,
+                  motion.dragging ? 'glass-opaque ring-1 ring-primary/40' : GLASS_CARD,
                   'flex h-full flex-col p-4 transition-shadow duration-300',
-                  dragId === id && 'opacity-50',
                   focusedProviderId === id && 'ring-2 ring-primary',
                 )}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop(id)}
               >
                 <TileHeader
                   className="mb-2"
@@ -511,12 +520,8 @@ export default function UsagePage(): React.JSX.Element {
                       {editing && (
                         <SimpleTooltip label="Drag to reorder">
                           <span
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = 'move';
-                              setDragId(id);
-                            }}
-                            className="flex h-7 w-5 cursor-grab items-center justify-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+                            onPointerDown={motion.onGripPointerDown}
+                            className="flex h-7 w-5 cursor-grab touch-none items-center justify-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
                           >
                             <GripVertical className="h-3.5 w-3.5" />
                           </span>
@@ -626,10 +631,10 @@ export default function UsagePage(): React.JSX.Element {
                   <UsageCardBodySkeleton />
                 )}
               </div>
-            </motion.div>
+            </div>
           );
-        })}
-      </div>
+        }}
+      />
 
       <AddProviderDialog
         open={addOpen}

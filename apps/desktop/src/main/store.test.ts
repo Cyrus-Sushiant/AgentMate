@@ -326,6 +326,109 @@ describe('settings migrations', () => {
     });
   });
 
+  describe('idle resources', () => {
+    it('lists things as idle after 20 minutes and alerts about them by default', async () => {
+      const { store } = await loadStore();
+
+      const settings = await store.getSettings();
+
+      expect(settings.idleResourceMinutes).toBe(20);
+      expect(settings.idleResourceNotify).toBe(true);
+    });
+
+    it('gives a profile that predates the setting the same defaults', async () => {
+      userData.writeData('settings.json', { theme: 'dark' });
+      const { store } = await loadStore();
+
+      const settings = await store.getSettings();
+
+      expect(settings.idleResourceMinutes).toBe(20);
+      expect(settings.idleResourceNotify).toBe(true);
+    });
+
+    it.each([1, 45, 1440])('keeps a saved %s minutes', async (minutes) => {
+      userData.writeData('settings.json', { idleResourceMinutes: minutes });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).idleResourceMinutes).toBe(minutes);
+    });
+
+    it.each([
+      ['zero', 0, 1],
+      ['negative', -4, 1],
+      ['past a day', 99_999, 1440],
+      ['a decimal', 12.6, 13],
+    ])('clamps %s into range', async (_name, value, expected) => {
+      userData.writeData('settings.json', { idleResourceMinutes: value });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).idleResourceMinutes).toBe(expected);
+    });
+
+    it.each([
+      ['a string', '30'],
+      ['a boolean', true],
+      ['null', null],
+    ])('falls back to 20 minutes for %s', async (_name, value) => {
+      userData.writeData('settings.json', { idleResourceMinutes: value });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).idleResourceMinutes).toBe(20);
+    });
+
+    it('remembers alerts once they are switched off, and treats anything else as on', async () => {
+      userData.writeData('settings.json', { idleResourceNotify: false });
+      const off = await loadStore();
+      expect((await off.store.getSettings()).idleResourceNotify).toBe(false);
+
+      userData.writeData('settings.json', { idleResourceNotify: 'nope' });
+      const junk = await loadStore();
+      expect((await junk.store.getSettings()).idleResourceNotify).toBe(true);
+    });
+  });
+
+  describe('dashboard charts added after the first release', () => {
+    const ORIGINAL = ['cpu', 'memory', 'disk', 'gpu', 'network', 'pings', 'github'];
+
+    it('treats a profile with no record of what it was offered as having seen the originals', async () => {
+      userData.writeData('settings.json', { dashboardChartCards: ORIGINAL });
+      const { store } = await loadStore();
+
+      const settings = await store.getSettings();
+
+      // The later charts are missing from this list, so the dashboard introduces them once.
+      expect(settings.dashboardIntroducedCharts).toEqual(ORIGINAL);
+      expect(settings.dashboardIntroducedCharts).not.toContain('resource-usage');
+      expect(settings.dashboardIntroducedCharts).not.toContain('idle-resources');
+      expect(settings.dashboardIntroducedCharts).not.toContain('github-actions');
+    });
+
+    it('keeps the record a profile already has', async () => {
+      userData.writeData('settings.json', {
+        dashboardIntroducedCharts: [...ORIGINAL, 'github-actions'],
+      });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).dashboardIntroducedCharts).toEqual([
+        ...ORIGINAL,
+        'github-actions',
+      ]);
+    });
+
+    it('places both usage cards in the default layout, side by side', async () => {
+      const { DEFAULT_SETTINGS, store } = await loadStore();
+
+      const settings = await store.getSettings();
+
+      expect(settings.dashboardChartCards).toContain('resource-usage');
+      expect(settings.dashboardChartCards).toContain('idle-resources');
+      expect(DEFAULT_SETTINGS.dashboardChartCards).toContain('idle-resources');
+      expect(
+        settings.dashboardLayout.find((row) => row.items.includes('idle-resources'))?.items,
+      ).toEqual(['resource-usage', 'idle-resources']);
+    });
+  });
+
   it('keeps pipeline failure notices and click-to-open on for a profile that predates them', async () => {
     userData.writeData('settings.json', { theme: 'dark' });
     const { store } = await loadStore();
@@ -333,20 +436,33 @@ describe('settings migrations', () => {
     const settings = await store.getSettings();
 
     expect(settings.pipelineFailureNotify).toBe(true);
-    expect(settings.pipelineFailureOpen).toBe(true);
+    // The Pipelines page is where a click always went.
+    expect(settings.pipelineFailureOpen).toBe('pipelines');
   });
 
-  it('remembers pipeline failure notices and click-to-open once they are switched off', async () => {
+  it('remembers pipeline failure notices switched off and the place a click goes', async () => {
     userData.writeData('settings.json', {
       pipelineFailureNotify: false,
-      pipelineFailureOpen: false,
+      pipelineFailureOpen: 'workspace',
     });
     const { store } = await loadStore();
 
     const settings = await store.getSettings();
 
     expect(settings.pipelineFailureNotify).toBe(false);
-    expect(settings.pipelineFailureOpen).toBe(false);
+    expect(settings.pipelineFailureOpen).toBe('workspace');
+  });
+
+  it.each([
+    // It was an on/off switch before it became a choice, and off meant "do nothing".
+    [false, 'none'],
+    [true, 'pipelines'],
+    ['somewhere-else', 'pipelines'],
+  ])('reads a saved click target of %j as %s', async (saved, expected) => {
+    userData.writeData('settings.json', { pipelineFailureOpen: saved });
+    const { store } = await loadStore();
+
+    expect((await store.getSettings()).pipelineFailureOpen).toBe(expected);
   });
 
   it('remembers the 3D rope and parachute once it is switched off', async () => {

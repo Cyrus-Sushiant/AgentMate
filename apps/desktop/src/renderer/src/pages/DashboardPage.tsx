@@ -25,6 +25,8 @@ import { toast } from 'sonner';
 import { CliLogo } from '@/components/cliLogos';
 import { GithubActionsCard } from '@/components/dashboard/GithubActionsCard';
 import { GithubActivityCard } from '@/components/dashboard/GithubActivityCard';
+import { IdleResourcesCard } from '@/components/dashboard/IdleResourcesCard';
+import { ResourceUsageCard } from '@/components/dashboard/ResourceUsageCard';
 import { SparklineChart } from '@/components/dashboard/SparklineChart';
 import { TopResourceAppsDialog } from '@/components/dashboard/TopResourceAppsDialog';
 import {
@@ -177,6 +179,8 @@ const CHART_LABELS: Record<DashboardChartId, string> = {
   pings: 'Network Status',
   github: 'GitHub Activity',
   'github-actions': 'GitHub Actions',
+  'resource-usage': 'Docker and Emulator Usage',
+  'idle-resources': 'Idle Docker and Emulators',
 };
 
 /** Labels for the "Add card" menu, which re-shows hidden built-in stat tiles. */
@@ -1345,6 +1349,32 @@ export default function DashboardPage(): React.JSX.Element {
         onRemove={
           editing
             ? () => removeChartCard('github-actions', CHART_LABELS['github-actions'])
+            : undefined
+        }
+        chartHeight={CHART_HEIGHT}
+      />
+    ),
+
+    'resource-usage': (
+      <ResourceUsageCard
+        className={cardClass('resource-usage')}
+        dragHandle={dragHandle('resource-usage')}
+        onRemove={
+          editing
+            ? () => removeChartCard('resource-usage', CHART_LABELS['resource-usage'])
+            : undefined
+        }
+        chartHeight={CHART_HEIGHT}
+      />
+    ),
+
+    'idle-resources': (
+      <IdleResourcesCard
+        className={cardClass('idle-resources')}
+        dragHandle={dragHandle('idle-resources')}
+        onRemove={
+          editing
+            ? () => removeChartCard('idle-resources', CHART_LABELS['idle-resources'])
             : undefined
         }
         chartHeight={CHART_HEIGHT}

@@ -13,6 +13,7 @@ import {
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_WHISPER_MODEL,
+  isPipelineFailureOpen,
   isRunDockerStopMode,
   isStartupPage,
   WHISPER_MODELS,
@@ -25,10 +26,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CliArgsField } from '@/components/CliArgsField';
 import { cliOptionIcon } from '@/components/cliLogos';
+import { IdleMinutesInput } from '@/components/dashboard/IdleMinutesInput';
 import {
   Bell,
   Blocks,
   CircleQuestion,
+  Clock,
   Code,
   Docker,
   Download,
@@ -91,6 +94,7 @@ import { Switch } from '@/components/ui/switch';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { VaultSettings } from '@/components/vault/VaultSettings';
+import { useIdleResourceSettings } from '@/hooks/useIdleResourceSettings';
 import { queryKeys } from '@/lib/queryKeys';
 import { isShortcutLetter } from '@/lib/shortcutKey';
 import { cn } from '@/lib/utils';
@@ -185,7 +189,17 @@ const BLUEPRINT_PRESET_KEYWORDS =
   'blueprint preset presets snippet snippets default defaults wizard steps idea architecture stack backend frontend ci cd pipeline quality testing product manager phases epics docs';
 
 const PIPELINE_FAILURE_KEYWORDS =
-  'pipeline pipelines failure failed fails error github actions ci build run notification toast message pet bubble open click inbox unread badge';
+  'pipeline pipelines failure failed fails error github actions ci build run notification toast message pet bubble open click inbox unread badge workspace git panel project page';
+
+const PIPELINE_FAILURE_OPEN_OPTIONS: ComboboxOption[] = [
+  {
+    value: 'workspace',
+    label: 'Project workspace',
+    icon: <GitBranch className="h-3.5 w-3.5" />,
+  },
+  { value: 'pipelines', label: 'Pipelines page', icon: <Route className="h-3.5 w-3.5" /> },
+  { value: 'none', label: 'Just dismiss it', icon: <X className="h-3.5 w-3.5" /> },
+];
 
 const VAULT_KEYWORDS =
   'vault password passwords manager credentials auto-lock lock idle clipboard clear master password reset sleep';
@@ -310,6 +324,18 @@ const SECTIONS = {
     title: 'Docker containers when a run stops',
     keywords:
       'docker containers compose stop run project resources memory cpu ask always never keep running',
+  },
+  idleResources: {
+    tab: 'general',
+    title: 'Idle Docker containers and emulators',
+    keywords:
+      'idle unused docker containers emulator android dashboard minutes threshold time stop resources memory cpu free',
+  },
+  idleResourceNotify: {
+    tab: 'general',
+    title: 'Idle resource alerts',
+    keywords:
+      'idle unused docker containers emulator android notification alert notify dashboard stop',
   },
   workspaceNotifications: {
     tab: 'general',
@@ -449,6 +475,8 @@ const BEHAVIOR_SECTIONS: SectionId[] = [
   'startupPage',
   'keepTerminals',
   'stopDockerWithRun',
+  'idleResources',
+  'idleResourceNotify',
   'workspaceNotifications',
   'terminalAiNotifications',
   'toolUpdates',
@@ -891,6 +919,8 @@ export default function SettingsPage(): React.JSX.Element {
     meta: { silentLoading: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
+
+  const idleResourceSettings = useIdleResourceSettings();
 
   const workspaceNotificationsMutation = useMutation({
     mutationFn: (workspaceNotifications: boolean) =>
@@ -1829,6 +1859,39 @@ export default function SettingsPage(): React.JSX.Element {
                       />
                     ) : null}
 
+                    {show('idleResources') ? (
+                      <SettingsRow
+                        icon={Clock}
+                        title="Idle Docker containers and emulators"
+                        description="The Dashboard lists running containers and emulators that nothing has used for this long, so you can stop them and free the memory. A container counts as used while it spends CPU or moves network or disk data, an emulator while it spends CPU. The clock starts when AgentMate first sees something running, so restarting AgentMate begins it again."
+                        control={
+                          <div className="flex items-center gap-2">
+                            <IdleMinutesInput
+                              ariaLabel="Minutes before a container or emulator counts as idle"
+                              value={idleResourceSettings.minutes}
+                              onCommit={idleResourceSettings.setMinutes}
+                            />
+                            <span className="text-xs text-muted-foreground">minutes</span>
+                          </div>
+                        }
+                      />
+                    ) : null}
+
+                    {show('idleResourceNotify') ? (
+                      <SettingsRow
+                        icon={Bell}
+                        title="Idle resource alerts"
+                        description="Get a system notification when a container or an emulator first goes idle. Clicking it opens the Dashboard, where you can stop it."
+                        control={
+                          <Switch
+                            checked={idleResourceSettings.notify}
+                            onCheckedChange={idleResourceSettings.setNotify}
+                            aria-label="Notify when a container or emulator goes idle"
+                          />
+                        }
+                      />
+                    ) : null}
+
                     {show('workspaceNotifications') ? (
                       <SettingsRow
                         icon={Bell}
@@ -2476,18 +2539,23 @@ export default function SettingsPage(): React.JSX.Element {
                     />
                     <SettingsRow
                       icon={Route}
-                      title="Open Pipelines when I click a failure"
-                      description="Clicking the message, its row in Recent messages or the pet's bubble opens that run on the Pipelines page. Off, a click only dismisses it."
+                      title="When I click a failure"
+                      description="Where the message, its row in Recent messages and the pet's bubble take you. The project workspace opens the Pipelines section of that project's Git panel, the Pipelines page lists the run among every project's runs."
                       control={
-                        <Switch
-                          checked={
-                            (pipelineFailureDraft?.pipelineFailureOpen ??
-                              settingsQuery.data.pipelineFailureOpen) !== false
+                        <Combobox
+                          ariaLabel="When I click a failure"
+                          className="w-56"
+                          value={
+                            pipelineFailureDraft?.pipelineFailureOpen ??
+                            settingsQuery.data.pipelineFailureOpen
                           }
-                          onCheckedChange={(checked) =>
-                            pipelineFailureMutation.mutate({ pipelineFailureOpen: checked })
-                          }
-                          aria-label="Open Pipelines when I click a failure"
+                          onChange={(value) => {
+                            if (isPipelineFailureOpen(value)) {
+                              pipelineFailureMutation.mutate({ pipelineFailureOpen: value });
+                            }
+                          }}
+                          searchPlaceholder="Search…"
+                          options={PIPELINE_FAILURE_OPEN_OPTIONS}
                         />
                       }
                     />

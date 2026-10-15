@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { DockerObservation } from '@agentmat/core';
 import type {
   DockerActionResult,
   DockerContainer,
@@ -48,7 +49,14 @@ interface RawStatsEntry {
   Container: string;
   CPUPerc: string;
   MemUsage: string;
+  /** "1.2kB / 3.4MB": received / sent since the container started. */
+  NetIO?: string;
+  /** "0B / 12MB": read / written since the container started. */
+  BlockIO?: string;
 }
+
+/** AgentMate's own short-lived security scan containers; never the user's to stop. */
+const SCAN_CONTAINER_PREFIX = 'agentmate-scan-';
 
 async function run(args: string[], timeoutMs = EXEC_TIMEOUT_MS): Promise<string> {
   const { stdout } = await execFileAsync('docker', args, { timeout: timeoutMs, windowsHide: true });
@@ -103,6 +111,22 @@ function parseMemUsage(memUsage: string): { used: number | null; limit: number |
     used: usedRaw ? parseDockerSize(usedRaw) : null,
     limit: limitRaw ? parseDockerSize(limitRaw) : null,
   };
+}
+
+/** "1.2kB / 3.4MB" as one total. Null when either side is missing, as in "--" or "". */
+function parseIoTotal(value: string | undefined): number | null {
+  if (!value) return null;
+  const parts = value.split('/').map((part) => part.trim());
+  if (parts.length !== 2) return null;
+  const first = parseDockerSize(parts[0] ?? '');
+  const second = parseDockerSize(parts[1] ?? '');
+  return first === null || second === null ? null : first + second;
+}
+
+function parseCpuPercent(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Number.parseFloat(value.replace('%', ''));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function normalizeState(state: string): DockerContainerState {
@@ -222,6 +246,51 @@ export async function listRunningContainersForProject(
   } catch {
     return [];
   }
+}
+
+export interface DockerActivitySample {
+  /** False when the CLI or the daemon could not be reached. */
+  available: boolean;
+  containers: DockerObservation[];
+}
+
+/**
+ * What the idle tracker needs from every running container: CPU, memory and the cumulative
+ * network and disk counters that tell a quiet database apart from a stuck one. `docker stats`
+ * waits for a usage sample, so it is skipped when nothing is running, and a failed stats call
+ * leaves every figure null rather than failing the whole read.
+ */
+export async function sampleDockerActivity(): Promise<DockerActivitySample> {
+  let running: RawPsEntry[];
+  try {
+    const output = await run(
+      ['ps', '--no-trunc', '--filter', 'status=running', '--format', '{{json .}}'],
+      QUICK_EXEC_TIMEOUT_MS,
+    );
+    running = parseNdjson<RawPsEntry>(output).filter(
+      (entry) => !entry.Names.startsWith(SCAN_CONTAINER_PREFIX),
+    );
+  } catch {
+    return { available: false, containers: [] };
+  }
+  if (running.length === 0) return { available: true, containers: [] };
+
+  const stats = await readStats();
+  return {
+    available: true,
+    containers: running.map((entry): DockerObservation => {
+      const usage = stats.get(entry.ID);
+      return {
+        id: entry.ID,
+        name: entry.Names,
+        image: entry.Image,
+        cpuPercent: parseCpuPercent(usage?.CPUPerc),
+        memBytes: usage ? parseMemUsage(usage.MemUsage).used : null,
+        netBytes: parseIoTotal(usage?.NetIO),
+        blockBytes: parseIoTotal(usage?.BlockIO),
+      };
+    }),
+  };
 }
 
 export async function startContainer(id: string): Promise<DockerActionResult> {

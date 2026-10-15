@@ -1,10 +1,8 @@
 import {
   type AgentStatus,
   bootStageLabel,
-  getUsageProvider,
   type KeepAwakeMode,
   type Project,
-  STATUS_BAR_USAGE_PROVIDERS,
   type SubscriptionWindow,
 } from '@agentmat/core';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
@@ -24,9 +22,11 @@ import {
   MemoryStick,
   MugHot,
   Play,
+  RefreshCw,
   Smartphone,
   StopCircle,
   TerminalSquare,
+  TriangleAlert,
   Wifi,
 } from '@/components/icons';
 import { ProviderLogo } from '@/components/providerLogos';
@@ -34,10 +34,13 @@ import { Button } from '@/components/ui/button';
 import { OVERLAY_MOTION, OVERLAY_SURFACE } from '@/components/ui/overlay';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { AGENT_STATUS_LABEL, AgentStatusDot } from '@/components/workspace/AgentStatusDot';
+import { useRefreshProviderUsage } from '@/hooks/useRefreshProviderUsage';
 import { type RunRow, useRunRows } from '@/hooks/useRunRows';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { formatBytes as formatMemory, formatPercent } from '@/lib/format';
 import { queryKeys } from '@/lib/queryKeys';
+import { buildLimitChips, type LimitChip } from '@/lib/statusBarLimits';
+import { timeAgo } from '@/lib/time';
 import { formatCountdown } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
@@ -107,12 +110,14 @@ function PopSegment({
   panel,
   className,
   width = 'w-72',
+  onOpenAutoFocus,
 }: {
   label: string;
   children: React.ReactNode;
   panel: React.ReactNode;
   className?: string;
   width?: string;
+  onOpenAutoFocus?: (event: Event) => void;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   return (
@@ -131,6 +136,7 @@ function PopSegment({
           sideOffset={8}
           collisionPadding={8}
           className={cn(PANEL_SURFACE, width)}
+          onOpenAutoFocus={onOpenAutoFocus}
         >
           {panel}
         </PopoverPrimitive.Content>
@@ -155,17 +161,28 @@ function Meter({ percent }: { percent: number }): React.JSX.Element {
   );
 }
 
+/** A panel opens on its own container, not on its first button, so a refresh tooltip stays shut. */
+function focusPanel(event: Event): void {
+  event.preventDefault();
+  (event.currentTarget as HTMLElement | null)?.focus();
+}
+
 function PanelTitle({
   title,
   detail,
+  action,
 }: {
   title: string;
   detail?: string | null;
+  action?: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
-      <p className="text-xs font-semibold">{title}</p>
-      {detail ? <p className="truncate text-[10px] text-muted-foreground">{detail}</p> : null}
+    <div className="mb-2 flex items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold">{title}</p>
+        {detail ? <p className="truncate text-[10px] text-muted-foreground">{detail}</p> : null}
+      </div>
+      {action}
     </div>
   );
 }
@@ -297,78 +314,121 @@ function soonestWindow(windows: SubscriptionWindow[]): SubscriptionWindow | unde
   );
 }
 
-interface ProviderLimits {
-  providerId: string;
-  name: string;
-  plan: string | null;
-  windows: SubscriptionWindow[];
-}
-
 /**
- * One provider's plan limits: the share used of its soonest-resetting limit and a countdown to
- * it, the "when do my tokens come back" number the Token Usage cards count down to.
+ * One provider's item in the bar: the limit that resets soonest, a countdown to it and the panel
+ * behind it. A read that failed keeps the item. With its last limits it dims and carries a warning,
+ * and with none it shows only the warning, so its refresh button stays one click away.
  */
-function ProviderLimitSegment({
-  provider,
-}: {
-  provider: ProviderLimits;
-}): React.JSX.Element | null {
+function ProviderLimitSegment({ chip }: { chip: LimitChip }): React.JSX.Element {
   const navigate = useNavigate();
-  const next = soonestWindow(provider.windows);
-  if (!next) return null;
-  const countdown = formatCountdown(next.resetAt);
+  const refresh = useRefreshProviderUsage(chip.providerId);
+  const next = soonestWindow(chip.windows);
+  const countdown = formatCountdown(next?.resetAt);
+  const pending = refresh.isPending;
+  const refreshLabel = `Refresh ${chip.name} usage`;
+  const asOf = chip.asOf && !Number.isNaN(Date.parse(chip.asOf)) ? timeAgo(chip.asOf) : null;
   const openUsage = (): void => {
-    void navigate(`/usage?provider=${encodeURIComponent(provider.providerId)}`);
+    void navigate(`/usage?provider=${encodeURIComponent(chip.providerId)}`);
   };
+  // A press while a refresh runs is ignored, so it cannot start a second one.
+  const runRefresh = (): void => {
+    if (!pending) refresh.mutate();
+  };
+  const label = next
+    ? `${chip.name}: ${next.label} limit${chip.state === 'stale' ? ', may be out of date' : ''}`
+    : `${chip.name}: usage unavailable`;
 
   return (
     <PopSegment
-      label={`${provider.name}: ${next.label} limit`}
+      label={label}
       width="w-80"
+      onOpenAutoFocus={focusPanel}
+      className={cn(
+        chip.state === 'stale' && 'opacity-60',
+        chip.state === 'unavailable' && 'text-warning hover:text-warning',
+      )}
       panel={
         <>
-          <PanelTitle title={provider.name} detail={provider.plan} />
-          <div className="flex flex-col gap-1">
-            {provider.windows.map((w) => (
-              <span key={w.key} className="flex items-center gap-2">
-                <span className="w-24 shrink-0 truncate text-[10px] text-muted-foreground">
-                  {w.label}
-                </span>
-                <Meter percent={w.percent} />
-                <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
-                  {Math.round(w.percent)}%
-                </span>
-                <span className="min-w-0 flex-1 truncate text-right text-[10px] text-muted-foreground">
-                  {formatCountdown(w.resetAt) ?? 'no reset time'}
-                </span>
+          <PanelTitle
+            title={chip.name}
+            detail={chip.plan}
+            action={
+              <SimpleTooltip label={refreshLabel} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={refreshLabel}
+                  // aria-disabled rather than disabled, so focus stays on the button while it works.
+                  aria-disabled={pending}
+                  aria-busy={pending}
+                  onClick={runRefresh}
+                  className="shrink-0"
+                >
+                  <RefreshCw className={cn(pending && 'motion-safe:animate-spin')} />
+                </Button>
+              </SimpleTooltip>
+            }
+          />
+          {chip.state !== 'ok' ? (
+            <p className="mb-2 flex items-start gap-1.5 text-[10px] text-muted-foreground">
+              <TriangleAlert className="mt-px h-3 w-3 shrink-0 text-warning" />
+              <span>
+                {chip.state === 'stale' ? "Couldn't refresh: " : "Couldn't load usage: "}
+                {chip.problem}
               </span>
-            ))}
+            </p>
+          ) : null}
+          {chip.windows.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {chip.windows.map((w) => (
+                <span key={w.key} className="flex items-center gap-2">
+                  <span className="w-24 shrink-0 truncate text-[10px] text-muted-foreground">
+                    {w.label}
+                  </span>
+                  <Meter percent={w.percent} />
+                  <span className="w-8 shrink-0 text-right text-[10px] tabular-nums">
+                    {Math.round(w.percent)}%
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-right text-[10px] text-muted-foreground">
+                    {formatCountdown(w.resetAt) ?? 'no reset time'}
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2 text-[10px] text-muted-foreground">
+            <PopoverPrimitive.Close asChild>
+              <button type="button" onClick={openUsage} className="text-left hover:text-foreground">
+                Open Token Usage
+              </button>
+            </PopoverPrimitive.Close>
+            {asOf ? (
+              <span className="tabular-nums">
+                {chip.state === 'stale' ? 'Last read' : 'Updated'} {asOf}
+              </span>
+            ) : null}
           </div>
-          <PopoverPrimitive.Close asChild>
-            <button
-              type="button"
-              onClick={openUsage}
-              className="mt-2 w-full border-t border-border/60 pt-2 text-left text-[10px] text-muted-foreground hover:text-foreground"
-            >
-              Open Token Usage
-            </button>
-          </PopoverPrimitive.Close>
         </>
       }
     >
-      <ProviderLogo providerId={provider.providerId} className="h-3 w-3 shrink-0" />
-      <span className="tabular-nums">{Math.round(next.percent)}%</span>
-      {countdown ? (
-        <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
+      <ProviderLogo providerId={chip.providerId} className="h-3 w-3 shrink-0" />
+      {next ? (
+        <>
+          <span className="tabular-nums">{Math.round(next.percent)}%</span>
+          {countdown ? (
+            <span className="tabular-nums text-muted-foreground/80">{countdown}</span>
+          ) : null}
+        </>
       ) : null}
+      {chip.state !== 'ok' ? <TriangleAlert className="h-3 w-3 shrink-0" /> : null}
     </PopSegment>
   );
 }
 
 /**
- * A limits item for each AI subscription that reports one, in a fixed order, minus any the user
- * switched off in Settings. A provider with nothing to count down to (an unlimited Cursor plan,
- * Codex on an API key) stays out of the bar.
+ * One item per AI subscription with limits to show, or a warning when its read failed, in a fixed
+ * order, minus any the user switched off in Settings. A provider with nothing to count down to (an
+ * unlimited Cursor plan, Codex on an API key) stays out of the bar.
  */
 function UsageLimitSegments(): React.JSX.Element {
   const usageQuery = useQuery({
@@ -384,27 +444,12 @@ function UsageLimitSegments(): React.JSX.Element {
     meta: { silentLoading: true },
   });
   // Until settings load every provider counts as on, so the bar does not flash empty.
-  const shown = settingsQuery.data?.statusBarUsage;
-
-  const providers = STATUS_BAR_USAGE_PROVIDERS.flatMap((providerId): ProviderLimits[] => {
-    if (shown?.[providerId] === false) return [];
-    const usage = usageQuery.data?.find((u) => u.providerId === providerId);
-    const windows = (usage?.subscription?.windows ?? []).filter((w) => w.resetAt || w.percent > 0);
-    if (windows.length === 0) return [];
-    return [
-      {
-        providerId,
-        name: getUsageProvider(providerId)?.name ?? providerId,
-        plan: usage?.subscription?.plan?.label ?? null,
-        windows,
-      },
-    ];
-  });
+  const chips = buildLimitChips(usageQuery.data, settingsQuery.data?.statusBarUsage);
 
   return (
     <>
-      {providers.map((provider) => (
-        <ProviderLimitSegment key={provider.providerId} provider={provider} />
+      {chips.map((chip) => (
+        <ProviderLimitSegment key={chip.providerId} chip={chip} />
       ))}
     </>
   );

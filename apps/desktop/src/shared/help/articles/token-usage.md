@@ -182,6 +182,10 @@ Provider cards, the **All agents** card and the four summary tiles can be pinned
 
 Claude Code, Codex and Cursor each get their own item in the status bar at the bottom, in that order, whenever the account reports plan limits. An item shows the provider's logo, the percent used of its soonest-resetting limit and a countdown to that reset. Click it to open a panel with the plan name and every limit the provider reports, each with a meter, the percent and a reset countdown. **Open Token Usage** in that panel takes you to the provider's card.
 
+A **Refresh** button sits beside the provider's name in that panel. It re-reads that one provider and leaves the others alone.
+
+If a provider's limits cannot be read, its item stays in the bar. It keeps the last limits it reported, dimmed with a warning icon, until those limits reset. A provider that has never been read shows only the warning icon, and its panel says what went wrong.
+
 - **Claude Code** shows its 5-hour session and weekly limits.
 - **Codex** reads its limits from its own session logs: a ChatGPT plan has a 5-hour session and a weekly limit, while a free account has a single monthly one. The numbers are as of your last Codex turn. A limit whose reset time has passed shows 0% until your next turn, and if it was the account's only limit, the Codex item leaves the bar until then.
 - **Cursor** shows how much of the plan's included usage is spent this billing cycle, in total and split into Auto and API, with a countdown to the end of the cycle. An older request-based plan shows its monthly request limit instead.

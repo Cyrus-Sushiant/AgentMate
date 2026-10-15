@@ -47,6 +47,8 @@ import { registerPullRequestHandlers } from './ipc/pullRequests';
 import { closeAllRdpSessions, registerRdpHandlers } from './ipc/rdp';
 import { registerRdpAgentHandlers } from './ipc/rdpAgent';
 import { registerRemoteHandlers } from './ipc/remote';
+import { registerResourceActivityHandlers } from './ipc/resourceActivity';
+import { registerRunProposalHandlers } from './ipc/runProposals';
 import { registerScheduledTaskHandlers } from './ipc/scheduledTasks';
 import { registerSecurityHandlers } from './ipc/security';
 import { registerSettingsHandlers } from './ipc/settings';
@@ -91,6 +93,10 @@ import { startPipelineWatcher, stopPipelineWatcher } from './pipelines/watcher';
 import { promptBuildWidgetManager } from './promptBuild/widgetWindows';
 import { allowQuit, guardQuit, registerQuitGuardHandlers } from './quitGuard';
 import { remoteManager } from './remote/manager';
+import {
+  startResourceActivityTracker,
+  stopResourceActivityTracker,
+} from './resourceActivity/runtime';
 import { startScheduledTaskRunner, stopScheduledTaskRunner } from './scheduledTasks/scheduler';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
@@ -310,6 +316,7 @@ function registerAllIpcHandlers(): void {
   registerBrowserHandlers();
   registerPowerHandlers();
   registerProjectHandlers();
+  registerRunProposalHandlers();
   registerProxyHandlers();
   registerSkillHandlers();
   registerMcpHandlers();
@@ -321,6 +328,7 @@ function registerAllIpcHandlers(): void {
   registerToolHandlers();
   registerAndroidHandlers();
   registerDockerHandlers();
+  registerResourceActivityHandlers();
   registerFileSystemHandlers();
   registerExplorerHandlers();
   registerWorkspaceSearchHandlers();
@@ -447,6 +455,8 @@ app.whenReady().then(async () => {
   startResetAlertWatcher();
   startThresholdAlertWatcher();
   startNetworkQualityAlertWatcher();
+  // Reads Docker and adb in the background, which a test run has no business doing.
+  if (!isE2E) startResourceActivityTracker();
   startPipelineWatcher();
   startToolUpdateWatcher();
   startScheduledTaskRunner();
@@ -498,6 +508,7 @@ app.on('before-quit', (event) => {
   stopResetAlertWatcher();
   stopThresholdAlertWatcher();
   stopNetworkQualityAlertWatcher();
+  stopResourceActivityTracker();
   stopPipelineWatcher();
   stopToolUpdateWatcher();
   stopScheduledTaskRunner();

@@ -134,9 +134,67 @@ describe('useAppNotificationMessages', () => {
     expect(window.agentmat.shell.openExternal).not.toHaveBeenCalled();
   });
 
+  describe('when clicking a failure should open the project workspace', () => {
+    beforeEach(() => {
+      savedSettings = { pipelineFailureOpen: 'workspace' };
+    });
+
+    it("opens the Pipelines section of that project's workspace and marks it read", async () => {
+      await mount();
+      await inboxChanged([notification()]);
+
+      const options = toastFns.error.mock.calls[0][1];
+      expect(options.action.label).toBe('Open');
+      await act(async () => options.action.onClick());
+
+      expect(document.querySelector('[data-testid="location"]')?.textContent).toBe(
+        '/workspace/p1?panel=pipelines',
+      );
+      expect(window.agentmat.appNotifications.markRead).toHaveBeenCalledWith('n1');
+      // The row in Recent messages opens the same place.
+      expect(useToastHistoryStore.getState().items[0].link).toEqual({
+        route: '/workspace/p1?panel=pipelines',
+        notificationId: 'n1',
+      });
+    });
+
+    it('falls back to the run on the Pipelines page when the alert has no project', async () => {
+      await mount();
+      await inboxChanged([notification({ projectId: null })]);
+
+      await act(async () => toastFns.error.mock.calls[0][1].action.onClick());
+
+      expect(document.querySelector('[data-testid="location"]')?.textContent).toBe(
+        '/pipelines?run=123&repo=acme%2Fdemo',
+      );
+    });
+
+    it('leaves a pass and a server alert where they were', async () => {
+      await mount();
+      await inboxChanged([
+        notification({ id: 'n2', kind: 'pipeline-success', title: 'CI passed' }),
+        notification({
+          id: 'n3',
+          kind: 'deploy-warning',
+          htmlUrl: null,
+          route: '/deploy?server=srv-1',
+        }),
+      ]);
+
+      await act(async () => toastFns.success.mock.calls[0][1].action.onClick());
+      expect(document.querySelector('[data-testid="location"]')?.textContent).toBe(
+        '/pipelines?run=123&repo=acme%2Fdemo',
+      );
+      await act(async () => toastFns.warning.mock.calls[0][1].action.onClick());
+      expect(document.querySelector('[data-testid="location"]')?.textContent).toBe(
+        '/deploy?server=srv-1',
+      );
+    });
+  });
+
   describe('when clicking a failure should not open it', () => {
     it('flashes the failure with no Open button and files a row with nothing to open', async () => {
-      savedSettings = { pipelineFailureOpen: false };
+      savedSettings = { pipelineFailureOpen: 'none' };
       await mount();
       await inboxChanged([notification()]);
 
@@ -154,7 +212,7 @@ describe('useAppNotificationMessages', () => {
     });
 
     it('leaves a pass and a server alert linked', async () => {
-      savedSettings = { pipelineFailureOpen: false };
+      savedSettings = { pipelineFailureOpen: 'none' };
       await mount();
       await inboxChanged([
         notification({ id: 'n2', kind: 'pipeline-success', title: 'CI passed' }),

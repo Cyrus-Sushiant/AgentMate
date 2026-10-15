@@ -128,3 +128,26 @@ export function errorUsage(providerId: string, message: string): ProviderUsage {
     updatedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * A read that failed after the plan limits came back. It travels as a rejection, so the widgets and
+ * the alert watchers keep seeing a failure, while the list and refresh paths keep the limits.
+ */
+export class PartialUsageError extends Error {
+  readonly salvage: Pick<ProviderUsage, 'subscription' | 'window'>;
+
+  constructor(message: string, salvage: Pick<ProviderUsage, 'subscription' | 'window'>) {
+    super(message);
+    this.name = 'PartialUsageError';
+    this.salvage = salvage;
+  }
+}
+
+/** The snapshot a failed read leaves behind: an error card, plus whatever limits the failure kept. */
+export function errorFromReason(providerId: string, reason: unknown): ProviderUsage {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (reason instanceof PartialUsageError) {
+    return { ...errorUsage(providerId, message), ...reason.salvage };
+  }
+  return errorUsage(providerId, message);
+}

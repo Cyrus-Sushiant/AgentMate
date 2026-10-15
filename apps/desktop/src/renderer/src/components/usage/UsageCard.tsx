@@ -141,7 +141,12 @@ export function UsageCardBody({
     );
   }
 
-  if (usage.status === 'error') {
+  // A read that failed but still got the plan limits draws them, with a note in place of the
+  // tokens. The tokens view keeps the error text.
+  const limitsView =
+    mode === 'subscription' && hasSubscriptionView(usage) ? subscription : undefined;
+
+  if (usage.status === 'error' && !limitsView) {
     return (
       <div className="flex h-full flex-col gap-2">
         {header}
@@ -156,14 +161,15 @@ export function UsageCardBody({
 
   // 'subscription' is a request, not a guarantee. An API-billed account has no
   // limits to draw, so it falls back to tokens rather than rendering an empty card.
-  if (mode === 'subscription' && hasSubscriptionView(usage) && subscription) {
+  if (limitsView) {
     return (
       <SubscriptionBody
-        subscription={subscription}
+        subscription={limitsView}
         usage={usage}
         accent={accent}
         compact={compact}
         header={header}
+        tokensError={usage.status === 'error' ? usage.error : undefined}
       />
     );
   }
@@ -373,12 +379,15 @@ function SubscriptionBody({
   accent,
   compact,
   header,
+  tokensError,
 }: {
   subscription: SubscriptionUsage;
   usage: ProviderUsage;
   accent: string;
   compact: boolean;
   header: React.ReactNode;
+  /** Set when the token totals failed to load; the limits above are still good. */
+  tokensError?: string;
 }): React.JSX.Element {
   const estimated = subscription.source === 'estimate';
   const cost = formatCost(usage.today.costUsd);
@@ -395,10 +404,18 @@ function SubscriptionBody({
 
       {!compact && (
         <div className="mt-auto flex items-baseline gap-2 pt-1 text-[11px] text-muted-foreground">
-          <span className="tabular-nums">
-            {formatTokens(usage.today.tokens.total)} tokens today
-          </span>
-          {cost && <span className="tabular-nums">· {cost} equivalent</span>}
+          {tokensError ? (
+            <SimpleTooltip label={tokensError}>
+              <span className="truncate">Token totals could not be loaded</span>
+            </SimpleTooltip>
+          ) : (
+            <>
+              <span className="tabular-nums">
+                {formatTokens(usage.today.tokens.total)} tokens today
+              </span>
+              {cost && <span className="tabular-nums">· {cost} equivalent</span>}
+            </>
+          )}
           {estimated && (
             <SimpleTooltip
               label={`Estimated from local logs: ${subscription.estimateReason ?? 'account unreachable'}.`}

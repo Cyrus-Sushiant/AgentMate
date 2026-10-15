@@ -8,6 +8,7 @@ import {
   type ProcessSample,
   type ProcessTreeUsage,
   parseProcStat,
+  selectPreviousSample,
   summarizeProcessTrees,
 } from '@agentmat/core';
 
@@ -131,15 +132,18 @@ export interface ProcessTreeSample {
 }
 
 /** Older than this, the last sample is too stale to average CPU over. */
-const MAX_SAMPLE_GAP_MS = 15_000;
+const DEFAULT_MAX_SAMPLE_GAP_MS = 15_000;
 
 interface SamplePair {
   current: ProcessSample;
-  previous: ProcessSample | null;
+  /** The shared sample taken before this one, whoever asked for it. */
+  last: ProcessSample | null;
 }
 
 let lastSample: ProcessSample | null = null;
 let inflight: Promise<SamplePair | null> | null = null;
+/** Private baselines for callers that need a longer averaging window than the shared one. */
+const baselines = new Map<string, ProcessSample>();
 
 /** Reads the process list once, sharing the read between callers that ask at the same time. */
 function takeSample(): Promise<SamplePair | null> {
@@ -147,10 +151,9 @@ function takeSample(): Promise<SamplePair | null> {
     .then((processes) => {
       if (processes.length === 0) return null;
       const current: ProcessSample = { at: Date.now(), processes };
-      const previous =
-        lastSample && current.at - lastSample.at <= MAX_SAMPLE_GAP_MS ? lastSample : null;
+      const last = lastSample;
       lastSample = current;
-      return { current, previous };
+      return { current, last };
     })
     .finally(() => {
       inflight = null;
@@ -158,11 +161,32 @@ function takeSample(): Promise<SamplePair | null> {
   return inflight;
 }
 
+export interface SampleProcessTreesOptions {
+  /** The longest gap to a previous sample that CPU is still averaged over. Default 15 seconds. */
+  maxGapMs?: number;
+  /**
+   * Names a private baseline. Without it CPU is measured against whichever caller read the
+   * process list last, which is only a few seconds back while the Android meters are open. With
+   * it the window is the time since this same caller last asked, however busy the others are.
+   */
+  baseline?: string;
+}
+
 /** CPU and memory for each shell pid, counting every process it started. */
-export async function sampleProcessTrees(rootPids: number[]): Promise<ProcessTreeSample> {
+export async function sampleProcessTrees(
+  rootPids: number[],
+  options: SampleProcessTreesOptions = {},
+): Promise<ProcessTreeSample> {
   const pair = await takeSample();
   if (!pair) return { available: false, cpuReady: false, trees: new Map() };
-  const { current, previous } = pair;
+  const { current } = pair;
+  const prior = options.baseline ? (baselines.get(options.baseline) ?? null) : pair.last;
+  const previous = selectPreviousSample(
+    prior,
+    current.at,
+    options.maxGapMs ?? DEFAULT_MAX_SAMPLE_GAP_MS,
+  );
+  if (options.baseline) baselines.set(options.baseline, current);
   const cpuIsRate = process.platform === 'darwin';
 
   return {

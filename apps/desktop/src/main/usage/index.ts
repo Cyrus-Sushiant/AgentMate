@@ -10,9 +10,10 @@ import { fetchCopilotUsage } from './copilot';
 import { clearCursorAccountCache } from './cursorAccount';
 import { fetchCursorSessionUsage } from './cursorSession';
 import { loadKnownProjects } from './knownProjects';
+import { createLimitsMemory } from './lastLimits';
 import { scanLocalProvider } from './localScanner';
 import type { LocalLogProvider } from './logParsers';
-import { connectUsage, errorUsage } from './shared';
+import { connectUsage, errorFromReason, PartialUsageError } from './shared';
 
 const CACHE_TTL_MS = 30_000;
 
@@ -29,6 +30,8 @@ interface CacheEntry {
   promise: Promise<ProviderUsage>;
 }
 const cache = new Map<string, CacheEntry>();
+/** The plan limits each provider last reported, so a failed read can still show them. */
+const limitsMemory = createLimitsMemory();
 
 async function computeUsage(
   providerId: string,
@@ -81,6 +84,7 @@ export function getProviderUsage(
   }
   const promise = computeUsage(providerId, config).then(
     (usage) => {
+      limitsMemory.observe(providerId, usage);
       // Start the TTL when the scan finishes, not when it started. Otherwise a
       // scan slower than the TTL is stale the moment it lands and we rescan
       // on every single poll.
@@ -89,12 +93,31 @@ export function getProviderUsage(
       return usage;
     },
     (err: unknown) => {
-      cache.delete(providerId); // don't cache a hard failure
+      // A partial read still got the plan limits, so they are remembered even though the read fails.
+      if (err instanceof PartialUsageError) {
+        limitsMemory.observe(providerId, errorFromReason(providerId, err));
+      }
+      // Only the newest entry may be dropped. An older read that fails late must not evict a fresher one.
+      if (cache.get(providerId)?.promise === promise) cache.delete(providerId); // don't cache a hard failure
       throw err;
     },
   );
   cache.set(providerId, { at: Date.now(), promise });
   return promise;
+}
+
+/**
+ * The snapshot a list or a refresh hands out for one provider: its read, or the failure folded into
+ * an error card, with the last known limits attached when this read could not get its own.
+ */
+function snapshotOf(
+  providerId: string,
+  outcome: PromiseSettledResult<ProviderUsage>,
+): ProviderUsage {
+  if (outcome.status === 'fulfilled') return limitsMemory.attach(providerId, outcome.value);
+  // biome-ignore lint/suspicious/noConsole: surfaces provider scan failures so they aren't silent
+  console.warn(`[usage] ${providerId} failed:`, outcome.reason);
+  return limitsMemory.attach(providerId, errorFromReason(providerId, outcome.reason));
 }
 
 /**
@@ -118,15 +141,7 @@ export async function getAllUsage(
     targets.map((def) => getProviderUsage(def.id, configs[def.id], force)),
   );
 
-  return settled.map((outcome, i) => {
-    const def = targets[i];
-    if (outcome.status === 'fulfilled') return outcome.value;
-    const reason = outcome.reason;
-    const message = reason instanceof Error ? reason.message : String(reason);
-    // biome-ignore lint/suspicious/noConsole: surfaces provider scan failures so they aren't silent
-    console.warn(`[usage] ${def.id} failed:`, reason);
-    return errorUsage(def.id, message);
-  });
+  return settled.map((outcome, i) => snapshotOf(targets[i].id, outcome));
 }
 
 export function clearUsageCache(): void {
@@ -140,4 +155,17 @@ export function clearProviderUsageCache(providerId: string): void {
   cache.delete(providerId);
   if (providerId === 'claude-code') clearLiveWindowCache();
   if (providerId === 'cursor') clearCursorAccountCache();
+}
+
+/**
+ * Re-reads one provider from scratch: its cache, and the account and quota caches behind it, are
+ * dropped first. A failure comes back as an error card, so the caller never has to catch.
+ */
+export async function refreshProviderUsage(
+  providerId: string,
+  config: UsageProviderConfig | undefined,
+): Promise<ProviderUsage> {
+  clearProviderUsageCache(providerId);
+  const [outcome] = await Promise.allSettled([getProviderUsage(providerId, config, true)]);
+  return snapshotOf(providerId, outcome);
 }

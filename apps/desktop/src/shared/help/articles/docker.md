@@ -116,6 +116,7 @@ To change the remembered choice later, open **Settings**, **General**, and use *
 ## Tips
 
 - The Docker page and the project Docker tab share the same cards, so what you learn in one works in the other.
+- Containers that nothing has used for a while show up on the Dashboard's **Idle Docker and Emulators** card, which can stop them for you. Its clock starts when AgentMate first sees a container, so restarting AgentMate starts it again. See [Dashboard](dashboard.md#idle-docker-and-emulators).
 - To get a container's logs or open a shell, use the terminal in the [Workspace](workspace.md) and run the `docker` command there. This page covers lifecycle actions only.
 
 ## Related

@@ -145,7 +145,7 @@ const DEFAULT_OPEN_SOURCE_SECTIONS: Record<SourceControlSection, boolean> = {
   pipelines: false,
 };
 
-function isSourceControlSection(value: unknown): value is SourceControlSection {
+export function isSourceControlSection(value: unknown): value is SourceControlSection {
   return SOURCE_CONTROL_SECTIONS.includes(value as SourceControlSection);
 }
 

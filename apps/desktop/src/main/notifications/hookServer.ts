@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import type { AgentHookEvent, NotificationHookKind } from '@agentmat/core';
 import { NOTIFICATION_HOOK_KINDS } from '@agentmat/core';
@@ -10,6 +10,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { agentStatus } from '../agents/statusTracker';
 import { broadcastToWindows } from '../ipc/send';
 import { findSessionIdForProject, SESSION_ID_PATTERN, writeToSession } from '../ipc/terminal';
+import { handleRunCommandsRequest } from '../runProposals/service';
 import { store } from '../store';
 import { speakOnPet } from './petNotifier';
 import { pollTelegramUpdates, sendTelegramMessage } from './telegramApi';
@@ -185,11 +186,70 @@ function handleAgentEvent(body: string): void {
   agentStatus.hook(parsed.sessionId, event, message);
 }
 
+/**
+ * Resolves with the request body, or null when it grows past the limit or the connection fails.
+ * The caller answers 413 and drops the socket, the same as the hook routes do.
+ */
+function readBodyUpTo(req: IncomingMessage, limit: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', (chunk: Buffer) => {
+      if (tooLarge) return;
+      body += chunk.toString('utf-8');
+      if (body.length > limit) {
+        tooLarge = true;
+        resolve(null);
+      }
+    });
+    req.on('end', () => {
+      if (!tooLarge) resolve(body);
+    });
+    req.on('error', () => resolve(null));
+  });
+}
+
+/**
+ * The bridge in a project's `.agentmate` folder asks here about run commands. A request that does
+ * not carry the secret from the port file is refused before anything is read from the project.
+ */
+async function handleRunCommandsHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readBodyUpTo(req, MAX_BODY_BYTES);
+  if (body === null) {
+    res.writeHead(413).end();
+    req.destroy();
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    res.writeHead(400).end();
+    return;
+  }
+  const token =
+    parsed && typeof parsed === 'object' ? (parsed as { token?: unknown }).token : undefined;
+  if (!tokenMatches(token)) {
+    res.writeHead(401).end();
+    return;
+  }
+  try {
+    const { status, payload } = await handleRunCommandsRequest(parsed);
+    res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(payload));
+  } catch {
+    res.writeHead(500).end();
+  }
+}
+
 export async function startHookServer(): Promise<void> {
   if (server) return;
 
   server = createServer((req, res) => {
     const route = req.method === 'POST' ? req.url : null;
+    if (route === '/run-commands') {
+      void handleRunCommandsHttp(req, res);
+      return;
+    }
     if (route !== '/hook' && route !== '/agent-event') {
       res.writeHead(404).end();
       return;

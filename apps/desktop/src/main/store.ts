@@ -26,6 +26,7 @@ import {
   DEFAULT_DASHBOARD,
   DEFAULT_DESKTOP_PET_ACTION_SPEEDS,
   DEFAULT_GEMINI_API_MODEL,
+  DEFAULT_IDLE_RESOURCE_MINUTES,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_REVIEW_COMMANDS,
   DEFAULT_TERMINAL_BACKGROUND_COLOR,
@@ -39,9 +40,11 @@ import {
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   isMenuPosition,
+  isPipelineFailureOpen,
   isRunDockerStopMode,
   isStartupPage,
   isThemeMode,
+  LATE_DASHBOARD_CHART_IDS,
   normalizeCliArgs,
   normalizeCliLaunchDefaults,
   normalizeCommitMessageSettings,
@@ -52,6 +55,7 @@ import {
   normalizeDesktopPetName,
   normalizeGrammarSettings,
   normalizeHelpEmbeddingModels,
+  normalizeIdleResourceMinutes,
   normalizeProjectColor,
   normalizeProjectGithubActions,
   normalizeProjectNotifications,
@@ -134,6 +138,14 @@ function inSettingsQueue<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/**
+ * The charts that existed before the late additions. A profile with no record of which charts it
+ * has been offered is treated as having seen exactly these, so the later ones get introduced.
+ */
+const ORIGINAL_CHART_IDS = DASHBOARD_CHART_IDS.filter(
+  (id) => !LATE_DASHBOARD_CHART_IDS.includes(id),
+);
+
 /** Exported so backup import can treat its keys as the allowlist of known settings. */
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCliId: null,
@@ -177,7 +189,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dashboardStatCards: [...DASHBOARD_STAT_IDS],
   dashboardUsageSummaryCards: [],
   dashboardLayout: [],
-  dashboardIntroducedCharts: DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
+  dashboardIntroducedCharts: ORIGINAL_CHART_IDS,
   translateMaxRetries: 3,
   speechModel: DEFAULT_WHISPER_MODEL,
   speechLanguage: 'auto',
@@ -209,7 +221,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetPipelineOnFail: false,
   desktopPetPipelineOnPass: false,
   pipelineFailureNotify: true,
-  pipelineFailureOpen: true,
+  pipelineFailureOpen: 'pipelines',
   desktopPetNetworkQuality: false,
   desktopPetAgentStatus: false,
   keepTerminalsRunning: true,
@@ -227,6 +239,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   androidEmulatorLaunchFlags: '',
   androidStopEmulatorsOnQuit: false,
   androidCapturePath: null,
+  idleResourceMinutes: DEFAULT_IDLE_RESOURCE_MINUTES,
+  idleResourceNotify: true,
 };
 
 /**
@@ -283,6 +297,8 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     androidCapturePath: normalizeOptionalPath(settings.androidCapturePath),
     androidEmulatorLaunchFlags: normalizeEmulatorLaunchFlags(settings.androidEmulatorLaunchFlags),
     androidStopEmulatorsOnQuit: settings.androidStopEmulatorsOnQuit === true,
+    idleResourceMinutes: normalizeIdleResourceMinutes(settings.idleResourceMinutes),
+    idleResourceNotify: settings.idleResourceNotify !== false,
     cliArgs: normalizeCliArgs(settings.cliArgs),
     cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),
@@ -319,7 +335,12 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetPipelineOnFail: settings.desktopPetPipelineOnFail === true,
     desktopPetPipelineOnPass: settings.desktopPetPipelineOnPass === true,
     pipelineFailureNotify: settings.pipelineFailureNotify !== false,
-    pipelineFailureOpen: settings.pipelineFailureOpen !== false,
+    // This was an on/off switch before it became a choice, and an off one meant "do nothing".
+    pipelineFailureOpen: isPipelineFailureOpen(settings.pipelineFailureOpen)
+      ? settings.pipelineFailureOpen
+      : (settings.pipelineFailureOpen as unknown) === false
+        ? 'none'
+        : 'pipelines',
     pingIpVersion: isPingIpVersion(settings.pingIpVersion) ? settings.pingIpVersion : 'ipv4',
     pingTargetsIpv6: Array.isArray(settings.pingTargetsIpv6)
       ? settings.pingTargetsIpv6.filter((host) => typeof host === 'string')
@@ -333,7 +354,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     desktopPetAgentStatus: settings.desktopPetAgentStatus === true,
     dashboardIntroducedCharts: Array.isArray(settings.dashboardIntroducedCharts)
       ? settings.dashboardIntroducedCharts.filter((id) => typeof id === 'string')
-      : DASHBOARD_CHART_IDS.filter((id) => id !== 'github-actions'),
+      : ORIGINAL_CHART_IDS,
     usageResetAlerts: { ...alerts, windows: [...new Set(windows)] },
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     statusBarUsage: normalizeStatusBarUsage(settings.statusBarUsage),

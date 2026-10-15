@@ -99,6 +99,9 @@ function installBootBridge(): FakeBridge {
       dashboardUsageCards: [],
     }),
     'agents.lastRunInfoByCli': async () => ({}),
+    // The approval dialog asks for pending suggestions on mount, and listens for new ones.
+    'runProposals.list': async () => [],
+    'runProposals.onChanged': () => () => undefined,
     'remote.getState': async () => ({
       deviceName: 'Workbench',
       hosting: false,

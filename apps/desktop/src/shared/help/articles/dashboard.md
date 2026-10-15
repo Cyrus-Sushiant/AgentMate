@@ -2,12 +2,12 @@
 title: Dashboard
 category: Getting started
 order: 40
-summary: The Dashboard shows live CPU, memory, disk, GPU and network charts, GitHub activity, your installed AI CLIs and projects, and CLI update alerts, in a layout you can rearrange.
-keywords: dashboard, home, overview, system stats, cpu, memory, disk, gpu, network, ping, github activity, github actions, cards, layout, edit layout, speed test, top apps, updates
+summary: The Dashboard shows live CPU, memory, disk, GPU and network charts, Docker and emulator usage with a list of the idle ones, GitHub activity, your installed AI CLIs and projects, and CLI update alerts, in a layout you can rearrange.
+keywords: dashboard, home, overview, system stats, cpu, memory, disk, gpu, network, ping, github activity, github actions, docker usage, emulator usage, idle containers, idle emulators, unused, stop idle, cards, layout, edit layout, speed test, top apps, updates
 route: /
 ---
 
-The Dashboard is the first page most people see. It shows how your machine is doing right now (CPU, memory, disk, GPU and network), the state of your GitHub account and workflows, how many AI CLIs and projects you have, and a list of CLIs and tools that have updates waiting. Every card can be moved, hidden or brought back, so you can make it show only what you care about.
+The Dashboard is the first page most people see. It shows how your machine is doing right now (CPU, memory, disk, GPU and network), the Docker containers and Android emulators that are running and which of them nobody is using, the state of your GitHub account and workflows, how many AI CLIs and projects you have, and a list of CLIs and tools that have updates waiting. Every card can be moved, hidden or brought back, so you can make it show only what you care about.
 
 ## Where to find it
 
@@ -24,7 +24,7 @@ At the top right are the pencil button (**Edit layout**) and, while you are edit
 
 ## The cards
 
-Out of the box the Dashboard shows eight charts and four stat tiles. Cards sit in rows, two to a row at first. On a narrow window, rows of three or four columns step down to two and then one so nothing gets squeezed.
+Out of the box the Dashboard shows ten charts and four stat tiles. Cards sit in rows, two to a row at first. On a narrow window, rows of three or four columns step down to two and then one so nothing gets squeezed.
 
 ### System charts
 
@@ -81,6 +81,25 @@ The medal button opens **GitHub notifications**: the unread items from the GitHu
 
 The **GitHub Actions** card charts the workflow runs of your GitHub projects: how many passed this week, how many failed and how many are running, with a chart of passed and failed runs across the repositories of your projects. If no project has a GitHub remote, the card says to add one. The history button, **Actions history**, lists recent workflow runs across your projects, and its **All runs and filters** button goes to [Pipelines](pipelines.md). It uses the same `gh` sign-in as GitHub Activity.
 
+### Docker and Emulator Usage
+
+The **Docker and Emulator Usage** card charts how much CPU or memory your running Docker containers and Android emulators use, with one line for Docker and one for emulators, over roughly the last two hours. The **CPU** and **Memory** buttons switch between the two. CPU is measured so that 100% means one full core, so a busy container can read above 100%. A line only appears for a kind that has actually been running, so if you never use emulators you only see Docker. Hover the chart to see the value at that moment.
+
+The numbers come from AgentMate itself, which reads Docker and the Android emulators about every 30 seconds in the background. The chart keeps filling in while you are on other pages, and starts empty each time you open AgentMate. If Docker is not installed or not running the card says so, and AgentMate stops asking for a couple of minutes instead of failing every time.
+
+### Idle Docker and Emulators
+
+The **Idle Docker and Emulators** card lists running containers and emulators that nothing has used for a while, so you can stop them and free the memory they hold. The large number is how many are idle, with the total running beside it, and the line under it says how long something has to sit unused before it is listed.
+
+- A container counts as used while it spends CPU (2% of a core or more) or moves network or disk data, which is why a database that sits at 0% CPU but is still being queried is not called idle. An emulator counts as used while it spends about a quarter of a core of CPU or more. Anything else is idle, and its row says for how long.
+- The stop button at the end of a row stops that container or emulator straight away. It is easy to start again, so there is no extra question.
+- **Stop all idle** appears when two or more are idle. It lists what it will stop and asks first. Anything that became busy again while you were deciding is left running, and the message afterwards says so.
+- The gear button, **Idle settings**, sets the number of minutes (1 to 1,440, and 20 by default) and whether to be notified. They are the same options as in Settings, General. The refresh button, **Check again now**, takes a new reading right away.
+- With alerts on, AgentMate sends one system notification when something first goes idle, and again only after it has been busy and then idle again. Clicking it opens the Dashboard.
+
+> [!NOTE]
+> The idle clock starts when AgentMate first sees something running. Restarting AgentMate starts it again, and so does waking the computer from sleep, so nothing is called idle for time nobody was watching. An emulator started outside AgentMate is found through its console port. If it cannot be matched to a running process the card says it cannot be measured, and never calls it idle.
+
 ### Stat tiles
 
 | Tile | What it shows |
@@ -134,7 +153,7 @@ Each row has its own **Columns** buttons, 1, 2, 3 and 4. A row of four small til
 ### Hide and bring back cards
 
 - Click the **X** on a card (**Remove from dashboard**) to hide it. A message confirms which card was removed.
-- Click **Add card** to open the menu of everything you can show. It has three groups: **Charts** (CPU Usage, Memory Usage, Disk I/O, GPU Usage, Network Throughput, Network Status, GitHub Activity, GitHub Actions), **Dashboard stats** (Installed CLIs, Active Projects, Skill Repositories, Your Location) and **Token Usage** (All agents, Tokens today, Tokens (7 days), Cost today, Providers tracked). Cards that are showing are ticked. Click one to add or remove it. New cards go into the last row that has a free space.
+- Click **Add card** to open the menu of everything you can show. It has three groups: **Charts** (CPU Usage, Memory Usage, Disk I/O, GPU Usage, Network Throughput, Network Status, GitHub Activity, GitHub Actions, Docker and Emulator Usage, Idle Docker and Emulators), **Dashboard stats** (Installed CLIs, Active Projects, Skill Repositories, Your Location) and **Token Usage** (All agents, Tokens today, Tokens (7 days), Cost today, Providers tracked). Cards that are showing are ticked. Click one to add or remove it. New cards go into the last row that has a free space.
 
 A built-in chart added by a later version of AgentMate shows up on its own once. If you hide it, it stays hidden.
 
@@ -148,6 +167,8 @@ A built-in chart added by a later version of AgentMate shows up on its own once.
 
 - [Getting started](getting-started.md)
 - [Interface tour](interface-tour.md)
+- [Docker](docker.md)
+- [Android](android.md)
 - [Projects](projects.md)
 - [AI CLI Manager](cli-manager.md)
 - [Token Usage](token-usage.md)

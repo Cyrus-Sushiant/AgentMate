@@ -6,6 +6,7 @@ import {
   listRunningContainersForProject,
   removeContainer,
   restartContainer,
+  sampleDockerActivity,
   startContainer,
   stopContainer,
 } from './dockerCli';
@@ -478,5 +479,124 @@ describe('removeContainer', () => {
     });
     // Removing the image of a container that survived would be destructive.
     expect(argsFor('rmi')).toBeUndefined();
+  });
+});
+
+describe('sampleDockerActivity', () => {
+  const DB_ID = 'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f801';
+
+  function psLine(id: string, name: string, image = 'busybox'): string {
+    return JSON.stringify({
+      ID: id,
+      Names: name,
+      Image: image,
+      State: 'running',
+      Status: 'Up 1 minute',
+      Labels: '',
+    });
+  }
+
+  it('reads only running containers and keeps their full ids', async () => {
+    execState.byCommand.set('ps', { stdout: `${psLine(DB_ID, 'db', 'postgres:16')}\n` });
+    execState.byCommand.set('stats', {
+      stdout: `${JSON.stringify({
+        Container: DB_ID,
+        CPUPerc: '0.42%',
+        MemUsage: '38MiB / 7GiB',
+        NetIO: '1.5kB / 2.5kB',
+        BlockIO: '0B / 1MB',
+      })}\n`,
+    });
+
+    const sample = await sampleDockerActivity();
+
+    expect(argsFor('ps')).toEqual([
+      'ps',
+      '--no-trunc',
+      '--filter',
+      'status=running',
+      '--format',
+      '{{json .}}',
+    ]);
+    expect(sample).toEqual({
+      available: true,
+      containers: [
+        {
+          id: DB_ID,
+          name: 'db',
+          image: 'postgres:16',
+          cpuPercent: 0.42,
+          memBytes: 38 * 1024 ** 2,
+          netBytes: 4000,
+          blockBytes: 1_000_000,
+        },
+      ],
+    });
+  });
+
+  it('uses the short ps timeout, not the stats one', async () => {
+    execState.byCommand.set('ps', { stdout: `${psLine(DB_ID, 'db')}\n` });
+    await sampleDockerActivity();
+    expect(execState.calls.find((call) => call.args[0] === 'ps')?.options.timeout).toBe(4_000);
+  });
+
+  it('skips docker stats when nothing is running', async () => {
+    execState.byCommand.set('ps', { stdout: '' });
+
+    await expect(sampleDockerActivity()).resolves.toEqual({ available: true, containers: [] });
+    expect(argsFor('stats')).toBeUndefined();
+  });
+
+  it('reports Docker as unavailable when the CLI or daemon cannot be reached', async () => {
+    execState.byCommand.set('ps', { error: { message: 'Cannot connect to the Docker daemon' } });
+
+    await expect(sampleDockerActivity()).resolves.toEqual({ available: false, containers: [] });
+  });
+
+  it('leaves every figure null when docker stats fails, so the tracker reads it as unknown', async () => {
+    execState.byCommand.set('ps', { stdout: `${psLine(DB_ID, 'db')}\n` });
+    execState.byCommand.set('stats', { error: { message: 'timed out' } });
+
+    const sample = await sampleDockerActivity();
+
+    expect(sample.available).toBe(true);
+    expect(sample.containers[0]).toMatchObject({
+      cpuPercent: null,
+      memBytes: null,
+      netBytes: null,
+      blockBytes: null,
+    });
+  });
+
+  it('treats a placeholder counter as unreadable rather than as zero', async () => {
+    execState.byCommand.set('ps', { stdout: `${psLine(DB_ID, 'db')}\n` });
+    execState.byCommand.set('stats', {
+      stdout: `${JSON.stringify({
+        Container: DB_ID,
+        CPUPerc: '--',
+        MemUsage: '-- / --',
+        NetIO: '--',
+        BlockIO: '-- / --',
+      })}\n`,
+    });
+
+    const sample = await sampleDockerActivity();
+
+    expect(sample.containers[0]).toMatchObject({
+      cpuPercent: null,
+      memBytes: null,
+      netBytes: null,
+      blockBytes: null,
+    });
+  });
+
+  it('leaves out the security scan containers AgentMate starts itself', async () => {
+    execState.byCommand.set('ps', {
+      stdout: [psLine('1'.repeat(64), 'agentmate-scan-ab12-sonar'), psLine(DB_ID, 'db')].join('\n'),
+    });
+
+    const sample = await sampleDockerActivity();
+
+    expect(sample.containers.map((one) => one.name)).toEqual(['db']);
   });
 });

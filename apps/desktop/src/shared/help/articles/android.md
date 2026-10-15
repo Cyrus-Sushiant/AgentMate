@@ -169,6 +169,7 @@ In **Settings**, **General** tab, the **Android SDK** card has:
 
 ## Tips
 
+- Emulators that nothing has used for a while show up on the Dashboard's **Idle Docker and Emulators** card, which can stop them for you. It only looks while an adb server is already running, so it never starts one, and its clock starts when AgentMate first sees an emulator. See [Dashboard](dashboard.md#idle-docker-and-emulators).
 - An agent can use the same `adb` from the [Workspace](workspace-terminals-agents.md) terminal. **Open shell** is a quick way to get one.
 - If emulators will not start, check the Partial SDK banner first. A missing `emulator` package is the usual cause.
 

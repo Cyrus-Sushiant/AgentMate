@@ -42,6 +42,9 @@ import type {
   PromptTemplate,
   ProviderUsage,
   ProxySettings,
+  ResourceActivitySnapshot,
+  ResourceRef,
+  ResourceStopOutcome,
   SaveVaultEntryInput,
   ScannerPreflight,
   ScheduledTask,
@@ -234,6 +237,10 @@ import type {
   RemoveWorktreeInput,
   RenameBranchInput,
   ResolveConflictWithAiResult,
+  RunProposal,
+  RunProposalDecision,
+  RunProposalResult,
+  RunProposalsChanged,
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
@@ -949,6 +956,13 @@ const docker = {
   restart: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.restart, id),
   remove: (id: string, options: DockerRemoveOptions): Promise<DockerActionResult> =>
     ipcRenderer.invoke(IPC.docker.remove, id, options),
+};
+
+const resourceActivity = {
+  snapshot: (options?: { fresh?: boolean }): Promise<ResourceActivitySnapshot> =>
+    ipcRenderer.invoke(IPC.resourceActivity.snapshot, options),
+  stop: (refs: ResourceRef[], options?: { onlyIfIdle?: boolean }): Promise<ResourceStopOutcome> =>
+    ipcRenderer.invoke(IPC.resourceActivity.stop, refs, options),
 };
 
 const android = {
@@ -2236,6 +2250,8 @@ const usage = {
   get: (providerId: string): Promise<ProviderUsage> =>
     ipcRenderer.invoke(IPC.usage.get, providerId),
   refresh: (): Promise<ProviderUsage[]> => ipcRenderer.invoke(IPC.usage.refresh),
+  refreshProvider: (providerId: string): Promise<ProviderUsage> =>
+    ipcRenderer.invoke(IPC.usage.refreshProvider, providerId),
   setProviderConfig: (providerId: string, config: UsageProviderConfig): Promise<void> =>
     ipcRenderer.invoke(IPC.usage.setProviderConfig, { providerId, config }),
   setResetAlerts: (alerts: UsageResetAlertSettings): Promise<void> =>
@@ -2511,10 +2527,27 @@ const splash = {
   onClose: (cb: () => void): (() => void) => subscribe(IPC.splash.onClose, cb),
 };
 
+/** Run commands an AI agent suggests for a project. Each suggestion waits for the user's decision. */
+const runProposals = {
+  list: (): Promise<RunProposal[]> => ipcRenderer.invoke(IPC.runProposals.list),
+  decide: (
+    id: string,
+    decision: RunProposalDecision,
+  ): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> =>
+    ipcRenderer.invoke(IPC.runProposals.decide, { id, decision }),
+  getEnabled: (projectId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.runProposals.getEnabled, projectId),
+  setEnabled: (projectId: string, enabled: boolean): Promise<RunProposalResult> =>
+    ipcRenderer.invoke(IPC.runProposals.setEnabled, { projectId, enabled }),
+  onChanged: (callback: (changed: RunProposalsChanged) => void): (() => void) =>
+    subscribe(IPC.runProposals.onChanged, callback),
+};
+
 const agentmatApi = {
   platform: process.platform,
   windowsBuild: windowsBuildNumber(),
   app: appInfo,
+  runProposals,
   cli,
   terminal,
   ssh,
@@ -2532,6 +2565,7 @@ const agentmatApi = {
   tools,
   android,
   docker,
+  resourceActivity,
   fs,
   explorer,
   workspaceSearch,

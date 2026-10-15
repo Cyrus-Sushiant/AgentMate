@@ -45,6 +45,7 @@ export const queryKeys = {
   mcpRepositories: ['mcp-repositories'] as const,
   mcpRepositoryIndex: (id: string) => ['mcp-repository-index', id] as const,
   installedMcpServers: (projectId: string) => ['installed-mcp-servers', projectId] as const,
+  runProposalsEnabled: (projectId: string) => ['run-proposals-enabled', projectId] as const,
   codeqlStatus: ['codeql-status'] as const,
   securityActive: (projectId: string) => ['security', projectId, 'active'] as const,
   securityPreflight: (projectId: string) => ['security', projectId, 'preflight'] as const,
@@ -157,6 +158,8 @@ export const queryKeys = {
   dockerAvailability: ['docker-availability'] as const,
   dockerList: ['docker-list'] as const,
   dockerListForProject: (projectId: string) => ['docker-list', 'project', projectId] as const,
+  /** The Dashboard's Docker and emulator usage chart and idle list, read from the main process. */
+  resourceActivity: ['resource-activity'] as const,
   /** Saved servers with the server core each one runs, for the Deploy rail. */
   deployServers: ['deploy', 'servers'] as const,
   /** A core's live health, shared by its rail entry and its health card. */

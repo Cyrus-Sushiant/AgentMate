@@ -99,6 +99,15 @@ export async function startEmulator(
   return instance.start(avdName, options);
 }
 
+/**
+ * The pid behind each running emulator AgentMate launched. Reads the manager only if it already
+ * exists, so asking never builds one (and never starts anything) for a user who has not used
+ * Android.
+ */
+export function launchedEmulatorPids(): Map<string, number> {
+  return manager?.pidsBySerial() ?? new Map();
+}
+
 export async function stopEmulator(serial: string): Promise<{ ok: boolean; message?: string }> {
   return (await ready()).stop(serial);
 }

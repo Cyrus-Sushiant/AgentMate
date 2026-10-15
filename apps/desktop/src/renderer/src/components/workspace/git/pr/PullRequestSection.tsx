@@ -34,6 +34,32 @@ function LoadingCards(): React.JSX.Element {
   );
 }
 
+/**
+ * The notice for a failed PR lookup. The raw gh error is long and noisy, so the panel says it in
+ * one line and keeps the exact text in a tooltip, like the Pipelines tab does.
+ */
+function PrReadError({
+  error,
+  onRetry,
+}: {
+  error: string;
+  onRetry: () => void;
+}): React.JSX.Element {
+  return (
+    <PanelNotice
+      title="Could not read the pull request"
+      body={
+        <SimpleTooltip label={error} className="max-w-sm break-words" wrapTrigger>
+          <span className="cursor-help underline decoration-dotted underline-offset-4">
+            GitHub did not return this pull request. Hover for details.
+          </span>
+        </SimpleTooltip>
+      }
+      action={{ label: 'Retry', run: onRetry }}
+    />
+  );
+}
+
 /** What the last merge from this tab did, kept on screen after it moved us off the branch. */
 function RecentMergeCard({
   project,
@@ -187,15 +213,7 @@ function WidePullRequest({
 }): React.JSX.Element {
   const pr = status.pr;
 
-  if (status.error && !pr) {
-    return (
-      <PanelNotice
-        title="Could not read the pull request"
-        body={status.error}
-        action={{ label: 'Retry', run: onRetry }}
-      />
-    );
-  }
+  if (status.error && !pr) return <PrReadError error={status.error} onRetry={onRetry} />;
 
   if (!pr) {
     return (
@@ -357,11 +375,7 @@ export function PullRequestSection({
     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-3 pt-1">
       {recentCard}
       {status.error && !status.pr ? (
-        <PanelNotice
-          title="Could not read the pull request"
-          body={status.error}
-          action={{ label: 'Retry', run: onRetry }}
-        />
+        <PrReadError error={status.error} onRetry={onRetry} />
       ) : !status.pr ? (
         <CreatePrForm project={project} status={status} />
       ) : status.pr.state !== 'OPEN' ? (

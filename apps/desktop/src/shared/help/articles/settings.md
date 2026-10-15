@@ -41,7 +41,7 @@ Below the themes, **Main menu** chooses where the navigation lives. **Left** put
 
 ### Status bar limits
 
-**Status bar limits** has a switch for each of **Claude Code**, **Codex** and **Cursor**. A switch that is on (the default) lets that provider show its plan limits in the status bar at the bottom of the window. Turn one off to take its item out of the bar. A provider only shows up when its account reports a limit, so Codex signed in with an API key, or an unlimited Cursor plan, stays out of the bar either way. See [Token Usage](token-usage.md#the-status-bar).
+**Status bar limits** has a switch for each of **Claude Code**, **Codex** and **Cursor**. A switch that is on (the default) lets that provider show its plan limits in the status bar at the bottom of the window. Turn one off to take its item out of the bar. A provider only shows up when its account reports a limit, so Codex signed in with an API key, or an unlimited Cursor plan, stays out of the bar either way. If a provider's limits fail to load, its item stays in the bar, dimmed with a warning icon, until they can be read again. See [Token Usage](token-usage.md#the-status-bar).
 
 ### Startup page
 
@@ -54,6 +54,14 @@ When **Keep terminals running** is on (the default), terminal sessions carry on 
 ### Docker containers when a run stops
 
 Stopping a project's run does not stop the Docker containers it brought up. **Docker containers when a run stops** decides what happens to them. **Ask me** (the default) opens a dialog listing the project's running containers after the run stops, so you can choose which to stop. **Always stop them** stops them without asking, and **Never stop them** leaves them alone and does not even check Docker. Ticking **Remember my choice** in the dialog sets this for you. See [Docker](docker.md#when-you-stop-a-run).
+
+### Idle Docker containers and emulators
+
+**Idle Docker containers and emulators** is how many minutes a running container or emulator can sit unused before the Dashboard lists it as idle. The default is 20, and any number from 1 to 1,440 (a day) works. Press `Enter` or click out of the box to save it, and a number outside that range is moved to the nearest one. The Dashboard's **Idle Docker and Emulators** card has the same box under its gear button. See [Dashboard](dashboard.md#idle-docker-and-emulators).
+
+### Idle resource alerts
+
+**Idle resource alerts** (on by default) sends a system notification the first time a container or emulator goes idle, and again only after it has been busy and gone idle once more. Clicking it opens the Dashboard, where you can stop it. Turning it off does not change which things are listed as idle. See [Dashboard](dashboard.md#idle-docker-and-emulators).
 
 ### Workspace notifications
 
@@ -177,7 +185,10 @@ The **Pipeline failures** card at the top of the **Notifications** tab chooses h
 
 - **Show failed pipelines in notifications** (on by default). A failed or timed out run flashes a message in the corner, is kept in Recent messages and puts an unread count on **Pipelines**. Turn it off to keep failures out of all three. Passed runs are not affected.
 - **Show failed pipelines on my AI Pet** (off by default). The pet says which workflow failed. This is the same switch as **Tell me when a pipeline fails** on the **AI Pet** tab, and it stays greyed out until My AI Pet is turned on.
-- **Open Pipelines when I click a failure** (on by default). Clicking the message, its row in Recent messages or the pet's bubble opens that run on the Pipelines page, as before. Turn it off and a click only dismisses the alert: the message has no **Open** button and the pet's bubble no longer says "Click to open it in AgentMate".
+- **When I click a failure** chooses where the message, its row in Recent messages and the pet's bubble take you.
+  - **Project workspace** opens that project's Workspace with the **Pipelines** section of the Git panel unfolded, next to the code and terminals.
+  - **Pipelines page** (the default) opens the failed run on the all-projects Pipelines page and highlights it.
+  - **Just dismiss it** makes a click do nothing. The message has no **Open** button and the pet's bubble no longer says "Click to open it in AgentMate".
 
 You can still open Pipelines yourself from the sidebar at any time. See [Pipelines](pipelines.md#notifications-and-the-unread-badge).
 

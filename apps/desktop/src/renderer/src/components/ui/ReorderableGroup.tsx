@@ -19,7 +19,11 @@ interface ReorderableGroupProps<T> {
   /** Called once per drop that changes the order, with the item's index before and after. */
   onMove: (fromIndex: number, toIndex: number) => void;
   className?: string;
-  renderItem: (item: T, motion: ReorderMotion) => React.ReactNode;
+  /** The element the items sit in. A list of rows can be an `ol`, a grid a `div`. */
+  as?: 'div' | 'ol' | 'ul';
+  /** Rendered before the items, for placeholders or a heading that aren't items themselves. */
+  leading?: React.ReactNode;
+  renderItem: (item: T, motion: ReorderMotion, index: number) => React.ReactNode;
 }
 
 /** An item's place in the group. Offsets ignore transforms, so a box still easing reads true. */
@@ -48,6 +52,8 @@ interface Drag {
   to: number;
   /** Pointer travel since the grip went down, clamped so the item stays inside the group. */
   offset: Point;
+  /** True once the pointer has really moved, so the click that follows a drag can be swallowed. */
+  travelled: boolean;
   /** Where every item sat when the drag began. Items don't reflow mid-drag, so these hold. */
   boxes: Box[];
   /** The area the items fill, which the dragged item can't leave. */
@@ -78,6 +84,19 @@ function toCss({ x, y }: Point): string {
 }
 
 /**
+ * A press that became a drag ends on the item it started on, so the browser would also send a
+ * click there. This eats that one click, so releasing a dragged item doesn't also open it.
+ */
+function swallowClickAfterDrag(): void {
+  const swallow = (event: MouseEvent): void => {
+    event.stopPropagation();
+    event.preventDefault();
+  };
+  window.addEventListener('click', swallow, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 300);
+}
+
+/**
  * How far an item that isn't being dragged moves. The items between the dragged item's start and
  * its target each step one place toward the gap it leaves. In a grid that step can cross a row.
  */
@@ -101,6 +120,8 @@ export function ReorderableGroup<T>({
   enabled,
   onMove,
   className,
+  as = 'div',
+  leading,
   renderItem,
 }: ReorderableGroupProps<T>): React.JSX.Element {
   const [order, setOrder] = useState(items);
@@ -110,6 +131,8 @@ export function ReorderableGroup<T>({
     setOrder(items);
   }
 
+  // Only the list semantics differ between the tags, so the ref is typed as a div.
+  const Tag = as as 'div';
   const groupRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -160,6 +183,7 @@ export function ReorderableGroup<T>({
       to: index,
       offset: { x: 0, y: 0 },
       boxes,
+      travelled: false,
       bounds: {
         left: Math.min(...boxes.map((box) => box.left)),
         top: Math.min(...boxes.map((box) => box.top)),
@@ -176,17 +200,10 @@ export function ReorderableGroup<T>({
     if (!current || event.pointerId !== current.pointerId) return;
     const { from, boxes, bounds } = current;
     const home = boxes[from];
+    const pointer = { x: event.clientX - current.startX, y: event.clientY - current.startY };
     const offset = {
-      x: clamp(
-        event.clientX - current.startX,
-        bounds.left - home.left,
-        bounds.right - (home.left + home.width),
-      ),
-      y: clamp(
-        event.clientY - current.startY,
-        bounds.top - home.top,
-        bounds.bottom - (home.top + home.height),
-      ),
+      x: clamp(pointer.x, bounds.left - home.left, bounds.right - (home.left + home.width)),
+      y: clamp(pointer.y, bounds.top - home.top, bounds.bottom - (home.top + home.height)),
     };
     // The item lands in the box whose middle is nearest the middle of the item as it's held now.
     const middleX = home.left + home.width / 2 + offset.x;
@@ -203,10 +220,18 @@ export function ReorderableGroup<T>({
         to = index;
       }
     });
-    if (offset.x === current.offset.x && offset.y === current.offset.y && to === current.to) {
+    const travelled =
+      current.travelled ||
+      Math.hypot(event.clientX - current.startX, event.clientY - current.startY) > 3;
+    if (
+      offset.x === current.offset.x &&
+      offset.y === current.offset.y &&
+      to === current.to &&
+      travelled === current.travelled
+    ) {
       return;
     }
-    const next = { ...current, offset, to };
+    const next = { ...current, offset, to, travelled };
     dragRef.current = next;
     setDrag(next);
   }
@@ -216,6 +241,7 @@ export function ReorderableGroup<T>({
     if (!current || event.pointerId !== current.pointerId) return;
     dragRef.current = null;
     setDrag(null);
+    if (current.travelled) swallowClickAfterDrag();
     const dragged = order[current.from];
     // If the items changed under the drag (a refresh, say), the item isn't where the drag began, so
     // the drop is skipped rather than moving whatever is there now.
@@ -238,7 +264,7 @@ export function ReorderableGroup<T>({
   }
 
   return (
-    <div
+    <Tag
       ref={groupRef}
       className={cn(className, drag && 'select-none')}
       onPointerMove={move}
@@ -246,28 +272,26 @@ export function ReorderableGroup<T>({
       onPointerCancel={(event) => end(event, false)}
       onLostPointerCapture={(event) => end(event, false)}
     >
+      {leading}
       {order.map((item, index) => {
         const id = getId(item);
         const dragging = drag?.from === index;
         let shift: Point = { x: 0, y: 0 };
         if (drag) shift = dragging ? drag.offset : shiftFor(drag, index);
         const moved = shift.x !== 0 || shift.y !== 0;
-        return (
-          <Fragment key={id}>
-            {renderItem(item, {
-              itemProps: {
-                'data-reorder-id': id,
-                style:
-                  moved || dragging
-                    ? { transform: toCss(shift), zIndex: dragging ? 10 : undefined }
-                    : undefined,
-              },
-              dragging,
-              onGripPointerDown: (event) => begin(event, index),
-            })}
-          </Fragment>
-        );
+        const motion: ReorderMotion = {
+          itemProps: {
+            'data-reorder-id': id,
+            style:
+              moved || dragging
+                ? { transform: toCss(shift), zIndex: dragging ? 10 : undefined }
+                : undefined,
+          },
+          dragging,
+          onGripPointerDown: (event) => begin(event, index),
+        };
+        return <Fragment key={id}>{renderItem(item, motion, index)}</Fragment>;
       })}
-    </div>
+    </Tag>
   );
 }

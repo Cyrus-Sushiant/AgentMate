@@ -51,6 +51,21 @@ export interface SummarizeOptions {
   maxProcesses?: number;
 }
 
+/**
+ * The earlier sample to measure CPU against, or null when there is none or it is too old to
+ * average over. Callers pick their own `maxGapMs`: a 3 second meter and a 30 second tracker
+ * should not throw away each other's baselines.
+ */
+export function selectPreviousSample(
+  last: ProcessSample | null,
+  currentAt: number,
+  maxGapMs: number,
+): ProcessSample | null {
+  if (!last) return null;
+  const gap = currentAt - last.at;
+  return gap >= 0 && gap <= maxGapMs ? last : null;
+}
+
 /** The pid itself and every process below it, parents before children. */
 export function descendantPids(rootPid: number, rows: ProcessRow[]): number[] {
   const byPid = new Map(rows.map((row) => [row.pid, row]));

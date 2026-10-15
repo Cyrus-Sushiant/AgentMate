@@ -9,6 +9,7 @@ import { WritingMenuHost } from './components/grammar/WritingMenuHost';
 import { AppShell } from './components/layout/AppShell';
 import DesktopPetRoute from './components/pet/DesktopPetRoute';
 import PromptBuildWidgetRoute from './components/projects/PromptBuildWidgetRoute';
+import { RunProposalHost } from './components/projects/RunProposalHost';
 import { QuitConfirmation } from './components/QuitConfirmation';
 import { HostKeyChangedDialogHost } from './components/remote/HostKeyChangedDialog';
 import RemoteSessionRoute from './components/remote/RemoteSessionRoute';
@@ -90,6 +91,7 @@ function AppChrome(): React.JSX.Element | null {
     <>
       <AppToaster />
       <ConfirmDialogHost />
+      <RunProposalHost />
       <StopContainersDialogHost />
       <HostKeyChangedDialogHost />
       <QuitConfirmation />
