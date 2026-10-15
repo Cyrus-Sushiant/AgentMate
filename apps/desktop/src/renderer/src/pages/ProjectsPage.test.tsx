@@ -1,7 +1,7 @@
 import type { Project } from '@agentmat/core';
 import { AGENT_TYPE_LABELS } from '@agentmat/core';
-import { screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
 /**
@@ -453,5 +453,163 @@ describe('ProjectsPage GitHub auto-clone', () => {
     );
     expect(bridge.$fn('projects.create')).toHaveBeenCalled();
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Project created.'));
+  });
+});
+
+/** A box on screen: where an item's top-left corner sits, and how big it is. */
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+describe('ProjectsPage drag to reorder', () => {
+  afterEach(() => {
+    localStorage.removeItem('agentmate.projects.view');
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * Jsdom has no layout, so each card or row reads its box from `boxAt`, by the place it sits in
+   * the page. The drag works out where everything is from those boxes.
+   */
+  function mockLayout(boxAt: (index: number) => Box): void {
+    const boxOf = (element: HTMLElement): Box => {
+      const index = Array.from(element.parentElement?.children ?? []).indexOf(element);
+      return index < 0 ? { left: 0, top: 0, width: 0, height: 0 } : boxAt(index);
+    };
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return boxOf(this).left;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return boxOf(this).top;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return boxOf(this).width;
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return boxOf(this).height;
+    });
+  }
+
+  function itemOf(container: HTMLElement, id: string): HTMLElement {
+    const item = container.querySelector<HTMLElement>(`[data-reorder-id="${id}"]`);
+    if (!item) throw new Error(`No item for ${id}`);
+    return item;
+  }
+
+  function gripOf(container: HTMLElement, id: string): HTMLElement {
+    const grip = itemOf(container, id).querySelector<HTMLElement>('[data-drag-grip]');
+    if (!grip) throw new Error(`${id} has no drag grip`);
+    return grip;
+  }
+
+  function orderOf(container: HTMLElement): string[] {
+    return Array.from(container.querySelectorAll<HTMLElement>('[data-reorder-id]'), (item) =>
+      String(item.dataset.reorderId),
+    );
+  }
+
+  it('moves a row when its grip is dragged, and saves the order it lands in', async () => {
+    const projects = [
+      project(),
+      project({ id: 'p2', name: 'Hermes' }),
+      project({ id: 'p3', name: 'Zeus' }),
+    ];
+    // Rows stack 60px tall, all with the same left edge and width.
+    mockLayout((index) => ({ left: 0, top: index * 60, width: 300, height: 60 }));
+    const { container, user, bridge } = renderWithProviders(<ProjectsPage />, {
+      bridge: {
+        'projects.list': projects,
+        'projects.reorder': (ids: string[]) => ids.map((id) => projects.find((p) => p.id === id)),
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
+
+    const grip = gripOf(container, 'p1');
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 0, clientY: 130, pointerId: 1 });
+    fireEvent.pointerUp(grip, { pointerId: 1 });
+
+    await waitFor(() =>
+      expect(bridge.$fn('projects.reorder')).toHaveBeenCalledWith(['p2', 'p3', 'p1']),
+    );
+    expect(orderOf(container)).toEqual(['p2', 'p3', 'p1']);
+  });
+
+  it('moves a card across the grid and saves the order it lands in', async () => {
+    const projects = [
+      project(),
+      project({ id: 'p2', name: 'Hermes' }),
+      project({ id: 'p3', name: 'Zeus' }),
+    ];
+    // Two columns of cards, 300px apart across and 200px down. The grid is the default view.
+    mockLayout((index) => ({
+      left: (index % 2) * 300,
+      top: Math.floor(index / 2) * 200,
+      width: 280,
+      height: 180,
+    }));
+    const { container, bridge } = renderWithProviders(<ProjectsPage />, {
+      bridge: {
+        'projects.list': projects,
+        'projects.reorder': (ids: string[]) => ids.map((id) => projects.find((p) => p.id === id)),
+      },
+    });
+    await screen.findByRole('button', { name: 'Apollo' });
+
+    const grip = gripOf(container, 'p1');
+    fireEvent.pointerDown(grip, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 300, clientY: 0, pointerId: 1 });
+    // Hermes steps back into the cell Apollo is being held over.
+    expect(itemOf(container, 'p2').style.transform).toBe('translate(-300px, 0px)');
+    fireEvent.pointerUp(grip, { pointerId: 1 });
+
+    await waitFor(() =>
+      expect(bridge.$fn('projects.reorder')).toHaveBeenCalledWith(['p2', 'p1', 'p3']),
+    );
+    expect(orderOf(container)).toEqual(['p2', 'p1', 'p3']);
+  });
+
+  it('keeps a drag inside its pin group, with the pinned projects still saved first', async () => {
+    const projects = [
+      project({ pinned: true }),
+      project({ id: 'p2', name: 'Hermes', pinned: true }),
+      project({ id: 'p3', name: 'Zeus' }),
+      project({ id: 'p4', name: 'Athena' }),
+    ];
+    mockLayout((index) => ({
+      left: (index % 2) * 300,
+      top: Math.floor(index / 2) * 200,
+      width: 280,
+      height: 180,
+    }));
+    const { container, bridge } = renderWithProviders(<ProjectsPage />, {
+      bridge: {
+        'projects.list': projects,
+        'projects.reorder': (ids: string[]) => ids.map((id) => projects.find((p) => p.id === id)),
+      },
+    });
+    await screen.findByRole('button', { name: 'Apollo' });
+
+    // Hermes is the second pinned card, so one cell left puts it first in the pinned group.
+    const grip = gripOf(container, 'p2');
+    fireEvent.pointerDown(grip, { button: 0, clientX: 300, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(grip, { pointerId: 1 });
+
+    await waitFor(() =>
+      expect(bridge.$fn('projects.reorder')).toHaveBeenCalledWith(['p2', 'p1', 'p3', 'p4']),
+    );
+    expect(orderOf(container)).toEqual(['p2', 'p1', 'p3', 'p4']);
   });
 });

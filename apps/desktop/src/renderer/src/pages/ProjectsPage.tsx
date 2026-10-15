@@ -39,6 +39,7 @@ import { useProjectRun } from '@/components/projects/useProjectRun';
 import { NewProjectButton } from '@/components/projects/wordpress/NewProjectButton';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ReorderableGroup, type ReorderMotion } from '@/components/ui/ReorderableGroup';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
@@ -57,39 +58,6 @@ type AgentFilter = 'all' | AgentType;
 
 function agentFilterLabel(filter: AgentFilter): string {
   return filter === 'all' ? 'all agents' : AGENT_TYPE_LABELS[filter];
-}
-
-/** Which side of the hovered card or row the dragged project will land on. */
-type DropPlace = 'before' | 'after';
-
-/** Moves `draggedId` next to `targetId` within one pin group. */
-function reorderWithinGroup(
-  list: Project[],
-  draggedId: string,
-  targetId: string,
-  place: DropPlace,
-): Project[] {
-  if (draggedId === targetId) return list;
-  const next = [...list];
-  const from = next.findIndex((p) => p.id === draggedId);
-  if (from === -1 || !next.some((p) => p.id === targetId)) return next;
-  const [item] = next.splice(from, 1);
-  // Look the target up again: pulling the dragged project out may have shifted it.
-  const to = next.findIndex((p) => p.id === targetId);
-  next.splice(place === 'after' ? to + 1 : to, 0, item);
-  return next;
-}
-
-/**
- * Rows stack vertically and cards sit side by side, so the halves that mean
- * "put it before this one" run along different axes in the two views.
- */
-function dropPlaceFor(e: React.DragEvent, view: ProjectsView): DropPlace {
-  const rect = e.currentTarget.getBoundingClientRect();
-  if (view === 'list') {
-    return e.clientY > rect.top + rect.height / 2 ? 'after' : 'before';
-  }
-  return e.clientX > rect.left + rect.width / 2 ? 'after' : 'before';
 }
 
 function readStoredView(): ProjectsView {
@@ -122,8 +90,6 @@ export default function ProjectsPage(): React.JSX.Element {
   const [agentFilter, setAgentFilter] = useState<AgentFilter>('all');
   const [view, setView] = useState<ProjectsView>(readStoredView);
   const [showArchived, setShowArchived] = useState(false);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; place: DropPlace } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { requestRun, runPicker } = useProjectRun();
@@ -286,22 +252,25 @@ export default function ProjectsPage(): React.JSX.Element {
   const dragEnabled = !showArchived && query.length === 0 && agentFilter === 'all';
   const pinnedProjects = useMemo(() => filtered.filter((p) => p.pinned), [filtered]);
   const unpinnedProjects = useMemo(() => filtered.filter((p) => !p.pinned), [filtered]);
-  const draggedProject = draggedId ? projects.find((p) => p.id === draggedId) : undefined;
   const filtersActive = query.length > 0 || agentFilter !== 'all';
 
-  function handleDrop(group: 'pinned' | 'unpinned', targetId: string, place: DropPlace): void {
-    if (!draggedId || !dragEnabled) return;
-    const isPinnedGroup = group === 'pinned';
-    const sourceList = isPinnedGroup ? pinnedProjects : unpinnedProjects;
-    if (!sourceList.some((p) => p.id === draggedId)) return;
-    const reordered = reorderWithinGroup(sourceList, draggedId, targetId, place);
+  function saveGroupOrder(group: 'pinned' | 'unpinned', reordered: Project[]): void {
     // Dragging is only ever enabled on the active pile, but the saved order is
     // the whole list, so the archived projects ride along at the end.
-    const fullOrder = isPinnedGroup
-      ? [...reordered, ...unpinnedProjects, ...archivedProjects]
-      : [...pinnedProjects, ...reordered, ...archivedProjects];
+    const fullOrder =
+      group === 'pinned'
+        ? [...reordered, ...unpinnedProjects, ...archivedProjects]
+        : [...pinnedProjects, ...reordered, ...archivedProjects];
     queryClient.setQueryData(queryKeys.projects, fullOrder);
     reorderMutation.mutate(fullOrder.map((p) => p.id));
+  }
+
+  /** A drag landed one project at another index within its pin group. */
+  function moveWithinGroup(group: 'pinned' | 'unpinned', fromIndex: number, toIndex: number): void {
+    const reordered = [...(group === 'pinned' ? pinnedProjects : unpinnedProjects)];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    saveGroupOrder(group, reordered);
   }
 
   // Restoring the last archived project would otherwise strand the page on an
@@ -321,33 +290,12 @@ export default function ProjectsPage(): React.JSX.Element {
     searchRef.current?.focus();
   }
 
-  function renderProject(project: Project, group: 'pinned' | 'unpinned'): React.JSX.Element {
+  function renderProject(project: Project, motion: ReorderMotion): React.JSX.Element {
     const cardProps: ProjectItemProps = {
       project,
       view,
       draggable: dragEnabled,
-      isDragging: draggedId === project.id,
-      dropPlace:
-        dropTarget?.id === project.id &&
-        draggedId !== project.id &&
-        draggedProject?.pinned === project.pinned
-          ? dropTarget.place
-          : null,
-      onDragStart: () => setDraggedId(project.id),
-      onDragEnd: () => {
-        setDraggedId(null);
-        setDropTarget(null);
-      },
-      onDragOver: (place) => {
-        if (dragEnabled && draggedProject?.pinned === project.pinned) {
-          setDropTarget((current) =>
-            current?.id === project.id && current.place === place
-              ? current
-              : { id: project.id, place },
-          );
-        }
-      },
-      onDropOn: (targetId, place) => handleDrop(group, targetId, place),
+      motion,
       onNavigate: () => navigate(`/projects/${project.id}`),
       onOpenGit: () => navigate(`/projects/${project.id}?tab=git`),
       onRun: () => handleRun(project),
@@ -366,8 +314,18 @@ export default function ProjectsPage(): React.JSX.Element {
     return <ProjectItem key={project.id} {...cardProps} />;
   }
 
-  const groupClass =
-    view === 'list' ? LIST_CARD : 'grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3';
+  function renderGroup(group: 'pinned' | 'unpinned', projects: Project[]): React.JSX.Element {
+    return (
+      <ReorderableGroup
+        items={projects}
+        getId={(project) => project.id}
+        enabled={dragEnabled}
+        className={view === 'list' ? LIST_CARD : GRID_GROUP}
+        onMove={(fromIndex, toIndex) => moveWithinGroup(group, fromIndex, toIndex)}
+        renderItem={(project, motion) => renderProject(project, motion)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5 p-4">
@@ -582,9 +540,7 @@ export default function ProjectsPage(): React.JSX.Element {
                 >
                   Pinned
                 </GroupHeading>
-                <div className={groupClass}>
-                  {pinnedProjects.map((project) => renderProject(project, 'pinned'))}
-                </div>
+                {renderGroup('pinned', pinnedProjects)}
               </section>
             )}
 
@@ -598,9 +554,7 @@ export default function ProjectsPage(): React.JSX.Element {
                     {showArchived ? 'Archived' : filtersActive ? 'Matches' : 'All projects'}
                   </GroupHeading>
                 ) : null}
-                <div className={groupClass}>
-                  {unpinnedProjects.map((project) => renderProject(project, 'unpinned'))}
-                </div>
+                {renderGroup('unpinned', unpinnedProjects)}
               </section>
             )}
           </div>
@@ -640,9 +594,14 @@ export default function ProjectsPage(): React.JSX.Element {
 
 /** The glass card every project sits on, rounded like the Settings and API Client cards. */
 const CARD = 'glass rounded-[calc(var(--radius)+2px)]';
+/** The card's shape without its glass, so a card held by the pointer can swap in an opaque surface. */
+const CARD_SHAPE = 'rounded-[calc(var(--radius)+2px)]';
 
 /** List view: one card per group, its rows split by the same hairline Settings uses. */
 const LIST_CARD = cn(CARD, 'settings-rows overflow-hidden');
+
+/** Grid view: cards side by side, one column on a phone. */
+const GRID_GROUP = 'grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3';
 
 /** A grid card's footer, set off by a hairline drawn as a shadow so the theme border rule can't recolour it. */
 const CARD_FOOTER =
@@ -776,14 +735,9 @@ function FilterChip({
 interface ProjectItemProps {
   project: Project;
   view: ProjectsView;
+  /** False while a search or agent filter hides part of the order, so the grip can't reorder. */
   draggable: boolean;
-  isDragging: boolean;
-  /** Non-null while this card or row is the one the dragged project would land next to. */
-  dropPlace: DropPlace | null;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onDragOver: (place: DropPlace) => void;
-  onDropOn: (targetId: string, place: DropPlace) => void;
+  motion: ReorderMotion;
   onNavigate: () => void;
   onOpenGit: () => void;
   onRun: () => void;
@@ -795,55 +749,6 @@ interface ProjectItemProps {
 
 function ProjectItem(props: ProjectItemProps): React.JSX.Element {
   return props.view === 'list' ? <ProjectRow {...props} /> : <ProjectCard {...props} />;
-}
-
-function projectDragHandlers(props: ProjectItemProps): {
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-} {
-  return {
-    onDragOver: (e) => {
-      if (!props.draggable) return;
-      // Without both of these Chromium treats the card as a non-target and
-      // never fires `drop`, so the whole gesture ends as a no-op.
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      props.onDragOver(dropPlaceFor(e, props.view));
-    },
-    onDrop: (e) => {
-      if (!props.draggable) return;
-      e.preventDefault();
-      e.stopPropagation();
-      props.onDropOn(props.project.id, dropPlaceFor(e, props.view));
-    },
-  };
-}
-
-/**
- * The line showing where the dragged project will land. A ring around the whole
- * card can't say "before" or "after", which is the only thing worth knowing
- * mid-drag, and in list view it reads as a selection instead of a drop.
- */
-function DropIndicator({
-  view,
-  place,
-}: {
-  view: ProjectsView;
-  place: DropPlace | null;
-}): React.JSX.Element | null {
-  if (!place) return null;
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'pointer-events-none absolute z-10 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.7)]',
-        // Rows sit inside one clipped card, so their line stays on the row's own edge.
-        view === 'list'
-          ? cn('inset-x-2 h-0.5', place === 'before' ? 'top-0' : 'bottom-0')
-          : cn('inset-y-2 w-0.5', place === 'before' ? '-left-[5px]' : '-right-[5px]'),
-      )}
-    />
-  );
 }
 
 /** The main menu's active marker, reused to say a project is pinned. */
@@ -864,17 +769,13 @@ function PinnedAccent({ className }: { className?: string }): React.JSX.Element 
  * click anywhere else is never mistaken for a reorder gesture.
  */
 function DragGrip({
-  projectId,
   disabled,
-  onDragStart,
-  onDragEnd,
+  onPointerDown,
   className,
 }: {
-  projectId: string;
   /** True while a search or agent filter hides part of the order. */
   disabled: boolean;
-  onDragStart: () => void;
-  onDragEnd: () => void;
+  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   className?: string;
 }): React.JSX.Element {
   if (disabled) {
@@ -896,18 +797,11 @@ function DragGrip({
   return (
     <SimpleTooltip label="Drag to reorder">
       <span
-        draggable
+        data-drag-grip
+        onPointerDown={onPointerDown}
         onClick={(e) => e.stopPropagation()}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = 'move';
-          // The drop reads the id off React state, but a drag with an empty
-          // payload is refused outright by some engines, so set one anyway.
-          e.dataTransfer.setData('text/plain', projectId);
-          onDragStart();
-        }}
-        onDragEnd={onDragEnd}
         className={cn(
-          'flex shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground/50 transition-[opacity,background-color] hover:bg-foreground/[0.08] hover:text-foreground active:cursor-grabbing',
+          'flex shrink-0 cursor-grab touch-none items-center justify-center rounded-full text-muted-foreground/50 transition-[opacity,background-color] hover:bg-foreground/[0.08] hover:text-foreground active:cursor-grabbing',
           className,
         )}
       >
@@ -918,24 +812,25 @@ function DragGrip({
 }
 
 function ProjectCard(props: ProjectItemProps): React.JSX.Element {
-  const { project, onNavigate } = props;
-  const drag = projectDragHandlers(props);
+  const { project, motion, onNavigate } = props;
   const description = persianTextProps(project.description);
   const extraTags = Math.max(0, project.tags.length - MAX_VISIBLE_TAGS);
 
   return (
     <Card
+      {...motion.itemProps}
       className={cn(
-        CARD,
-        'group relative flex cursor-pointer flex-col transition-[transform,box-shadow,opacity] duration-150 motion-reduce:transition-none',
+        CARD_SHAPE,
+        'group relative flex cursor-pointer flex-col',
+        // While it's held, the card turns near-opaque so the cards it passes don't show through.
+        motion.dragging
+          ? 'glass-opaque z-10 ring-1 ring-primary/40 transition-none'
+          : 'glass transition-[transform,box-shadow,opacity] duration-200 ease-out motion-reduce:transition-none',
         // A ring rather than a border colour: the card's glass edge is unlayered CSS and would win.
         'hover:-translate-y-0.5 hover:ring-1 hover:ring-primary/30 focus-within:ring-1 focus-within:ring-primary/30 motion-reduce:hover:translate-y-0',
-        props.isDragging && 'opacity-50',
       )}
       onClick={onNavigate}
-      {...drag}
     >
-      <DropIndicator view="grid" place={props.dropPlace} />
       {project.pinned && <PinnedAccent className="top-[1.6rem]" />}
       <div className="space-y-3 p-4 pb-3">
         <div className="flex items-start gap-3">
@@ -996,21 +891,22 @@ function ProjectCard(props: ProjectItemProps): React.JSX.Element {
 }
 
 function ProjectRow(props: ProjectItemProps): React.JSX.Element {
-  const { project, onNavigate } = props;
-  const drag = projectDragHandlers(props);
+  const { project, onNavigate, motion } = props;
   const description = persianTextProps(project.description);
 
   return (
     // Rows share one card, so each is a plain row with the menu's hover wash rather than a box.
+    // A dragged row lifts off the card while the rows around it slide out of its way.
     <div
+      {...motion.itemProps}
       className={cn(
-        'group relative flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-[background-color,opacity] hover:bg-foreground/[0.04] focus-within:bg-foreground/[0.04]',
-        props.isDragging && 'opacity-50',
+        'group relative flex cursor-pointer items-center gap-3 px-3 py-2.5 focus-within:bg-foreground/[0.04]',
+        motion.dragging
+          ? 'z-10 rounded-lg bg-popover shadow-lg ring-1 ring-foreground/10 transition-none'
+          : 'transition-[transform,background-color,opacity] duration-200 ease-out hover:bg-foreground/[0.04] motion-reduce:transition-none',
       )}
       onClick={onNavigate}
-      {...drag}
     >
-      <DropIndicator view="list" place={props.dropPlace} />
       {project.pinned && <PinnedAccent className="top-1/2 -translate-y-1/2" />}
       <ProjectIcon
         iconDataUrl={project.iconDataUrl}
@@ -1111,10 +1007,9 @@ function ProjectSecondaryActions({
 function ProjectQuickActions({
   project,
   draggable,
-  onDragStart,
-  onDragEnd,
   onTogglePin,
   onToggleArchive,
+  motion,
   compact,
 }: ProjectItemProps & { compact: boolean }): React.JSX.Element {
   // Hidden until the card is hovered or focused, so a grid of cards stays quiet.
@@ -1124,10 +1019,8 @@ function ProjectQuickActions({
 
   const grip = (
     <DragGrip
-      projectId={project.id}
       disabled={!draggable}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onPointerDown={motion.onGripPointerDown}
       className={cn('h-7 w-7', reveal)}
     />
   );
