@@ -85,7 +85,7 @@ Run commands are what the **Run** button executes in the project folder. The lis
 
 The order matters. **Run** lists the commands top to bottom, and a project with one command runs it straight away. Drag a row by its grip to reorder, or focus the grip and use the arrow keys.
 
-When you click **Run**, AgentMate opens a terminal in the project folder, types the command and runs it, and shows a message such as `Running "dev".` The status bar then shows the run with its port, CPU and memory, and `Shift+F5` stops the run in the drawer (or the newest run). See [Interface tour](interface-tour.md).
+When you click **Run**, AgentMate opens a terminal in the project folder, types the command and runs it, and shows a message such as `Running "dev".` The status bar then shows the run with its port, CPU and memory, and `Shift+F5` stops the run in the drawer (or the newest run). If the project still has Docker containers running when you stop, AgentMate asks whether to stop them too, see [Docker](docker.md#when-you-stop-a-run). See [Interface tour](interface-tour.md).
 
 ## A project's page
 

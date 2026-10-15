@@ -51,6 +51,10 @@ Below the themes, **Main menu** chooses where the navigation lives. **Left** put
 
 When **Keep terminals running** is on (the default), terminal sessions carry on in the background after you quit AgentMate and come back with their output the next time you open it. Restarting to install an update always keeps them. If you turn it off, quitting stops the sessions. When you close the app with sessions open, AgentMate asks "Close AgentMate?" first and tells you what will happen to them.
 
+### Docker containers when a run stops
+
+Stopping a project's run does not stop the Docker containers it brought up. **Docker containers when a run stops** decides what happens to them. **Ask me** (the default) opens a dialog listing the project's running containers after the run stops, so you can choose which to stop. **Always stop them** stops them without asking, and **Never stop them** leaves them alone and does not even check Docker. Ticking **Remember my choice** in the dialog sets this for you. See [Docker](docker.md#when-you-stop-a-run).
+
 ### Workspace notifications
 
 **Workspace notifications** (on by default) sends a system notification when an agent in a Workspace tab finishes or asks you something while you are looking at another tab, another page or another app. See [Notifications and Telegram](notifications-telegram.md#workspace-notifications) for what the notification says and where a click takes you.

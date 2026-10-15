@@ -298,6 +298,34 @@ describe('settings migrations', () => {
     expect(settings.vaultLockOnSystemLock).toBe(false);
   });
 
+  describe('stopDockerWithRun', () => {
+    it('asks by default, so nothing is stopped without the user hearing about it', async () => {
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).stopDockerWithRun).toBe('ask');
+    });
+
+    it.each(['ask', 'stop', 'keep'] as const)('keeps a saved %s', async (mode) => {
+      userData.writeData('settings.json', { stopDockerWithRun: mode });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).stopDockerWithRun).toBe(mode);
+    });
+
+    it.each([
+      ['an unknown word', 'always'],
+      ['a boolean', true],
+      ['a number', 1],
+      ['null', null],
+    ])('falls back to asking for %s', async (_name, value) => {
+      userData.writeData('settings.json', { stopDockerWithRun: value });
+      const { store } = await loadStore();
+
+      // Stopping someone's database on the strength of a corrupted file would be worse than asking.
+      expect((await store.getSettings()).stopDockerWithRun).toBe('ask');
+    });
+  });
+
   it('keeps pipeline failure notices and click-to-open on for a profile that predates them', async () => {
     userData.writeData('settings.json', { theme: 'dark' });
     const { store } = await loadStore();

@@ -38,6 +38,7 @@ import { cn } from '@/lib/utils';
 import { useAgentStatusStore } from '@/stores/agentStatusStore';
 import { confirmDialog } from '@/stores/confirmStore';
 import { useRunningClisStore } from '@/stores/runningClisStore';
+import { stopRuns } from '@/stores/runSessionStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { terminalTabLabel, useWorkspaceStore } from '@/stores/workspaceStore';
 import {
@@ -337,7 +338,7 @@ export function RunningClisDialog(): React.JSX.Element {
   function endRow(row: RunningCli): void {
     if (row.source === 'workspace' && row.projectId) {
       useWorkspaceStore.getState().closeTab(row.projectId, row.id);
-    } else if (row.source === 'drawer' || row.source === 'ssh') {
+    } else if (row.source === 'ssh') {
       useTerminalStore.getState().closeSession(row.id);
     } else {
       void window.agentmat.terminal.kill(row.id);
@@ -372,7 +373,13 @@ export function RunningClisDialog(): React.JSX.Element {
     const ids = targets.map((row) => row.id);
     markPending(ids, true);
     try {
-      for (const row of targets) endRow(row);
+      // Drawer tabs go together so that the runs among them ask about their Docker containers
+      // once, not once each. This dialog already says "Ended N terminals", hence quiet.
+      stopRuns(
+        targets.filter((row) => row.source === 'drawer').map((row) => row.id),
+        { quiet: true },
+      );
+      for (const row of targets) if (row.source !== 'drawer') endRow(row);
       setSelected((current) => new Set([...current].filter((id) => !ids.includes(id))));
       toast.success(
         targets.length === 1 && only

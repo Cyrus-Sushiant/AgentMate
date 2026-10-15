@@ -89,6 +89,30 @@ Every project has its own **Docker** tab. It shows only the containers that were
 
 If the tab is empty, it says "No containers for this project". Run `docker compose up -d` in the project's folder to see them there, or use the Docker page in the sidebar to manage every container. See [Projects](projects.md).
 
+## When you stop a run
+
+Stopping a project's run ends its terminal and everything the terminal started, but it does not stop Docker containers. If the run was `docker compose up -d`, the containers keep running and keep using memory and CPU. So when you stop a run, AgentMate checks whether that project still has containers running and offers to stop them too.
+
+The run always stops first, straight away. Docker is checked in the background, so a slow or stopped Docker never makes the Stop button wait. If the project has no containers running, or Docker is not installed, nothing more happens and you see no message about Docker.
+
+This applies however you stop the run: the **Stop** button in the status bar, `Shift+F5`, closing the run's tab in the terminal drawer, or ending it from the running terminals list.
+
+If containers are still running, a dialog called **Stop the Docker containers too?** opens. It names the project and lists each container with its image and how long it has been up.
+
+- Every container starts ticked, so the usual answer is one click. Untick the ones to keep running, for example a database you want to leave up. **Select none** and **Select all** appear when there is more than one container.
+- **Stop 2 containers** (the number follows your ticks) stops the ticked containers. A toast shows progress and then says how many stopped, or how many failed.
+- **Keep running** leaves them all as they are. Pressing `Esc` or closing the dialog does the same.
+- Tick **Remember my choice** to stop being asked. Stop remembers "always stop them" and Keep running remembers "never stop them". Remembering is only available when you stop every container or keep them all, because "always" cannot mean a hand-picked few.
+
+The dialog never takes focus onto a button, so a stray Enter or Space while you type somewhere else cannot stop anything. Press `Tab` to move into it.
+
+Stopping two runs close together gives one dialog, not two.
+
+To change the remembered choice later, open **Settings**, **General**, and use **Docker containers when a run stops**. It can be **Ask me**, **Always stop them** or **Never stop them**. With **Never stop them**, AgentMate does not even look at Docker when a run stops. See [Settings](settings.md).
+
+> [!NOTE]
+> Only containers started with `docker compose` from the project's own folder are found, the same ones the project's Docker tab shows. A container started with plain `docker run`, or a Compose setup started from a different folder with `-f`, is not linked to the project, so it is left alone. Stop those from the Docker page.
+
 ## Tips
 
 - The Docker page and the project Docker tab share the same cards, so what you learn in one works in the other.

@@ -63,6 +63,7 @@ const settings = {
   terminalAiNotifications: true,
   checkToolUpdatesEnabled: true,
   startupPage: 'last',
+  stopDockerWithRun: 'ask',
 } as AppSettings;
 
 function renderSettings(bridge: Record<string, unknown> = {}, route = '/settings') {
@@ -370,6 +371,54 @@ describe('SettingsPage startup page', () => {
   it('can open on every page in the sidebar', () => {
     // main only accepts the pages in STARTUP_PAGES, so a new sidebar page has to be added there.
     expect(NAV_ITEMS.map((item) => item.to).filter((route) => !isStartupPage(route))).toEqual([]);
+  });
+});
+
+describe('SettingsPage Docker containers when a run stops', () => {
+  const TITLE = 'Docker containers when a run stops';
+
+  it('asks by default, and sits with the other behavior rows', async () => {
+    renderSettings();
+    await screen.findByText(TITLE);
+
+    const picker = within(card(TITLE)).getByRole('combobox', { name: TITLE });
+    expect(picker).toHaveTextContent('Ask me');
+    expect(card(TITLE)).toBe(card('Keep terminals running'));
+  });
+
+  it('shows the choice saved from the dialog', async () => {
+    renderSettings({ 'settings.get': { ...settings, stopDockerWithRun: 'keep' } });
+    await screen.findByText(TITLE);
+
+    expect(screen.getByRole('combobox', { name: TITLE })).toHaveTextContent('Never stop them');
+  });
+
+  it.each([
+    ['Always stop them', 'stop'],
+    ['Never stop them', 'keep'],
+    ['Ask me', 'ask'],
+  ] as const)('saves %s', async (label, mode) => {
+    const { user, bridge } = renderSettings({
+      'settings.get': { ...settings, stopDockerWithRun: mode === 'ask' ? 'stop' : 'ask' },
+    });
+    await screen.findByText(TITLE);
+
+    await user.click(screen.getByRole('combobox', { name: TITLE }));
+    await user.click(await screen.findByRole('option', { name: label }));
+
+    await waitFor(() =>
+      expect(bridge.$fn('settings.update')).toHaveBeenLastCalledWith({ stopDockerWithRun: mode }),
+    );
+  });
+
+  it.each(['docker', 'containers', 'compose'])('is found by searching for %s', async (query) => {
+    const { user } = renderSettings();
+    await screen.findByText(TITLE);
+
+    await user.type(screen.getByLabelText('Search settings'), query);
+
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
+    expect(screen.queryByText('Keep terminals running')).toBeNull();
   });
 });
 

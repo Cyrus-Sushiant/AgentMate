@@ -4,6 +4,7 @@ import type {
   MenuPosition,
   PingIpVersion,
   PingMethod,
+  RunDockerStopMode,
   StartupPage,
   ThemeMode,
 } from '@agentmat/core';
@@ -12,6 +13,7 @@ import {
   DEFAULT_GEMINI_API_MODEL,
   DEFAULT_OPENAI_API_MODEL,
   DEFAULT_WHISPER_MODEL,
+  isRunDockerStopMode,
   isStartupPage,
   WHISPER_MODELS,
 } from '@agentmat/core';
@@ -28,6 +30,7 @@ import {
   Blocks,
   CircleQuestion,
   Code,
+  Docker,
   Download,
   FolderOpen,
   GitBranch,
@@ -150,6 +153,12 @@ const STARTUP_PAGE_OPTIONS: ComboboxOption[] = [
     label: item.label,
     icon: <item.icon className="h-3.5 w-3.5" />,
   })),
+];
+
+const RUN_DOCKER_STOP_OPTIONS: ComboboxOption[] = [
+  { value: 'ask', label: 'Ask me' },
+  { value: 'stop', label: 'Always stop them' },
+  { value: 'keep', label: 'Never stop them' },
 ];
 
 const SETTINGS_TABS = [
@@ -296,6 +305,12 @@ const SECTIONS = {
     title: 'Keep terminals running',
     keywords: 'terminal shell sessions keep running background quit close exit restart update',
   },
+  stopDockerWithRun: {
+    tab: 'general',
+    title: 'Docker containers when a run stops',
+    keywords:
+      'docker containers compose stop run project resources memory cpu ask always never keep running',
+  },
   workspaceNotifications: {
     tab: 'general',
     title: 'Workspace notifications',
@@ -433,6 +448,7 @@ const SECTION_IDS = Object.keys(SECTIONS) as SectionId[];
 const BEHAVIOR_SECTIONS: SectionId[] = [
   'startupPage',
   'keepTerminals',
+  'stopDockerWithRun',
   'workspaceNotifications',
   'terminalAiNotifications',
   'toolUpdates',
@@ -865,6 +881,14 @@ export default function SettingsPage(): React.JSX.Element {
   const keepTerminalsMutation = useMutation({
     mutationFn: (keepTerminalsRunning: boolean) =>
       window.agentmat.settings.update({ keepTerminalsRunning }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+  });
+
+  const stopDockerWithRunMutation = useMutation({
+    mutationFn: (stopDockerWithRun: RunDockerStopMode) =>
+      window.agentmat.settings.update({ stopDockerWithRun }),
+    // The picker shows the choice, so there is no need for the loading overlay.
+    meta: { silentLoading: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
   });
 
@@ -1776,6 +1800,30 @@ export default function SettingsPage(): React.JSX.Element {
                             }
                             onCheckedChange={(checked) => keepTerminalsMutation.mutate(checked)}
                             aria-label="Keep terminals running after quitting"
+                          />
+                        }
+                      />
+                    ) : null}
+
+                    {show('stopDockerWithRun') ? (
+                      <SettingsRow
+                        icon={Docker}
+                        title="Docker containers when a run stops"
+                        description="Stopping a run does not stop the Docker containers it brought up, so they keep using memory in the background. Choose whether AgentMate asks, stops them for you or leaves them alone. Only containers started with Docker Compose from the project's folder are included."
+                        control={
+                          <Combobox
+                            ariaLabel="Docker containers when a run stops"
+                            className="w-56"
+                            value={
+                              stopDockerWithRunMutation.isPending
+                                ? stopDockerWithRunMutation.variables
+                                : settingsQuery.data.stopDockerWithRun
+                            }
+                            onChange={(value) => {
+                              if (isRunDockerStopMode(value))
+                                stopDockerWithRunMutation.mutate(value);
+                            }}
+                            options={RUN_DOCKER_STOP_OPTIONS}
                           />
                         }
                       />

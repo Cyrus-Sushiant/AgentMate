@@ -529,6 +529,8 @@ export const IPC = {
     availability: 'docker:availability',
     list: 'docker:list',
     listForProject: 'docker:listForProject',
+    /** What a project still has running, without usage stats, for the prompt after a run stops. */
+    runningForProject: 'docker:runningForProject',
     start: 'docker:start',
     stop: 'docker:stop',
     restart: 'docker:restart',

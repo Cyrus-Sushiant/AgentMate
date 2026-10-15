@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { extractLocalUrls, stripAnsi } from '@/lib/browser/devServers';
+import { offerStopContainers, type StoppedRun } from '@/lib/docker/offerStopContainers';
 import {
   type TerminalRunInfo,
   type TerminalSessionMeta,
@@ -104,12 +105,35 @@ export function runSessionsOf(sessions: readonly TerminalSessionMeta[]): RunSess
   );
 }
 
+/**
+ * Closes these tabs, which ends their shells and everything the shells started. For a run that
+ * is also the moment to ask about its Docker containers: ending the shell does not stop what
+ * `docker compose up -d` left running. The tabs close first and Docker is only consulted after,
+ * in the background, so a slow or stopped Docker never delays a stop.
+ *
+ * `quiet` leaves out the per-run "Stopped" toast, for a caller that reports on its own.
+ */
+export function stopRuns(sessionIds: readonly string[], { quiet = false } = {}): void {
+  const wanted = new Set(sessionIds);
+  const sessions = useTerminalStore.getState().sessions.filter((s) => wanted.has(s.id));
+  const stopped: StoppedRun[] = [];
+  for (const session of sessions) {
+    useTerminalStore.getState().closeSession(session.id);
+    if (!session.run) continue;
+    stopped.push({ cwd: session.cwd, title: session.title });
+    if (!quiet) toast.success(`Stopped "${session.run.label}"`);
+  }
+  if (stopped.length > 0) void offerStopContainers(stopped);
+}
+
 /** Closes a run's tab, which ends its shell and everything the shell started. */
 export function stopRun(sessionId: string): void {
-  const session = useTerminalStore.getState().sessions.find((s) => s.id === sessionId);
-  if (!session) return;
-  useTerminalStore.getState().closeSession(sessionId);
-  if (session.run) toast.success(`Stopped "${session.run.label}"`);
+  stopRuns([sessionId]);
+}
+
+/** Closing a drawer tab by hand: a run's tab is a stop, so it goes the same way. */
+export function closeTerminalTab(sessionId: string): void {
+  stopRuns([sessionId]);
 }
 
 /**

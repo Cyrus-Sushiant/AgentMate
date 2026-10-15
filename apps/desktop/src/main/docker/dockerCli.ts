@@ -11,6 +11,8 @@ const execFileAsync = promisify(execFile);
 const EXEC_TIMEOUT_MS = 10_000;
 /** `docker stats` has to actually sample usage once even with --no-stream, so it gets more room. */
 const STATS_TIMEOUT_MS = 15_000;
+/** For checks someone is waiting on, where a slow answer is as good as none. */
+const QUICK_EXEC_TIMEOUT_MS = 4_000;
 
 const KNOWN_STATES: DockerContainerState[] = [
   'running',
@@ -151,13 +153,7 @@ interface RawEntry {
   workingDir: string | null;
 }
 
-async function listRaw(): Promise<RawEntry[]> {
-  // `docker stats`'s Container field is the full container ID, while `ps`'s default .ID is
-  // truncated to 12 chars, so --no-trunc is required here or the two never merge.
-  const [psOutput, stats] = await Promise.all([
-    run(['ps', '-a', '--no-trunc', '--format', '{{json .}}']),
-    readStats(),
-  ]);
+function toRawEntries(psOutput: string, stats: Map<string, RawStatsEntry>): RawEntry[] {
   return parseNdjson<RawPsEntry>(psOutput).map((entry) => {
     const labels = parseLabels(entry.Labels);
     return {
@@ -165,6 +161,23 @@ async function listRaw(): Promise<RawEntry[]> {
       workingDir: labels['com.docker.compose.project.working_dir'] ?? null,
     };
   });
+}
+
+async function listRaw(): Promise<RawEntry[]> {
+  // `docker stats`'s Container field is the full container ID, while `ps`'s default .ID is
+  // truncated to 12 chars, so --no-trunc is required here or the two never merge.
+  const [psOutput, stats] = await Promise.all([
+    run(['ps', '-a', '--no-trunc', '--format', '{{json .}}']),
+    readStats(),
+  ]);
+  return toRawEntries(psOutput, stats);
+}
+
+function inFolder(entries: RawEntry[], folderPath: string): DockerContainer[] {
+  const target = normalizePath(folderPath);
+  return entries
+    .filter((entry) => entry.workingDir !== null && normalizePath(entry.workingDir) === target)
+    .map((entry) => entry.container);
 }
 
 export async function isDockerAvailable(): Promise<boolean> {
@@ -186,10 +199,29 @@ export async function listContainers(): Promise<DockerContainer[]> {
  * project's Docker tab, only in the machine-wide list.
  */
 export async function listContainersForProject(folderPath: string): Promise<DockerContainer[]> {
-  const target = normalizePath(folderPath);
-  return (await listRaw())
-    .filter((entry) => entry.workingDir !== null && normalizePath(entry.workingDir) === target)
-    .map((entry) => entry.container);
+  return inFolder(await listRaw(), folderPath);
+}
+
+/**
+ * What is still running for a project right after its run stopped, matched the same way as
+ * `listContainersForProject`. It skips `docker stats` (which waits for a usage sample, so usage
+ * stays null) and never throws: no Docker, a stopped daemon or a timeout all mean "nothing to
+ * offer", because a project that does not use Docker must never hear about it.
+ */
+export async function listRunningContainersForProject(
+  folderPath: string,
+): Promise<DockerContainer[]> {
+  try {
+    const output = await run(
+      ['ps', '--no-trunc', '--filter', 'status=running', '--format', '{{json .}}'],
+      QUICK_EXEC_TIMEOUT_MS,
+    );
+    return inFolder(toRawEntries(output, new Map()), folderPath).filter(
+      (container) => container.state === 'running',
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function startContainer(id: string): Promise<DockerActionResult> {

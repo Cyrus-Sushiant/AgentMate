@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installAgentmatBridge } from '../../../test/renderer/agentmatBridge';
 import {
+  closeTerminalTab,
   pickRunToStop,
   runSessionsOf,
   stopActiveRun,
   stopRun,
+  stopRuns,
   useRunSessionStore,
 } from './runSessionStore';
 import { type TerminalRunInfo, type TerminalSessionMeta, useTerminalStore } from './terminalStore';
 import { useWorkspaceStore } from './workspaceStore';
 
-const toast = vi.hoisted(() => ({ info: vi.fn(), success: vi.fn() }));
+const toast = vi.hoisted(() => ({
+  info: vi.fn(),
+  success: vi.fn(),
+  loading: vi.fn(() => 'toast-1'),
+  error: vi.fn(),
+}));
 vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 /**
@@ -192,5 +199,157 @@ describe('stopping', () => {
 
     expect(toast.info).toHaveBeenCalledWith('Nothing is running');
     expect(useTerminalStore.getState().sessions).toHaveLength(1);
+  });
+});
+
+describe('Docker containers a stopped run leaves behind', () => {
+  let runningForProject: ReturnType<typeof vi.fn>;
+
+  /** Lets the fire-and-forget offer run to its end before asserting that nothing happened. */
+  const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  beforeEach(() => {
+    runningForProject = vi.fn(async () => []);
+    bridge = installAgentmatBridge({ 'docker.runningForProject': runningForProject });
+  });
+
+  it('looks for the project containers in the folder the run was started in', async () => {
+    useTerminalStore.setState({
+      sessions: [session('dev', { title: 'Web Shop', cwd: 'E:\\shop', run: run() })],
+    });
+
+    stopRun('dev');
+
+    await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledWith('E:\\shop'));
+  });
+
+  it('ends the run first and never waits on Docker to do it', () => {
+    // Docker Desktop being slow or stopped must not make the Stop button feel stuck.
+    runningForProject.mockReturnValue(new Promise(() => undefined));
+    useTerminalStore.setState({
+      sessions: [session('dev', { cwd: 'E:\\shop', run: run('Dev') })],
+    });
+
+    stopRun('dev');
+
+    expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('dev');
+    expect(useTerminalStore.getState().sessions).toEqual([]);
+    expect(toast.success).toHaveBeenCalledWith('Stopped "Dev"');
+  });
+
+  it('does not look at Docker for a plain shell or an agent tab', async () => {
+    useTerminalStore.setState({ sessions: [session('shell', { cwd: 'E:\\shop' })] });
+
+    stopRun('shell');
+    await settle();
+
+    expect(useTerminalStore.getState().sessions).toEqual([]);
+    expect(runningForProject).not.toHaveBeenCalled();
+  });
+
+  it('does not look at Docker for a run that has no folder', async () => {
+    useTerminalStore.setState({ sessions: [session('dev', { run: run() })] });
+
+    stopRun('dev');
+    await settle();
+
+    expect(runningForProject).not.toHaveBeenCalled();
+  });
+
+  it('is asked about when the stop shortcut ends a run too', async () => {
+    useTerminalStore.setState({
+      sessions: [session('dev', { projectId: 'apollo', cwd: 'E:\\apollo', run: run() })],
+      activeSessionId: 'dev',
+      isOpen: true,
+    });
+    useWorkspaceStore.setState({ activeProjectId: 'apollo' });
+
+    stopActiveRun();
+
+    await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledWith('E:\\apollo'));
+  });
+
+  describe('stopRuns', () => {
+    const twoRuns = (): TerminalSessionMeta[] => [
+      session('web', { title: 'Web Shop', cwd: 'E:\\shop', run: run('Web') }),
+      session('api', { title: 'Web Shop', cwd: 'E:\\shop', run: run('Api') }),
+      session('other', { title: 'Docs', cwd: 'E:\\docs', run: run('Docs') }),
+      session('shell', { title: 'Terminal', cwd: 'E:\\shop' }),
+    ];
+
+    it('ends every tab it is given and leaves the rest alone', () => {
+      useTerminalStore.setState({ sessions: twoRuns() });
+
+      stopRuns(['web', 'api', 'shell']);
+
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('web');
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('api');
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('shell');
+      expect(useTerminalStore.getState().sessions.map((s) => s.id)).toEqual(['other']);
+    });
+
+    it('asks about each folder once, however many runs it had', async () => {
+      useTerminalStore.setState({ sessions: twoRuns() });
+
+      stopRuns(['web', 'api', 'other', 'shell']);
+
+      await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledTimes(2));
+      expect(runningForProject).toHaveBeenCalledWith('E:\\shop');
+      expect(runningForProject).toHaveBeenCalledWith('E:\\docs');
+    });
+
+    it('says "Stopped" for each run, unless the caller already has its own message', () => {
+      useTerminalStore.setState({ sessions: twoRuns() });
+      stopRuns(['web', 'api']);
+      expect(toast.success).toHaveBeenCalledWith('Stopped "Web"');
+      expect(toast.success).toHaveBeenCalledWith('Stopped "Api"');
+
+      toast.success.mockClear();
+      stopRuns(['other'], { quiet: true });
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('still asks about Docker when it was quiet about the runs', async () => {
+      useTerminalStore.setState({ sessions: twoRuns() });
+
+      stopRuns(['other'], { quiet: true });
+
+      await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledWith('E:\\docs'));
+    });
+
+    it('ignores ids that are already gone', async () => {
+      useTerminalStore.setState({ sessions: twoRuns() });
+
+      stopRuns(['missing']);
+      await settle();
+
+      expect(runningForProject).not.toHaveBeenCalled();
+      expect(useTerminalStore.getState().sessions).toHaveLength(4);
+    });
+  });
+
+  describe('closeTerminalTab', () => {
+    it('treats closing a run tab as stopping the run', async () => {
+      useTerminalStore.setState({
+        sessions: [session('dev', { cwd: 'E:\\shop', run: run('Dev') })],
+      });
+
+      closeTerminalTab('dev');
+
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('dev');
+      expect(toast.success).toHaveBeenCalledWith('Stopped "Dev"');
+      await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledWith('E:\\shop'));
+    });
+
+    it('closes any other tab without a word and without asking about Docker', async () => {
+      useTerminalStore.setState({ sessions: [session('shell', { cwd: 'E:\\shop' })] });
+
+      closeTerminalTab('shell');
+      await settle();
+
+      expect(bridge.$fn('terminal.kill')).toHaveBeenCalledWith('shell');
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(runningForProject).not.toHaveBeenCalled();
+    });
   });
 });

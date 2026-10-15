@@ -119,6 +119,40 @@ describe('TerminalDrawer shell', () => {
     expect(screen.getAllByTestId('terminal-pane')).toHaveLength(2);
   });
 
+  it('treats closing a run tab as stopping the run, and offers its Docker containers', async () => {
+    const runningForProject = vi.fn(async () => []);
+    installAgentmatBridge({ 'docker.runningForProject': runningForProject });
+    useTerminalStore.setState({
+      sessions: [
+        { id: 's1', kind: 'local', title: 'PowerShell', cwd: 'E:\\shop' },
+        {
+          id: 'dev',
+          kind: 'local',
+          title: 'Web Shop',
+          cwd: 'E:\\shop',
+          run: {
+            commandId: 'dev',
+            label: 'Dev',
+            command: 'docker compose up -d',
+            kind: 'web',
+            startedAt: 1,
+          },
+        },
+      ],
+      activeSessionId: 's1',
+    });
+    renderDrawer();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close PowerShell' }));
+    // A plain shell is just closed: there is no run whose containers could be left behind.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(runningForProject).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Web Shop' }));
+    await vi.waitFor(() => expect(runningForProject).toHaveBeenCalledWith('E:\\shop'));
+    expect(useTerminalStore.getState().sessions).toEqual([]);
+  });
+
   it('stays hidden while asked to, even when open', () => {
     const { shell } = renderDrawer({ hidden: true });
     expect(shell()).toHaveClass('hidden');

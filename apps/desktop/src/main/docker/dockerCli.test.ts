@@ -3,6 +3,7 @@ import {
   isDockerAvailable,
   listContainers,
   listContainersForProject,
+  listRunningContainersForProject,
   removeContainer,
   restartContainer,
   startContainer,
@@ -281,6 +282,85 @@ describe('listContainersForProject', () => {
 
   it('returns nothing for an unrelated folder', async () => {
     await expect(listContainersForProject('/home/me/projects/other')).resolves.toEqual([]);
+  });
+});
+
+describe('listRunningContainersForProject', () => {
+  beforeEach(() => {
+    execState.byCommand.set('ps', { stdout: PS_OUTPUT });
+    execState.byCommand.set('stats', { stdout: STATS_OUTPUT });
+  });
+
+  it('asks docker for running containers only, without sampling stats', async () => {
+    await listRunningContainersForProject('/home/me/projects/agentmate');
+
+    // `docker stats` waits for a usage sample, which would hold the stop prompt back for seconds.
+    expect(argsFor('stats')).toBeUndefined();
+    expect(argsFor('ps')).toEqual([
+      'ps',
+      '--no-trunc',
+      '--filter',
+      'status=running',
+      '--format',
+      '{{json .}}',
+    ]);
+    expect(execState.calls[0].file).toBe('docker');
+    expect(execState.calls[0].options.windowsHide).toBe(true);
+  });
+
+  it('gives up sooner than the regular listing, so a hung daemon cannot linger', async () => {
+    await listRunningContainersForProject('/home/me/projects/agentmate');
+
+    expect(execState.calls[0].options.timeout).toBe(4_000);
+  });
+
+  it('returns only running containers that compose started in that folder', async () => {
+    const containers = await listRunningContainersForProject('/home/me/projects/agentmate');
+
+    // The exited cache container shares the folder but is not using anything; nginx has no folder.
+    expect(containers.map((one) => one.name)).toEqual(['agentmate-db-1']);
+  });
+
+  it('leaves usage null because it never asked for stats', async () => {
+    const [db] = await listRunningContainersForProject('/home/me/projects/agentmate');
+
+    expect(db.state).toBe('running');
+    expect(db.status).toBe('Up 2 hours');
+    expect(db.cpuPercent).toBeNull();
+    expect(db.memUsedBytes).toBeNull();
+  });
+
+  it.each([
+    '/home/me/projects/agentmate/',
+    '\\home\\me\\projects\\agentmate',
+    '/HOME/ME/Projects/AgentMate',
+  ])('matches %s despite separator, case and trailing slash differences', async (folder) => {
+    await expect(listRunningContainersForProject(folder)).resolves.toHaveLength(1);
+  });
+
+  it('returns nothing for an unrelated folder', async () => {
+    await expect(listRunningContainersForProject('/home/me/projects/other')).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['docker is not installed', { message: 'spawn docker ENOENT' }],
+    ['the daemon is not running', { message: 'failed', stderr: 'error during connect' }],
+    ['docker ps times out', { message: 'Command failed: timed out' }],
+  ])('returns nothing instead of throwing when %s', async (_name, error) => {
+    execState.byCommand.set('ps', { error });
+
+    // A project that does not use Docker must never see a prompt or an error about it.
+    await expect(listRunningContainersForProject('/home/me/projects/agentmate')).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('returns nothing when docker prints something that is not json', async () => {
+    execState.byCommand.set('ps', { stdout: 'not json at all' });
+
+    await expect(listRunningContainersForProject('/home/me/projects/agentmate')).resolves.toEqual(
+      [],
+    );
   });
 });
 

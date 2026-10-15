@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 import { ConfirmDialogHost } from './components/ConfirmDialog';
+import { StopContainersDialogHost } from './components/docker/StopContainersDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WritingMenuHost } from './components/grammar/WritingMenuHost';
 import { AppShell } from './components/layout/AppShell';
@@ -89,6 +90,7 @@ function AppChrome(): React.JSX.Element | null {
     <>
       <AppToaster />
       <ConfirmDialogHost />
+      <StopContainersDialogHost />
       <HostKeyChangedDialogHost />
       <QuitConfirmation />
       <ImageViewerHost />

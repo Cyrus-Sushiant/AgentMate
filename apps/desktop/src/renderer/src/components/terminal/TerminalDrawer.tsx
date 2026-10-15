@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { closeTerminalTab } from '@/stores/runSessionStore';
 import { useShortcutLabel } from '@/stores/shortcutStore';
 import { isSshAgentWaitingOnUser, useSshAgentStore } from '@/stores/sshAgentStore';
 import {
@@ -284,7 +285,6 @@ export function TerminalDrawer({
   const sessions = useTerminalStore((s) => s.sessions);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
   const setActiveSession = useTerminalStore((s) => s.setActiveSession);
-  const closeSession = useTerminalStore((s) => s.closeSession);
   const forgetSession = useTerminalStore((s) => s.forgetSession);
   const openDefaultSession = useTerminalStore((s) => s.openDefaultSession);
   const closeDrawer = useTerminalStore((s) => s.closeDrawer);
@@ -416,7 +416,7 @@ export function TerminalDrawer({
               sessions={sessions}
               activeSessionId={activeSessionId}
               onSelect={setActiveSession}
-              onClose={closeSession}
+              onClose={closeTerminalTab}
             />
           )}
           {sessions.length === 0 && <div className="flex-1" />}

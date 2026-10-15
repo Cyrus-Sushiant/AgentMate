@@ -39,6 +39,7 @@ import {
   defaultUsageResetAlerts,
   defaultUsageThresholdAlerts,
   isMenuPosition,
+  isRunDockerStopMode,
   isStartupPage,
   isThemeMode,
   normalizeCliArgs,
@@ -212,6 +213,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   desktopPetNetworkQuality: false,
   desktopPetAgentStatus: false,
   keepTerminalsRunning: true,
+  stopDockerWithRun: 'ask',
   workspaceNotifications: true,
   terminalAiNotifications: true,
   keepAwake: 'agent',
@@ -336,6 +338,9 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     usageThresholdAlerts: normalizeUsageThresholdAlerts(settings.usageThresholdAlerts),
     statusBarUsage: normalizeStatusBarUsage(settings.statusBarUsage),
     keepTerminalsRunning: settings.keepTerminalsRunning !== false,
+    stopDockerWithRun: isRunDockerStopMode(settings.stopDockerWithRun)
+      ? settings.stopDockerWithRun
+      : 'ask',
     workspaceNotifications: settings.workspaceNotifications !== false,
     terminalAiNotifications: settings.terminalAiNotifications !== false,
     checkToolUpdatesEnabled: settings.checkToolUpdatesEnabled !== false,

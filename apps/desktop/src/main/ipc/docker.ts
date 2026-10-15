@@ -9,6 +9,7 @@ import {
   isDockerAvailable,
   listContainers,
   listContainersForProject,
+  listRunningContainersForProject,
   removeContainer,
   restartContainer,
   startContainer,
@@ -24,6 +25,12 @@ export function registerDockerHandlers(): void {
     IPC.docker.listForProject,
     (_event, folderPath: string): Promise<DockerContainer[]> =>
       listContainersForProject(folderPath),
+  );
+
+  ipcMain.handle(
+    IPC.docker.runningForProject,
+    (_event, folderPath: string): Promise<DockerContainer[]> =>
+      listRunningContainersForProject(folderPath),
   );
 
   ipcMain.handle(

@@ -405,6 +405,17 @@ export interface SecurityScannerSettings {
  */
 export type KeepAwakeMode = 'on' | 'agent' | 'off';
 
+/**
+ * What to do about a project's Docker containers when its run is stopped and they are still
+ * running: ask each time, stop them without asking, or leave them alone.
+ */
+export const RUN_DOCKER_STOP_MODES = ['ask', 'stop', 'keep'] as const;
+export type RunDockerStopMode = (typeof RUN_DOCKER_STOP_MODES)[number];
+
+export function isRunDockerStopMode(value: unknown): value is RunDockerStopMode {
+  return RUN_DOCKER_STOP_MODES.includes(value as RunDockerStopMode);
+}
+
 export interface AppSettings {
   defaultCliId: string | null;
   /**
@@ -621,6 +632,11 @@ export interface AppSettings {
    * them, whatever this is set to.
    */
   keepTerminalsRunning: boolean;
+  /**
+   * What happens to a project's Docker containers when its run is stopped and they are still
+   * running. The run itself always stops straight away; this only decides about the containers.
+   */
+  stopDockerWithRun: RunDockerStopMode;
   /**
    * When true, an agent in a Workspace tab that finishes or asks a question while you are
    * looking elsewhere raises a system notification.

@@ -942,6 +942,8 @@ const docker = {
   list: (): Promise<DockerContainer[]> => ipcRenderer.invoke(IPC.docker.list),
   listForProject: (folderPath: string): Promise<DockerContainer[]> =>
     ipcRenderer.invoke(IPC.docker.listForProject, folderPath),
+  runningForProject: (folderPath: string): Promise<DockerContainer[]> =>
+    ipcRenderer.invoke(IPC.docker.runningForProject, folderPath),
   start: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.start, id),
   stop: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.stop, id),
   restart: (id: string): Promise<DockerActionResult> => ipcRenderer.invoke(IPC.docker.restart, id),
