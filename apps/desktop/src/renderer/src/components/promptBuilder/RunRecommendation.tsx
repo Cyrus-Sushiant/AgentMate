@@ -481,7 +481,7 @@ function RunResult({
   state: RunRecommendationState;
   recommendation: RunRecommendation;
 }): React.JSX.Element | null {
-  const { choice, isCustom, isStale, selectModel, selectEffort, reset, args } = state;
+  const { choice, isStale, selectModel, selectEffort, reset, args } = state;
   const { profile, assessment, recommended } = recommendation;
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -494,6 +494,9 @@ function RunResult({
 
   if (!choice) return null;
 
+  // Each section offers the reset when its own pick differs. Reset always puts back both.
+  const modelChanged = choice.model.id !== recommended.model.id;
+  const effortChanged = choice.effort !== recommended.effort;
   const costLevel = relativeCostLevel(profile, choice);
   const price = choice.model.pricingId ? getModelPrice(choice.model.pricingId) : null;
   // While stale the hook withholds args (so Send to CLI won't use them), but the command
@@ -517,7 +520,7 @@ function RunResult({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className={sectionLabelClass}>Model</span>
-          {isCustom && (
+          {modelChanged && (
             <button type="button" onClick={reset} className={quietButtonClass}>
               <Undo className="h-2.5 w-2.5" /> Use recommended
             </button>
@@ -572,7 +575,14 @@ function RunResult({
       </div>
 
       <div className="space-y-1.5">
-        <span className={sectionLabelClass}>Effort</span>
+        <div className="flex items-center justify-between">
+          <span className={sectionLabelClass}>Effort</span>
+          {effortChanged && (
+            <button type="button" onClick={reset} className={quietButtonClass}>
+              <Undo className="h-2.5 w-2.5" /> Use recommended
+            </button>
+          )}
+        </div>
         {choice.model.efforts?.length ? (
           <div
             role="radiogroup"

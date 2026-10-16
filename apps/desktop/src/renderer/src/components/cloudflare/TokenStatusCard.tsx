@@ -1,5 +1,5 @@
 import { missingPermissionLabels, TOKEN_PAGE } from '@shared/cloudflare/permissions';
-import type { CloudflareStatus } from '@shared/cloudflareTypes';
+import type { CloudflareAccountStatus } from '@shared/cloudflareTypes';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -15,23 +15,24 @@ import { CloudflareMark } from './CloudflareMark';
 import { CardBody, CloudflareCard, Notice } from './fields';
 import { PermissionList } from './PermissionList';
 
-const NOT_CONFIGURED: CloudflareStatus = { configured: false, locked: false, report: null };
-
 /**
- * The saved token: whether Cloudflare still takes it, what it may do, and when something is
- * missing, the exact permissions to add on Cloudflare (AC1) with a way to check again after.
- * Editing a token's permissions keeps its value, so nothing needs pasting again.
+ * One account's saved token: whether Cloudflare still takes it, what it may do, and when
+ * something is missing, the exact permissions to add on Cloudflare (AC1) with a way to check again
+ * after. Editing a token's permissions keeps its value, so nothing needs pasting again.
  */
 export function TokenStatusCard({
-  status,
+  account,
+  showName,
   onReplace,
 }: {
-  status: CloudflareStatus;
+  account: CloudflareAccountStatus;
+  /** Put the account's name in the title, for when more than one is connected. */
+  showName: boolean;
   onReplace: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
-  const report = status.report;
+  const report = account.report;
   const missing = (report?.permissions ?? [])
     .filter((check) => check.state === 'missing')
     .map((check) => check.id);
@@ -42,7 +43,7 @@ export function TokenStatusCard({
   async function checkAgain(): Promise<void> {
     setChecking(true);
     try {
-      const next = await window.agentmat.cloudflare.checkToken();
+      const next = await window.agentmat.cloudflare.checkToken(account.id);
       queryClient.setQueryData(queryKeys.cloudflareStatus, next);
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloudflareData });
       toast.success('Checked the token again.');
@@ -55,18 +56,17 @@ export function TokenStatusCard({
 
   async function remove(): Promise<void> {
     const confirmed = await confirmDialog({
-      title: 'Remove the Cloudflare token?',
-      description:
-        'AgentMate forgets the token and stops managing your domains. The token keeps working on Cloudflare until you delete it there.',
+      title: showName ? `Remove ${account.label}?` : 'Remove the Cloudflare token?',
+      description: `AgentMate forgets the token and stops managing ${showName ? 'the domains of this account' : 'your domains'}. The token keeps working on Cloudflare until you delete it there.`,
       confirmLabel: 'Remove the token',
       variant: 'destructive',
     });
     if (!confirmed) return;
     try {
-      await window.agentmat.cloudflare.removeToken();
-      queryClient.setQueryData(queryKeys.cloudflareStatus, NOT_CONFIGURED);
+      const next = await window.agentmat.cloudflare.removeToken(account.id);
+      queryClient.setQueryData(queryKeys.cloudflareStatus, next);
       queryClient.removeQueries({ queryKey: queryKeys.cloudflareData });
-      toast.success('Removed the Cloudflare token.');
+      toast.success(showName ? `Removed ${account.label}.` : 'Removed the Cloudflare token.');
     } catch (error) {
       toast.error(cloudflareFailureText(error, queryClient));
     }
@@ -103,7 +103,7 @@ export function TokenStatusCard({
   return (
     <CloudflareCard
       icon={<CloudflareMark />}
-      title="Cloudflare token"
+      title={showName ? account.label : 'Cloudflare token'}
       extra={badge}
       description={
         report

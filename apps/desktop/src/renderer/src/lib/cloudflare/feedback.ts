@@ -27,11 +27,18 @@ export function cloudflareFailureText(error: unknown, queryClient: QueryClient):
  * per failure (from an effect, so rendering itself never starts a fetch).
  */
 export function useCloudflareError(error: unknown): string | null {
+  return useCloudflareErrors([error])[0] ?? null;
+}
+
+/** The same for several queries at once, such as one per connected account. */
+export function useCloudflareErrors(errors: readonly unknown[]): (string | null)[] {
   const queryClient = useQueryClient();
+  const aboutToken = errors.some((error) => error && aboutTheToken(error));
+  const signature = errors.map((error) => (error ? cloudflareErrorMessage(error) : '')).join('\n');
   useEffect(() => {
-    if (error && aboutTheToken(error)) {
+    if (aboutToken) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloudflareStatus });
     }
-  }, [error, queryClient]);
-  return error ? cloudflareErrorMessage(error) : null;
+  }, [aboutToken, signature, queryClient]);
+  return errors.map((error) => (error ? cloudflareErrorMessage(error) : null));
 }

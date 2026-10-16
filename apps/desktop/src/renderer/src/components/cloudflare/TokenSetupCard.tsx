@@ -5,6 +5,7 @@ import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, Key, Spinner } from '@/components/icons';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SecretInput } from '@/components/ui/secret-input';
 import { queryKeys } from '@/lib/queryKeys';
@@ -43,16 +44,24 @@ function Step({
  * and sealed, and the field is emptied right after.
  */
 export function TokenSetupCard({
+  account,
+  additional = false,
   onCancel,
   onSaved,
 }: {
-  /** When a token is already saved: go back to it without replacing it. */
+  /** Replacing this account's token, rather than connecting an account. */
+  account?: { id: string; label: string };
+  /** Connecting one more account while others are already connected. */
+  additional?: boolean;
+  /** When an account is already connected: go back to it without saving anything. */
   onCancel?: () => void;
   onSaved?: () => void;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const fieldId = useId();
+  const nameId = useId();
   const [token, setToken] = useState('');
+  const [name, setName] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -67,12 +76,20 @@ export function TokenSetupCard({
     setBusy(true);
     setProblem(null);
     try {
-      const status = await window.agentmat.cloudflare.saveToken(pasted);
+      const typedName = name.trim();
+      const status = await window.agentmat.cloudflare.saveToken({
+        token: pasted,
+        ...(account ? { accountId: account.id } : {}),
+        ...(!account && typedName !== '' ? { label: typedName } : {}),
+      });
       setToken('');
+      setName('');
       queryClient.setQueryData(queryKeys.cloudflareStatus, status);
       // A different token can see different zones.
       queryClient.removeQueries({ queryKey: queryKeys.cloudflareData });
-      toast.success('Cloudflare is connected.');
+      toast.success(
+        account ? `Replaced the token for ${account.label}.` : 'Cloudflare account connected.',
+      );
       onSaved?.();
     } catch (error) {
       setProblem(cloudflareErrorMessage(error));
@@ -84,8 +101,18 @@ export function TokenSetupCard({
   return (
     <CloudflareCard
       icon={<CloudflareMark />}
-      title="Connect Cloudflare"
-      description="AgentMate manages your domains with an API token that can only do what is listed below. The token stays on this computer, sealed like your server passwords, and is never shown again."
+      title={
+        account
+          ? `Replace the token for ${account.label}`
+          : additional
+            ? 'Connect another Cloudflare account'
+            : 'Connect Cloudflare'
+      }
+      description={
+        additional
+          ? 'Each Cloudflare account gets its own API token, made on that account. Its domains then show up beside the others. The token stays on this computer, sealed like your server passwords, and is never shown again.'
+          : 'AgentMate manages your domains with an API token that can only do what is listed below. The token stays on this computer, sealed like your server passwords, and is never shown again.'
+      }
     >
       <CardBody>
         <ol className="space-y-6">
@@ -107,6 +134,18 @@ export function TokenSetupCard({
           </Step>
           <Step number={2} title="Paste the token here">
             <form onSubmit={(event) => void save(event)} className="space-y-3">
+              {!account && (
+                <div className="space-y-1.5">
+                  <Label htmlFor={nameId}>Name (optional)</Label>
+                  <Input
+                    id={nameId}
+                    value={name}
+                    maxLength={60}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="For example Work, or the client's name"
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor={fieldId}>API token</Label>
                 <SecretInput
@@ -139,7 +178,7 @@ export function TokenSetupCard({
                 </Button>
                 {onCancel && (
                   <Button type="button" variant="soft" size="sm" onClick={onCancel}>
-                    Keep the current token
+                    {account ? 'Keep the current token' : 'Cancel'}
                   </Button>
                 )}
               </div>

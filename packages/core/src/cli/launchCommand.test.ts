@@ -87,25 +87,25 @@ describe('buildAgentLaunchCommand', () => {
     ).toBe('codex resume abc-123 --sandbox read-only');
   });
 
-  it('leaves an effort off for a model that has none', () => {
+  it('keeps the effort for Haiku, which takes the same levels as the other Claude models', () => {
     expect(
       buildAgentLaunchCommand({
         cliId: 'claude-code',
         shellKind: 'posix',
         launchDefaults: { model: 'haiku', effort: 'high' },
       }),
-    ).toBe('claude --model haiku');
+    ).toBe('claude --model haiku --effort high');
   });
 
   it('leaves a launch default effort off when the picked model has none', () => {
     expect(
       buildAgentLaunchCommand({
-        cliId: 'claude-code',
+        cliId: 'gemini-cli',
         shellKind: 'posix',
         launchDefaults: { effort: 'high' },
-        runArgs: ['--model', 'haiku'],
+        runArgs: ['--model', 'gemini-3.8-flash'],
       }),
-    ).toBe('claude --model haiku');
+    ).toBe('gemini --model gemini-3.8-flash');
   });
 
   it('returns null for a CLI it does not know', () => {

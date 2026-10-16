@@ -32,10 +32,19 @@ describe('launchDefaultArgs', () => {
     expect(launchDefaultArgs('gemini-cli', { mode: 'yolo' })).toEqual(['--approval-mode', 'yolo']);
   });
 
-  it('leaves off an effort the chosen model has no setting for', () => {
+  it('keeps an effort for Haiku, which takes the same levels as the other Claude models', () => {
     expect(launchDefaultArgs('claude-code', { model: 'haiku', effort: 'high' })).toEqual([
       '--model',
       'haiku',
+      '--effort',
+      'high',
+    ]);
+  });
+
+  it('leaves off an effort the chosen model has no setting for', () => {
+    expect(launchDefaultArgs('gemini-cli', { model: 'gemini-3.8-flash', effort: 'high' })).toEqual([
+      '--model',
+      'gemini-3.8-flash',
     ]);
   });
 

@@ -5,6 +5,7 @@ import { PANEL_WIDTHS, usePanelWidthStore } from '@/stores/panelWidthStore';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 import {
   A_RECORD,
+  ACCOUNT,
   CONNECTED,
   ipcError,
   OTHER_ZONE,
@@ -23,7 +24,7 @@ vi.mock('sonner', () => ({ toast }));
 
 const { default: CloudflarePage } = await import('./CloudflarePage');
 
-const NOTHING: CloudflareStatus = { configured: false, locked: false, report: null };
+const NOTHING: CloudflareStatus = { configured: false, locked: false, accounts: [] };
 
 function renderPage(bridge: Record<string, unknown> = {}, route = '/deploy/cloudflare') {
   return renderWithProviders(<CloudflarePage />, {
@@ -166,7 +167,7 @@ describe('CloudflarePage', () => {
     const { user } = renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Replace token' }));
-    expect(await screen.findByText('Connect Cloudflare')).toBeInTheDocument();
+    expect(await screen.findByText('Replace the token for Cloudflare')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep the current token' }));
     expect(await screen.findByText('Cloudflare token')).toBeInTheDocument();
   });
@@ -214,5 +215,86 @@ describe('CloudflarePage', () => {
     expect(await screen.findByText('Could not reach Cloudflare.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
+  });
+
+  describe('with several accounts', () => {
+    const SECOND_ZONE = { ...OTHER_ZONE, accountId: 'acct-2' };
+    const TWO: CloudflareStatus = {
+      configured: true,
+      locked: false,
+      accounts: [ACCOUNT, { ...ACCOUNT, id: 'acct-2', label: 'Client Co' }],
+    };
+    const several = {
+      'cloudflare.status': async () => TWO,
+      'cloudflare.listZones': async (accountId: string) =>
+        accountId === 'acct-2' ? [SECOND_ZONE] : [ZONE],
+    };
+
+    it('groups the domains under the account that holds them', async () => {
+      renderPage(several);
+
+      const rail = await screen.findByRole('navigation', { name: 'Zones' });
+      const work = await within(rail).findByRole('region', { name: 'Cloudflare' });
+      const client = within(rail).getByRole('region', { name: 'Client Co' });
+      expect(await within(work).findByText('example.com')).toBeInTheDocument();
+      expect(await within(client).findByText('example.org')).toBeInTheDocument();
+      expect(within(work).queryByText('example.org')).toBeNull();
+    });
+
+    it('asks each account for its own zones', async () => {
+      const { bridge } = renderPage(several);
+      await screen.findByRole('heading', { name: 'example.com' });
+      expect(bridge.$fn('cloudflare.listZones')).toHaveBeenCalledWith('acct-1');
+      expect(bridge.$fn('cloudflare.listZones')).toHaveBeenCalledWith('acct-2');
+    });
+
+    it('shows the token card of the account that holds the open zone', async () => {
+      const { user } = renderPage(several);
+      const rail = await screen.findByRole('navigation', { name: 'Zones' });
+
+      expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
+      expect(screen.getAllByText('Client Co')).toHaveLength(1);
+      await user.click(await within(rail).findByRole('button', { name: /example.org/ }));
+
+      expect(await screen.findByRole('heading', { name: 'example.org' })).toBeInTheDocument();
+      expect(screen.getAllByText('Client Co')).toHaveLength(2);
+    });
+
+    it('keeps the other accounts domains when one account fails', async () => {
+      renderPage({
+        ...several,
+        'cloudflare.listZones': async (accountId: string) => {
+          if (accountId === 'acct-2') throw ipcError('listZones', 'Could not reach Cloudflare.');
+          return [ZONE];
+        },
+      });
+
+      expect(await screen.findByText('Could not reach Cloudflare.')).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
+    });
+
+    it('adds another account from the rail, and goes back without saving', async () => {
+      const { user } = renderPage(several);
+
+      await user.click(await screen.findByRole('button', { name: 'Add account' }));
+      expect(await screen.findByText('Connect another Cloudflare account')).toBeInTheDocument();
+      expect(screen.getByLabelText('Name (optional)')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      expect(await screen.findByRole('navigation', { name: 'Zones' })).toBeInTheDocument();
+    });
+
+    it('lets the first account be added from the one-column view too', async () => {
+      const { user } = renderPage({
+        ...several,
+        'cloudflare.status': async () => ({ ...TWO, locked: true }),
+        'ssh.vaultStatus': async () => ({ hasPasskey: true, unlocked: false }),
+      });
+
+      expect(await screen.findByText(/locked with a passkey/)).toBeInTheDocument();
+      expect(screen.getByText('Client Co')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Add another account' }));
+      expect(await screen.findByText('Connect another Cloudflare account')).toBeInTheDocument();
+    });
   });
 });

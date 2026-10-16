@@ -92,30 +92,35 @@ function ZoneRow({
   );
 }
 
-/** Every zone the token can see, so the one being managed is always in view. */
-export function ZoneRail({
-  zones,
-  error,
-  selectedId,
-  onSelect,
-  onRetry,
-}: {
+/** One account's zones as the rail shows them: loading, failed, or the list (possibly empty). */
+export interface ZoneGroup {
+  accountId: string;
+  label: string;
   /** Undefined while the list loads. */
   zones: CloudflareZone[] | undefined;
   error: string | null;
-  selectedId: string | null;
-  onSelect: (zoneId: string) => void;
   onRetry: () => void;
+}
+
+function GroupContent({
+  group,
+  selectedId,
+  onSelect,
+}: {
+  group: ZoneGroup;
+  selectedId: string | null;
+  onSelect: (zone: CloudflareZone) => void;
 }): React.JSX.Element {
-  let content: React.ReactNode;
+  const { zones, error } = group;
   if (error) {
-    content = (
+    return (
       <div className="px-1">
-        <Problem message={error} onRetry={onRetry} />
+        <Problem message={error} onRetry={group.onRetry} />
       </div>
     );
-  } else if (!zones) {
-    content = (
+  }
+  if (!zones) {
+    return (
       <div className="space-y-1 px-1">
         {Array.from({ length: 3 }, (_, index) => (
           <div key={index} className="flex items-center gap-2.5 px-1.5 py-1.5">
@@ -128,8 +133,9 @@ export function ZoneRail({
         ))}
       </div>
     );
-  } else if (zones.length === 0) {
-    content = (
+  }
+  if (zones.length === 0) {
+    return (
       <EmptyState
         size="sm"
         icon={Globe}
@@ -137,37 +143,72 @@ export function ZoneRail({
         description="This token cannot see any domains yet. Add a domain on Cloudflare, or include it under Zone Resources on the token."
       />
     );
-  } else {
-    content = (
-      <ul className="flex flex-col gap-px">
-        {zones.map((zone) => (
-          <li key={zone.id}>
-            <ZoneRow
-              zone={zone}
-              selected={zone.id === selectedId}
-              onSelect={() => onSelect(zone.id)}
-            />
-          </li>
-        ))}
-      </ul>
-    );
   }
+  return (
+    <ul className="flex flex-col gap-px">
+      {zones.map((zone) => (
+        <li key={zone.id}>
+          <ZoneRow zone={zone} selected={zone.id === selectedId} onSelect={() => onSelect(zone)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
+/**
+ * Every zone the connected tokens can see, so the one being managed is always in view. With more
+ * than one account the zones sit under the account's name, and picking the name opens that
+ * account's token card.
+ */
+export function ZoneRail({
+  groups,
+  selectedId,
+  onSelect,
+  onManageAccount,
+}: {
+  groups: ZoneGroup[];
+  selectedId: string | null;
+  onSelect: (zone: CloudflareZone) => void;
+  onManageAccount: (accountId: string) => void;
+}): React.JSX.Element {
+  const loading = groups.some((group) => !group.zones && !group.error);
+  const total = groups.reduce((sum, group) => sum + (group.zones?.length ?? 0), 0);
+  const counted = groups.every((group) => group.zones);
+  const grouped = groups.length > 1;
   return (
     <nav
       aria-label="Zones"
-      aria-busy={!zones && !error ? 'true' : undefined}
+      aria-busy={loading ? 'true' : undefined}
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className="flex h-10 shrink-0 items-center gap-2 pl-3.5 pr-3">
         <h2 className={cn(SECTION_HEADING, 'min-w-0 flex-1 truncate')}>Domains</h2>
-        {zones && (
+        {counted && (
           <span className="rounded-full bg-foreground/[0.06] px-1.5 text-[10px] leading-4 tabular-nums text-muted-foreground">
-            {zones.length}
+            {total}
           </span>
         )}
       </div>
-      <div className="rail-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">{content}</div>
+      <div className="rail-scroll min-h-0 flex-1 space-y-2 overflow-y-auto px-2 pb-2">
+        {groups.map((group) => (
+          <section
+            key={group.accountId}
+            aria-label={grouped ? group.label : undefined}
+            className="space-y-0.5"
+          >
+            {grouped && (
+              <button
+                type="button"
+                onClick={() => onManageAccount(group.accountId)}
+                className="block w-full cursor-pointer truncate rounded-md px-2.5 py-1 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {group.label}
+              </button>
+            )}
+            <GroupContent group={group} selectedId={selectedId} onSelect={onSelect} />
+          </section>
+        ))}
+      </div>
     </nav>
   );
 }

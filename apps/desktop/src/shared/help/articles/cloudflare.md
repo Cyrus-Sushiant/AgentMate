@@ -7,7 +7,7 @@ keywords: cloudflare, dns, domain, zone, api token, records, proxy, orange cloud
 route: /deploy/cloudflare
 ---
 
-The Cloudflare page manages your domains on Cloudflare without leaving AgentMate. You connect it once with an API token, then pick a domain (a zone) to edit its DNS records, its settings, its cache and its security rules. It also links Cloudflare to your servers in Deploy: you can point a domain at a server in one step, give a server a DNS token for wildcard certificates, install a Cloudflare Origin CA certificate, and lock a server so only Cloudflare can reach it.
+The Cloudflare page manages your domains on Cloudflare without leaving AgentMate. You connect each account once with an API token, then pick a domain (a zone) to edit its DNS records, its settings, its cache and its security rules. It also links Cloudflare to your servers in Deploy: you can point a domain at a server in one step, give a server a DNS token for wildcard certificates, install a Cloudflare Origin CA certificate, and lock a server so only Cloudflare can reach it.
 
 ## Where to find it
 
@@ -17,7 +17,7 @@ Cloudflare accounts are not tied to one server, so the page sits beside the serv
 
 ## Connect Cloudflare with a token
 
-The first time (or after you remove the token), the page shows a **Connect Cloudflare** card with two steps.
+The first time (or after you remove every account), the page shows a **Connect Cloudflare** card with two steps.
 
 1. **Create a token on Cloudflare.** Click **Open Cloudflare's token page**. It opens with the permissions below already chosen and the name "AgentMate". Under Zone Resources, include all zones or just the domains AgentMate should manage, then create the token and copy it.
 2. **Paste the token here.** Type or paste it into **API token** and click **Save and check**. AgentMate checks it with Cloudflare, seals it on this computer the way it seals your server passwords, and never shows it again.
@@ -50,11 +50,23 @@ Other buttons on the card:
 - **Remove token** asks first. AgentMate forgets the token and stops managing your domains. The token keeps working on Cloudflare until you delete it there.
 
 > [!NOTE]
-> If your saved servers are locked with a passkey, the Cloudflare token is locked with them. A banner offers **Unlock**. Unlock first, then manage your domains.
+> If your saved servers are locked with a passkey, the Cloudflare tokens are locked with them. A banner offers **Unlock**. Unlock first, then manage your domains.
+
+### Several Cloudflare accounts
+
+You can connect as many Cloudflare accounts as you like, for example your own and a client's. Each account has its own API token, made on that account.
+
+- Click **Add account** under the Domains rail (or **Add another account** when the page is a single column). Paste the token and, if you like, give the account a name such as "Client Co". Left empty, the name is "Account 2" and so on.
+- With more than one account, the **Domains** rail groups the domains under the account's name. Click a name to open that account's token card. Opening a domain shows the card of the account that holds it.
+- **Replace token** and **Remove token** on a card only touch that account. The other accounts keep working. If one account's token stops working, only its group shows the error and **Try again**.
+- The same token can't be added twice.
+- Servers use the right account on their own. An Origin CA certificate is signed by the account that holds the site's domains (a certificate can't mix domains from two accounts), and a DNS token for a server is made in the account that holds the zone.
+
+If you used AgentMate before accounts existed, your saved token shows up as one account named "Cloudflare".
 
 ## Domains (zones)
 
-On the left, the **Domains** rail lists every zone the token can see with its state: **Active**, **Waiting for name servers**, **Setting up**, **Moved away** or **Paused**. Click one to manage it. If the list is empty, the token cannot see any domains yet: add a domain on Cloudflare, or include it under Zone Resources on the token.
+On the left, the **Domains** rail lists every zone your connected tokens can see with its state: **Active**, **Waiting for name servers**, **Setting up**, **Moved away** or **Paused**. Click one to manage it. If the list is empty, the token cannot see any domains yet: add a domain on Cloudflare, or include it under Zone Resources on the token.
 
 At the top of a zone you see its name, its plan and a state badge. For a zone waiting for name servers, a notice shows the name servers your registrar must use. Until then, changes here do not reach visitors.
 

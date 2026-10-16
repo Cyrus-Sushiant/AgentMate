@@ -146,7 +146,7 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
     generic: false,
     modelFlag: '--model',
     effortArgs: (level) => ['--effort', level],
-    effortHint: `${CLAUDE_MODELS.haiku.family} has no effort setting. It is already the quickest, cheapest option.`,
+    effortHint: 'This model has no effort setting.',
     models: [
       {
         ...fromCatalog('haiku', CLAUDE_MODELS.haiku),
@@ -154,6 +154,8 @@ const RUN_PROFILES: Record<string, Omit<TargetRunProfile, 'cliId' | 'executable'
         costWeight: 1,
         bestFor: 'Small, well-defined edits and quick lookups',
         maxScore: 22,
+        efforts: CLAUDE_EFFORTS,
+        effortPicks: ['low', 'low', 'medium'],
       },
       {
         ...fromCatalog('sonnet', CLAUDE_MODELS.sonnet),

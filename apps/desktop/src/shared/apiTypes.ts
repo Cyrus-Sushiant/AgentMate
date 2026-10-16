@@ -635,6 +635,24 @@ export interface RunProposalsChanged {
 
 export type RunProposalResult = { ok: true } | { ok: false; error: string };
 
+/** What deciding on a suggestion returns. Adding hands back the saved command, so it can be run. */
+export type RunProposalDecisionResult =
+  | {
+      ok: true;
+      projectId: string;
+      runCommand?: { id: string; label: string; command: string };
+    }
+  | { ok: false; error: string };
+
+/**
+ * What an agent needs to be started from AgentMate with the run suggestion tools: an MCP config
+ * file to pass to its CLI, and the tool names that are safe to allow without asking, because every
+ * suggestion is approved in AgentMate anyway.
+ */
+export type RunSetupSession =
+  | { ok: true; mcpConfigPath: string; allowedTools: string[] }
+  | { ok: false; error: string };
+
 /** A single hit from a live skills.sh search, before its description has been fetched. */
 export interface SkillsShSearchResult {
   id: string;

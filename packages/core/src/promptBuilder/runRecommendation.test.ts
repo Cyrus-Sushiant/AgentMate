@@ -51,6 +51,12 @@ describe('runArgsFor', () => {
       '--effort',
       'high',
     ]);
+    expect(runArgsFor('claude-code', 'haiku', 'low')).toEqual([
+      '--model',
+      'haiku',
+      '--effort',
+      'low',
+    ]);
     expect(runArgsFor('codex-cli', 'luna', 'low')).toEqual([
       '--model',
       'gpt-6-luna',
@@ -60,7 +66,7 @@ describe('runArgsFor', () => {
   });
 
   it('drops an effort the model has no setting for', () => {
-    expect(runArgsFor('claude-code', 'haiku', 'high')).toEqual(['--model', 'haiku']);
+    expect(runArgsFor('gemini-cli', 'flash', 'high')).toEqual(['--model', 'gemini-3.8-flash']);
   });
 
   it('adds nothing when no model was picked or the model is unknown', () => {

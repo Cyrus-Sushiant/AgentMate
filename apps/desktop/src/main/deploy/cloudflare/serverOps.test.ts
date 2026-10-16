@@ -6,7 +6,7 @@ import { CoreLinks } from '../live/coreLinks';
 import { fakeLiveHubs } from '../testing/fakeLiveHub';
 import { CloudflareServerOps, zoneOf } from './serverOps';
 import { ALL_GRANTS, type FakeToken } from './testing/fakeCloudflare';
-import { connectedService, TOKEN } from './testing/harness';
+import { connectedService, makeService, TOKEN } from './testing/harness';
 import { dnsRecord, OTHER_ZONE_ID, ZONE_ID } from './testing/recorded';
 
 /**
@@ -91,9 +91,18 @@ async function setup(options: { grants?: FakeToken['grants']; roles?: string[] }
 describe('zoneOf', () => {
   it('picks the longest zone a name ends in, wildcards included', () => {
     const zones = [
-      { id: '1', name: 'example.com', status: 'active', paused: false, plan: '', nameServers: [] },
+      {
+        id: '1',
+        accountId: 'a',
+        name: 'example.com',
+        status: 'active',
+        paused: false,
+        plan: '',
+        nameServers: [],
+      },
       {
         id: '2',
+        accountId: 'a',
         name: 'dev.example.com',
         status: 'active',
         paused: false,
@@ -330,7 +339,7 @@ describe('the edges', () => {
       .catch((e) => e);
 
     expect(plan.domains.find((check) => check.domain === 'api.example.com')?.proxied).toBeNull();
-    expect(String(missingZone.message)).toContain('not in this Cloudflare account');
+    expect(String(missingZone.message)).toContain('not in a connected Cloudflare account');
   });
 
   it('names a single domain outside the account', async () => {
@@ -449,5 +458,108 @@ describe('the edges', () => {
       .catch((e) => e);
 
     expect(String(refused.message)).toContain('without the certificate');
+  });
+});
+
+describe('with several accounts', () => {
+  const SECOND_TOKEN = 'Zt9pR2e6Tq9VxYb1Lk0NsHjW3cZaDf7U8iOoPl5Q';
+
+  async function twoAccounts(domains: string[]) {
+    const core = new FakeCore(() => Date.now());
+    core.nginx.status = { ...core.nginx.status, managed: true };
+    core.nginx.saveSite(site('blog', domains));
+    const hubs = fakeLiveHubs(core);
+    links = new CoreLinks({ open: () => hubs.open() });
+    const grants = { ...ALL_GRANTS, sslCertificates: 'edit', apiTokens: 'edit' } as const;
+    const harness = makeService({
+      tokens: {
+        [TOKEN]: { grants, zoneIds: [ZONE_ID] },
+        [SECOND_TOKEN]: { grants, zoneIds: [OTHER_ZONE_ID], id: 'c'.repeat(32) },
+      },
+      zones: [
+        { id: ZONE_ID, name: 'example.com' },
+        { id: OTHER_ZONE_ID, name: 'example.org' },
+      ],
+    });
+    await harness.service.saveToken({ token: TOKEN });
+    await harness.service.saveToken({ token: SECOND_TOKEN });
+    harness.fake.requests.length = 0;
+    const ops = new CloudflareServerOps({
+      cloudflare: harness.service,
+      links,
+      roles: () => core.roles,
+      onLinkConnection: (_serverId, work) => work('203.0.113.50 50123 192.0.2.10 22'),
+      serverName: async () => 'prod',
+    });
+    return { core, ops, ...harness };
+  }
+
+  it('signs a certificate with the token of the account that holds the domain', async () => {
+    const { ops, fake } = await twoAccounts(['blog.example.org']);
+
+    await ops.originCertificate({ serverId: 'srv-1', siteId: 'blog' });
+
+    const signed = fake.requests.find((request) => request.path === '/certificates');
+    expect(signed?.headers.get('authorization')).toBe(`Bearer ${SECOND_TOKEN}`);
+  });
+
+  it('will not sign one certificate for names in different accounts', async () => {
+    const { ops, fake } = await twoAccounts(['blog.example.com', 'blog.example.org']);
+
+    const refused = await ops
+      .originCertificate({ serverId: 'srv-1', siteId: 'blog' })
+      .catch((e) => e);
+
+    expect(String(refused.message)).toContain('different Cloudflare accounts');
+    expect(fake.requests.some((request) => request.path === '/certificates')).toBe(false);
+  });
+
+  it('names a domain that no connected account holds', async () => {
+    const { ops } = await twoAccounts(['blog.example.net']);
+
+    const refused = await ops
+      .originCertificate({ serverId: 'srv-1', siteId: 'blog' })
+      .catch((e) => e);
+
+    expect(String(refused.message)).toContain(
+      'No connected Cloudflare account holds blog.example.net',
+    );
+  });
+
+  it('turns client certificates on in each account that holds one of the site zones', async () => {
+    const { ops, fake } = await twoAccounts(['blog.example.com', 'blog.example.org']);
+
+    await ops.applyOriginLock({ serverId: 'srv-1', enabled: true, authenticatedOriginPulls: true });
+
+    expect(fake.zones.get(ZONE_ID)?.settings.tls_client_auth.value).toBe('on');
+    expect(fake.zones.get(OTHER_ZONE_ID)?.settings.tls_client_auth.value).toBe('on');
+  });
+
+  it('makes a DNS token in the account of the zone, and refuses any account token pasted', async () => {
+    const { ops, core, fake } = await twoAccounts(['blog.example.org']);
+
+    await ops.provisionDnsToken({ serverId: 'srv-1', zoneId: OTHER_ZONE_ID, mode: 'mint' });
+    const created = fake.requests.find(
+      (request) => request.path === '/user/tokens' && request.method === 'POST',
+    );
+    const pasted = await ops
+      .provisionDnsToken({ serverId: 'srv-1', zoneId: ZONE_ID, mode: 'paste', token: SECOND_TOKEN })
+      .catch((e) => e);
+
+    expect(created?.headers.get('authorization')).toBe(`Bearer ${SECOND_TOKEN}`);
+    expect(core.cloudflare.credentials.has('example.org')).toBe(true);
+    expect(String(pasted.message)).toContain('never goes to a server');
+  });
+
+  it('deletes a minted token through the account that made it', async () => {
+    const { ops, core, fake } = await twoAccounts(['blog.example.org']);
+    await ops.provisionDnsToken({ serverId: 'srv-1', zoneId: OTHER_ZONE_ID, mode: 'mint' });
+    const minted = core.cloudflare.credentials.get('example.org')?.token ?? '';
+
+    await ops.removeDnsToken({ serverId: 'srv-1', zone: 'example.org', deleteAtCloudflare: true });
+
+    const deleted = fake.requests.find((request) => request.method === 'DELETE');
+    expect(deleted?.headers.get('authorization')).toBe(`Bearer ${SECOND_TOKEN}`);
+    expect(fake.tokens[minted]).toBeUndefined();
   });
 });

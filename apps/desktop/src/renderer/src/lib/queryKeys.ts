@@ -261,6 +261,8 @@ export const queryKeys = {
   /** Prefix of everything read with the Cloudflare token, dropped when the token changes. */
   cloudflareData: ['cloudflare', 'data'] as const,
   cloudflareZones: ['cloudflare', 'data', 'zones'] as const,
+  cloudflareAccountZones: (accountId: string) =>
+    ['cloudflare', 'data', 'zones', accountId] as const,
   cloudflareRecords: (zoneId: string) => ['cloudflare', 'data', 'records', zoneId] as const,
   cloudflareSettings: (zoneId: string) => ['cloudflare', 'data', 'settings', zoneId] as const,
   cloudflareCustomRules: (zoneId: string) => ['cloudflare', 'data', 'customRules', zoneId] as const,

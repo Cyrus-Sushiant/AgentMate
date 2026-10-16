@@ -15,6 +15,7 @@ import type {
   CloudflareRecordInput,
   CloudflareRecordType,
   CloudflareRuleSpec,
+  CloudflareSaveTokenInput,
   CloudflareSettingChange,
 } from '../../shared/cloudflareTypes';
 import { IPC } from '../../shared/ipcChannels';
@@ -41,7 +42,9 @@ export interface CloudflareHandlerDeps {
 }
 
 const SERVER_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const ACCOUNT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_TOKEN = 1024;
+const MAX_LABEL = 200;
 const MAX_NAME = 253;
 const MAX_TEXT = 4096;
 const MAX_NOTES = 500;
@@ -101,6 +104,22 @@ function itemId(value: unknown, what: string): string {
 
 function token(value: unknown): string {
   return text(value, MAX_TOKEN, 'token').trim();
+}
+
+function accountId(value: unknown): string {
+  if (typeof value !== 'string' || !ACCOUNT_ID.test(value)) {
+    throw new Error('That is not a connected Cloudflare account.');
+  }
+  return value;
+}
+
+function saveInput(value: unknown): CloudflareSaveTokenInput {
+  const input = object(value, 'a token');
+  return {
+    token: token(input.token),
+    ...(input.accountId === undefined ? {} : { accountId: accountId(input.accountId) }),
+    ...(input.label === undefined ? {} : { label: text(input.label, MAX_LABEL, 'name') }),
+  };
 }
 
 function recordInput(value: unknown): CloudflareRecordInput {
@@ -244,10 +263,10 @@ export function registerCloudflareHandlers({ ipc, service, guard }: CloudflareHa
   };
 
   handle(IPC.cloudflare.status, () => service.status());
-  handle(IPC.cloudflare.saveToken, (value) => service.saveToken(token(value)));
-  handle(IPC.cloudflare.checkToken, () => service.checkToken());
-  handle(IPC.cloudflare.removeToken, () => service.removeToken());
-  handle(IPC.cloudflare.listZones, () => service.listZones());
+  handle(IPC.cloudflare.saveToken, (value) => service.saveToken(saveInput(value)));
+  handle(IPC.cloudflare.checkToken, (id) => service.checkToken(accountId(id)));
+  handle(IPC.cloudflare.removeToken, (id) => service.removeToken(accountId(id)));
+  handle(IPC.cloudflare.listZones, (id) => service.listZones(accountId(id)));
   handle(IPC.cloudflare.listRecords, (zone) => service.listRecords(zoneId(zone)));
   handle(IPC.cloudflare.createRecord, (zone, record) =>
     service.createRecord(zoneId(zone), recordInput(record)),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cloudflareErrorCode } from '../../../shared/cloudflareErrors';
 import { createCloudflareApi } from './client';
 import { ALL_GRANTS, createFakeCloudflare } from './testing/fakeCloudflare';
-import { connectedService, makeService, NOW, TOKEN } from './testing/harness';
+import { ACCOUNT, connectedService, makeService, NOW, TOKEN } from './testing/harness';
 import { customRuleset, permissionDenied, RULE_ID, ZONE_ID } from './testing/recorded';
 import { checkToken } from './tokenCheck';
 
@@ -79,9 +79,10 @@ describe('sparse answers', () => {
       ssl: { value: 'off', editable: true },
       alwaysUseHttps: { value: 'on', editable: false },
     });
-    expect(await service.listZones()).toEqual([
+    expect(await service.listZones(ACCOUNT)).toEqual([
       {
         id: ZONE_ID,
+        accountId: ACCOUNT,
         name: 'example.com',
         status: 'active',
         paused: false,
@@ -131,9 +132,11 @@ describe('failures along the way', () => {
         throw new Error('The vault is locked.');
       },
     });
-    await state.save(
-      { envelope: { mode: 'safeStorage', ciphertext: 'eA==' }, tokenId: 'x', savedAt: 1 },
-      {
+    await state.save({
+      id: ACCOUNT,
+      label: 'Cloudflare',
+      token: { envelope: { mode: 'safeStorage', ciphertext: 'eA==' }, tokenId: 'x', savedAt: 1 },
+      report: {
         tokenId: 'x',
         status: 'active',
         expiresOn: null,
@@ -142,9 +145,9 @@ describe('failures along the way', () => {
         zoneCount: 0,
         checkedAt: 1,
       },
-    );
+    });
 
-    await expect(service.listZones()).rejects.toSatisfy(
+    await expect(service.listZones(ACCOUNT)).rejects.toSatisfy(
       (error: Error) => cloudflareErrorCode(error) === 'locked',
     );
   });
@@ -153,7 +156,9 @@ describe('failures along the way', () => {
     const { service, fake, port } = makeService();
     fake.failNext(/^\/zones$/, 500);
 
-    await expect(service.saveToken(TOKEN)).rejects.toThrow('Cloudflare said: Failed (code 0)');
+    await expect(service.saveToken({ token: TOKEN })).rejects.toThrow(
+      'Cloudflare said: Failed (code 0)',
+    );
     expect(port.value).toBeNull();
   });
 

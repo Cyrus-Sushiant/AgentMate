@@ -1,4 +1,5 @@
 import type {
+  CloudflareAccountStatus,
   CloudflareDnsRecord,
   CloudflareStatus,
   CloudflareZone,
@@ -9,6 +10,7 @@ import type {
 
 export const ZONE: CloudflareZone = {
   id: '023e105f4ecef8ad9ca31a8372d0c353',
+  accountId: 'acct-1',
   name: 'example.com',
   status: 'active',
   paused: false,
@@ -41,8 +43,9 @@ export const SETTINGS: CloudflareZoneSettings = {
   alwaysUseHttps: { value: 'off', editable: true },
 };
 
-export const CONNECTED: CloudflareStatus = {
-  configured: true,
+export const ACCOUNT: CloudflareAccountStatus = {
+  id: 'acct-1',
+  label: 'Cloudflare',
   locked: false,
   report: {
     tokenId: 'ed17574386854bf78a67040be0a770b0',
@@ -60,6 +63,12 @@ export const CONNECTED: CloudflareStatus = {
     zoneCount: 2,
     checkedAt: Date.now(),
   },
+};
+
+export const CONNECTED: CloudflareStatus = {
+  configured: true,
+  locked: false,
+  accounts: [ACCOUNT],
 };
 
 /** What a failed IPC call looks like in the renderer. */

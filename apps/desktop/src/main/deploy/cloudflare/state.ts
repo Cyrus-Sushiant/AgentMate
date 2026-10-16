@@ -10,11 +10,12 @@ import type {
 import type { SealedSecretStore } from '../../ssh/vault';
 
 /**
- * The Cloudflare API token at rest, in cloudflare.json beside the other stores. The token itself
- * is only ever stored sealed with the Servers vault (safeStorage, or the passkey when one is set)
- * and never leaves the main process; the last permission check sits next to it in the clear,
- * since it holds nothing secret. Anything unreadable is dropped rather than trusted, and one
- * write queue keeps two changes from losing each other.
+ * The Cloudflare accounts at rest, in cloudflare.json beside the other stores. Each account is a
+ * name the user gave it plus its API token. A token is only ever stored sealed with the Servers
+ * vault (safeStorage, or the passkey when one is set) and never leaves the main process; the last
+ * permission check sits next to it in the clear, since it holds nothing secret. Anything
+ * unreadable is dropped rather than trusted, and one write queue keeps two changes from losing
+ * each other. The first version of the file held a single token; it is read as one account.
  */
 
 export interface StoredCloudflareToken {
@@ -24,10 +25,16 @@ export interface StoredCloudflareToken {
   savedAt: number;
 }
 
-export interface CloudflareStateFile {
-  version: 1;
-  token: StoredCloudflareToken | null;
+export interface StoredCloudflareAccount {
+  id: string;
+  label: string;
+  token: StoredCloudflareToken;
   report: CloudflareTokenReport | null;
+}
+
+export interface CloudflareStateFile {
+  version: 2;
+  accounts: StoredCloudflareAccount[];
 }
 
 export interface CloudflareStatePort {
@@ -35,6 +42,10 @@ export interface CloudflareStatePort {
   read: () => Promise<unknown>;
   write: (value: CloudflareStateFile) => Promise<void>;
 }
+
+/** The id and name the single token of the first file version gets when read as an account. */
+export const MIGRATED_ACCOUNT_ID = 'primary';
+export const MIGRATED_ACCOUNT_LABEL = 'Cloudflare';
 
 const PERMISSION_IDS: ReadonlySet<string> = new Set<CloudflarePermissionId>([
   'zone',
@@ -93,62 +104,125 @@ function isReport(value: unknown): value is CloudflareTokenReport {
   );
 }
 
-function parse(value: unknown): CloudflareStateFile {
-  if (!isObject(value) || value.version !== 1) return { version: 1, token: null, report: null };
+function toAccount(value: unknown): StoredCloudflareAccount | null {
+  if (
+    !isObject(value) ||
+    typeof value.id !== 'string' ||
+    value.id === '' ||
+    typeof value.label !== 'string' ||
+    !isToken(value.token)
+  ) {
+    return null;
+  }
   return {
-    version: 1,
-    token: isToken(value.token) ? value.token : null,
+    id: value.id,
+    label: value.label,
+    token: value.token,
     report: isReport(value.report) ? value.report : null,
   };
+}
+
+function parse(value: unknown): CloudflareStateFile {
+  if (!isObject(value)) return { version: 2, accounts: [] };
+  if (value.version === 1) {
+    return {
+      version: 2,
+      accounts: isToken(value.token)
+        ? [
+            {
+              id: MIGRATED_ACCOUNT_ID,
+              label: MIGRATED_ACCOUNT_LABEL,
+              token: value.token,
+              report: isReport(value.report) ? value.report : null,
+            },
+          ]
+        : [],
+    };
+  }
+  if (value.version !== 2 || !Array.isArray(value.accounts)) return { version: 2, accounts: [] };
+  const seen = new Set<string>();
+  const accounts: StoredCloudflareAccount[] = [];
+  for (const raw of value.accounts) {
+    const account = toAccount(raw);
+    if (account && !seen.has(account.id)) {
+      seen.add(account.id);
+      accounts.push(account);
+    }
+  }
+  return { version: 2, accounts };
 }
 
 export class CloudflareState {
   private queue: Promise<unknown> = Promise.resolve();
 
-  /** Moves the sealed token when the Servers passkey changes (see vault.ts). */
+  /** Moves every sealed token when the Servers passkey changes (see vault.ts). */
   readonly sealedKeys: SealedSecretStore = {
     prepare: async (move) => {
-      const token = (await this.read()).token;
-      if (!token) return async () => undefined;
-      const envelope = await move(token.envelope);
+      const accounts = (await this.read()).accounts;
+      if (accounts.length === 0) return async () => undefined;
+      const moved = new Map<string, SecretEnvelope>();
+      for (const account of accounts) moved.set(account.id, await move(account.token.envelope));
       return () =>
-        this.update((file) =>
-          file.token ? { ...file, token: { ...file.token, envelope } } : file,
-        );
+        this.update((file) => ({
+          ...file,
+          accounts: file.accounts.map((account) => {
+            const envelope = moved.get(account.id);
+            return envelope ? { ...account, token: { ...account.token, envelope } } : account;
+          }),
+        }));
     },
   };
 
   constructor(private readonly port: CloudflareStatePort) {}
 
-  async token(): Promise<StoredCloudflareToken | null> {
-    return (await this.read()).token;
+  async accounts(): Promise<StoredCloudflareAccount[]> {
+    return (await this.read()).accounts;
   }
 
-  async report(): Promise<CloudflareTokenReport | null> {
-    return (await this.read()).report;
+  async account(id: string): Promise<StoredCloudflareAccount | null> {
+    return (await this.read()).accounts.find((account) => account.id === id) ?? null;
   }
 
-  save(token: StoredCloudflareToken, report: CloudflareTokenReport): Promise<void> {
-    return this.update(() => ({ version: 1, token, report }));
+  /** Adds an account, or replaces the account with the same id. */
+  save(account: StoredCloudflareAccount): Promise<void> {
+    return this.update((file) => ({
+      ...file,
+      accounts: file.accounts.some((item) => item.id === account.id)
+        ? file.accounts.map((item) => (item.id === account.id ? account : item))
+        : [...file.accounts, account],
+    }));
   }
 
-  setReport(report: CloudflareTokenReport): Promise<void> {
-    return this.update((file) => ({ ...file, report }));
+  setReport(id: string, report: CloudflareTokenReport): Promise<void> {
+    return this.change(id, (account) => ({ ...account, report }));
   }
 
   /** Records that Cloudflare refused a change for want of this permission. */
-  markMissing(permission: CloudflarePermissionId): Promise<void> {
-    return this.update((file) => {
-      if (!file.report) return file;
-      const permissions = file.report.permissions.map((check) =>
+  markMissing(id: string, permission: CloudflarePermissionId): Promise<void> {
+    return this.change(id, (account) => {
+      if (!account.report) return account;
+      const permissions = account.report.permissions.map((check) =>
         check.id === permission ? { ...check, state: 'missing' as const } : check,
       );
-      return { ...file, report: { ...file.report, permissions } };
+      return { ...account, report: { ...account.report, permissions } };
     });
   }
 
-  clear(): Promise<void> {
-    return this.update(() => ({ version: 1, token: null, report: null }));
+  remove(id: string): Promise<void> {
+    return this.update((file) => ({
+      ...file,
+      accounts: file.accounts.filter((account) => account.id !== id),
+    }));
+  }
+
+  private change(
+    id: string,
+    edit: (account: StoredCloudflareAccount) => StoredCloudflareAccount,
+  ): Promise<void> {
+    return this.update((file) => ({
+      ...file,
+      accounts: file.accounts.map((account) => (account.id === id ? edit(account) : account)),
+    }));
   }
 
   private async read(): Promise<CloudflareStateFile> {

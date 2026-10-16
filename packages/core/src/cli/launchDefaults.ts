@@ -382,7 +382,7 @@ export function launchDefaultParts(
     });
   }
 
-  // An effort the chosen model can't take (Haiku has none) is left off rather than sent to fail.
+  // An effort the chosen model can't take is left off rather than sent to fail.
   // The model that really runs is the one already in the launch's arguments, when they set one.
   const takenModel = options.modelFlag
     ? findTakenFlag(takenArgs, modelFlagKeys(options.modelFlag))?.value

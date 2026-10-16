@@ -239,8 +239,10 @@ import type {
   ResolveConflictWithAiResult,
   RunProposal,
   RunProposalDecision,
+  RunProposalDecisionResult,
   RunProposalResult,
   RunProposalsChanged,
+  RunSetupSession,
   RunSkillAuditInput,
   RunSkillAuditResult,
   SaveBlueprintPresetInput,
@@ -322,6 +324,7 @@ import type {
   CloudflarePointDomainResult,
   CloudflarePurgeRequest,
   CloudflareRecordInput,
+  CloudflareSaveTokenInput,
   CloudflareSettingChange,
   CloudflareStatus,
   CloudflareZone,
@@ -1949,15 +1952,19 @@ const deploySecurity = {
  * back: everything else answers with zones, records, settings and rules.
  */
 const cloudflare = {
-  /** Whether a token is saved (and locked behind the Servers passkey), and its last check. */
+  /** The connected accounts (locked behind the Servers passkey or not), and each last check. */
   status: (): Promise<CloudflareStatus> => ipcRenderer.invoke(IPC.cloudflare.status),
-  /** Checks a pasted token against Cloudflare, then seals and saves it. */
-  saveToken: (token: string): Promise<CloudflareStatus> =>
-    ipcRenderer.invoke(IPC.cloudflare.saveToken, token),
-  /** Checks the saved token again, as after its permissions were edited on Cloudflare. */
-  checkToken: (): Promise<CloudflareStatus> => ipcRenderer.invoke(IPC.cloudflare.checkToken),
-  removeToken: (): Promise<void> => ipcRenderer.invoke(IPC.cloudflare.removeToken),
-  listZones: (): Promise<CloudflareZone[]> => ipcRenderer.invoke(IPC.cloudflare.listZones),
+  /** Checks a pasted token against Cloudflare, then seals and saves it as a new account. */
+  saveToken: (input: CloudflareSaveTokenInput): Promise<CloudflareStatus> =>
+    ipcRenderer.invoke(IPC.cloudflare.saveToken, input),
+  /** Checks an account's saved token again, as after its permissions were edited on Cloudflare. */
+  checkToken: (accountId: string): Promise<CloudflareStatus> =>
+    ipcRenderer.invoke(IPC.cloudflare.checkToken, accountId),
+  removeToken: (accountId: string): Promise<CloudflareStatus> =>
+    ipcRenderer.invoke(IPC.cloudflare.removeToken, accountId),
+  /** The domains one account's token can see. */
+  listZones: (accountId: string): Promise<CloudflareZone[]> =>
+    ipcRenderer.invoke(IPC.cloudflare.listZones, accountId),
   listRecords: (zoneId: string): Promise<CloudflareDnsRecord[]> =>
     ipcRenderer.invoke(IPC.cloudflare.listRecords, zoneId),
   createRecord: (zoneId: string, record: CloudflareRecordInput): Promise<CloudflareDnsRecord> =>
@@ -2533,12 +2540,14 @@ const runProposals = {
   decide: (
     id: string,
     decision: RunProposalDecision,
-  ): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> =>
+  ): Promise<RunProposalDecisionResult> =>
     ipcRenderer.invoke(IPC.runProposals.decide, { id, decision }),
   getEnabled: (projectId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.runProposals.getEnabled, projectId),
   setEnabled: (projectId: string, enabled: boolean): Promise<RunProposalResult> =>
     ipcRenderer.invoke(IPC.runProposals.setEnabled, { projectId, enabled }),
+  startGuided: (projectId: string): Promise<RunSetupSession> =>
+    ipcRenderer.invoke(IPC.runProposals.startGuided, projectId),
   onChanged: (callback: (changed: RunProposalsChanged) => void): (() => void) =>
     subscribe(IPC.runProposals.onChanged, callback),
 };

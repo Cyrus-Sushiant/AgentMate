@@ -49,6 +49,7 @@ export function makeService(
   });
   const port = memoryPort();
   const state = new CloudflareState(port);
+  let counter = 0;
   const addresses = vi.fn(async (_serverId: string) => ({
     ipv4: ['203.0.113.10'],
     ipv6: ['2001:db8::10'],
@@ -64,14 +65,19 @@ export function makeService(
     fetch: fake.fetch,
     maxRetries: 0,
     now: () => NOW,
+    newId: () => `acct-${(counter += 1)}`,
   });
   return { service, fake, state, port, addresses, seal, lock };
 }
 
-/** A service with the token already saved, as after the setup step. */
+/** The id of the first account a harness connects. */
+export const ACCOUNT = 'acct-1';
+
+/** A service with the token already saved as one account, as after the setup step. */
 export async function connectedService(options: Parameters<typeof makeService>[0] = {}) {
   const harness = makeService(options);
-  await harness.service.saveToken(TOKEN);
+  await harness.service.saveToken({ token: TOKEN });
+  await harness.service.listZones(ACCOUNT);
   harness.fake.requests.length = 0;
   return harness;
 }

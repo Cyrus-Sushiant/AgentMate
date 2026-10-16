@@ -1,19 +1,19 @@
 import { cloudflareErrorMessage } from '@shared/cloudflareErrors';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Notice, Problem } from '@/components/cloudflare/fields';
 import { TokenSetupCard } from '@/components/cloudflare/TokenSetupCard';
 import { TokenStatusCard } from '@/components/cloudflare/TokenStatusCard';
 import { isZoneTab, ZonePanel, type ZoneTab } from '@/components/cloudflare/ZonePanel';
-import { ZoneRail } from '@/components/cloudflare/ZoneRail';
-import { ArrowLeft, Lock } from '@/components/icons';
+import { type ZoneGroup, ZoneRail } from '@/components/cloudflare/ZoneRail';
+import { ArrowLeft, Lock, Plus } from '@/components/icons';
 import { FOOTER_HAIRLINE, GLASS_CARD, GLASS_PANEL } from '@/components/pageKit';
 import { SshVaultUnlockDialog } from '@/components/remote/SshVaultUnlockDialog';
 import { Button } from '@/components/ui/button';
 import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCloudflareError } from '@/lib/cloudflare/feedback';
+import { useCloudflareErrors } from '@/lib/cloudflare/feedback';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -50,15 +50,17 @@ function CloudflarePageSkeleton(): React.JSX.Element {
 
 /**
  * The Cloudflare page (T8). Cloudflare accounts are not tied to one server, so it lives beside
- * the server rail rather than under a server: first the token, then the zones it can see, and for
- * the picked zone its DNS records, settings and security rules. The zone and tab are kept in the
- * address, so going back and forth (and the next launch) lands in the same place.
+ * the server rail rather than under a server: first the tokens, one per connected account, then
+ * the zones they can see, and for the picked zone its DNS records, settings and security rules.
+ * The zone and tab are kept in the address, so going back and forth (and the next launch) lands
+ * in the same place.
  */
 export default function CloudflarePage(): React.JSX.Element {
   usePageHeader('Cloudflare', 'Your domains on Cloudflare: DNS, settings and security rules.');
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
-  const [replacing, setReplacing] = useState(false);
+  // The account whose token is being replaced, or `true` while another account is being added.
+  const [setup, setSetup] = useState<string | true | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [railWidth, setRailWidth] = usePanelWidth('cloudflareRail');
 
@@ -67,13 +69,15 @@ export default function CloudflarePage(): React.JSX.Element {
     queryFn: () => window.agentmat.cloudflare.status(),
   });
   const status = statusQuery.data;
-  const ready = Boolean(status?.configured && !status.locked) && !replacing;
-  const zonesQuery = useQuery({
-    queryKey: queryKeys.cloudflareZones,
-    queryFn: () => window.agentmat.cloudflare.listZones(),
-    enabled: ready,
+  const ready = Boolean(status?.configured && !status.locked) && setup === null;
+  const zoneQueries = useQueries({
+    queries: (status?.accounts ?? []).map((account) => ({
+      queryKey: queryKeys.cloudflareAccountZones(account.id),
+      queryFn: () => window.agentmat.cloudflare.listZones(account.id),
+      enabled: ready,
+    })),
   });
-  const zonesError = useCloudflareError(zonesQuery.error);
+  const zoneErrors = useCloudflareErrors(zoneQueries.map((query) => query.error));
 
   if (statusQuery.isPending) return <CloudflarePageSkeleton />;
 
@@ -92,10 +96,24 @@ export default function CloudflarePage(): React.JSX.Element {
   }
 
   const current = statusQuery.data;
-  const zones = zonesQuery.data;
-  const selected = zones?.find((zone) => zone.id === params.get('zone')) ?? zones?.[0];
+  const groups: ZoneGroup[] = current.accounts.map((account, index) => ({
+    accountId: account.id,
+    label: account.label,
+    zones: zoneQueries[index]?.data,
+    error: zoneErrors[index] ?? null,
+    onRetry: () => void zoneQueries[index]?.refetch(),
+  }));
+  const allZones = groups.flatMap((group) => group.zones ?? []);
+  const selected = allZones.find((zone) => zone.id === params.get('zone')) ?? allZones[0];
   const requestedTab = params.get('tab');
   const tab: ZoneTab = isZoneTab(requestedTab) ? requestedTab : 'dns';
+  // The token card shown above the zone: the one asked for, else the selected zone's account.
+  const requestedAccount = params.get('account');
+  const managed =
+    current.accounts.find((account) => account.id === requestedAccount) ??
+    current.accounts.find((account) => account.id === selected?.accountId) ??
+    current.accounts[0];
+  const several = current.accounts.length > 1;
 
   const unlockDialog = (
     <SshVaultUnlockDialog
@@ -109,9 +127,12 @@ export default function CloudflarePage(): React.JSX.Element {
     />
   );
 
-  // Before there is a token to use (none saved, locked, or being replaced) there are no domains
-  // to list, so the page is one readable column instead of an empty rail.
+  // Before there is a token to use (none saved, locked, or one being added or replaced) there are
+  // no domains to list, so the page is one readable column instead of an empty rail.
   if (!ready) {
+    const replacing =
+      typeof setup === 'string' ? current.accounts.find((account) => account.id === setup) : null;
+    const settingUp = setup !== null || !current.configured;
     return (
       <div className="mx-auto flex w-full max-w-3xl flex-col items-stretch gap-2 p-2">
         <BackToDeploy className="self-start" />
@@ -128,18 +149,32 @@ export default function CloudflarePage(): React.JSX.Element {
                 </Button>
               }
             >
-              Your saved servers are locked with a passkey, and the Cloudflare token with them.
+              Your saved servers are locked with a passkey, and the Cloudflare tokens with them.
               Unlock them to manage your domains.
             </Notice>
           </div>
         )}
-        {!current.configured || replacing ? (
+        {settingUp ? (
           <TokenSetupCard
-            onCancel={current.configured ? () => setReplacing(false) : undefined}
-            onSaved={() => setReplacing(false)}
+            account={replacing ?? undefined}
+            additional={current.configured && !replacing}
+            onCancel={current.configured ? () => setSetup(null) : undefined}
+            onSaved={() => setSetup(null)}
           />
         ) : (
-          <TokenStatusCard status={current} onReplace={() => setReplacing(true)} />
+          <>
+            {current.accounts.map((account) => (
+              <TokenStatusCard
+                key={account.id}
+                account={account}
+                showName={several}
+                onReplace={() => setSetup(account.id)}
+              />
+            ))}
+            <Button variant="soft" className="self-start" onClick={() => setSetup(true)}>
+              <Plus className="h-3.5 w-3.5" /> Add another account
+            </Button>
+          </>
         )}
         {unlockDialog}
       </div>
@@ -157,13 +192,20 @@ export default function CloudflarePage(): React.JSX.Element {
         className={cn(GLASS_PANEL, 'shrink-0')}
       >
         <ZoneRail
-          zones={zones}
-          error={zonesError}
+          groups={groups}
           selectedId={selected?.id ?? null}
-          onSelect={(zoneId) => setParams({ zone: zoneId, tab }, { replace: true })}
-          onRetry={() => void zonesQuery.refetch()}
+          onSelect={(zone) => setParams({ zone: zone.id, tab }, { replace: true })}
+          onManageAccount={(accountId) =>
+            setParams(
+              { ...(selected ? { zone: selected.id } : {}), tab, account: accountId },
+              { replace: true },
+            )
+          }
         />
-        <div className={cn(FOOTER_HAIRLINE, 'shrink-0 p-2')}>
+        <div className={cn(FOOTER_HAIRLINE, 'flex shrink-0 flex-col gap-1.5 p-2')}>
+          <Button variant="soft" size="sm" className="w-full" onClick={() => setSetup(true)}>
+            <Plus className="h-3.5 w-3.5" /> Add account
+          </Button>
           <BackToDeploy className="w-full" />
         </div>
       </aside>
@@ -179,13 +221,29 @@ export default function CloudflarePage(): React.JSX.Element {
         className="w-2"
       />
       <div className="rail-scroll flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
-        <TokenStatusCard status={current} onReplace={() => setReplacing(true)} />
+        {managed && (
+          <TokenStatusCard
+            key={managed.id}
+            account={managed}
+            showName={several}
+            onReplace={() => setSetup(managed.id)}
+          />
+        )}
         {selected && (
           <ZonePanel
             key={selected.id}
             zone={selected}
             tab={tab}
-            onTabChange={(next) => setParams({ zone: selected.id, tab: next }, { replace: true })}
+            onTabChange={(next) =>
+              setParams(
+                {
+                  zone: selected.id,
+                  tab: next,
+                  ...(requestedAccount ? { account: requestedAccount } : {}),
+                },
+                { replace: true },
+              )
+            }
           />
         )}
       </div>

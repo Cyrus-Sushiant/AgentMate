@@ -164,7 +164,12 @@ describe('run suggestions for a project', () => {
 
     const decided = await service.decideRunProposal(payload.id as string, 'add');
 
-    expect(decided).toEqual({ ok: true, projectId: 'p1' });
+    // The saved command comes back, so the app can offer to run it straight away.
+    expect(decided).toEqual({
+      ok: true,
+      projectId: 'p1',
+      runCommand: { id: expect.any(String), label: 'android dev', command: 'flutter run' },
+    });
     expect(service.listPendingRunProposals()).toEqual([]);
     const store = (await import('../store')).store;
     const [project] = await store.getProjects();
@@ -172,6 +177,9 @@ describe('run suggestions for a project', () => {
       { id: 'dev', label: 'dev', command: 'npm run dev' },
       { id: expect.any(String), label: 'android dev', command: 'flutter run' },
     ]);
+    expect(project.runCommands[1]).toEqual(
+      (decided as { runCommand: unknown }).runCommand,
+    );
   });
 
   it('discards a suggestion without touching the project', async () => {

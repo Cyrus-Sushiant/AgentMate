@@ -187,6 +187,7 @@ export const IPC = {
     decide: 'runProposals:decide',
     getEnabled: 'runProposals:getEnabled',
     setEnabled: 'runProposals:setEnabled',
+    startGuided: 'runProposals:startGuided',
     /** Main tells every window the pending run command suggestions changed. */
     onChanged: 'runProposals:onChanged',
   },

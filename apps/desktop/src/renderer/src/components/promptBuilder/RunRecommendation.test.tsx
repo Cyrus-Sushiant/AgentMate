@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { RunAssessment } from '@agentmat/core';
 import { recommendationFromAssessment, runProfileForTargetAI } from '@agentmat/core';
-import { act, screen } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   renderHookWithProviders,
@@ -9,6 +9,7 @@ import {
 } from '../../../../test/renderer/renderWithProviders';
 import {
   RunRecommendationChip,
+  RunRecommendationPanel,
   type RunRecommendationState,
   shouldSizeOnOpen,
   useRunRecommendation,
@@ -236,5 +237,72 @@ describe('useRunRecommendation sizing a translation', () => {
     act(() => result.current.analyze({ isTranslation: false }));
 
     expect(assessRun.mock.calls[0]?.[0].promptType).toBe('Frontend');
+  });
+});
+
+describe('Recommended run panel effort and reset', () => {
+  const sonnetModel = profile.models.find((m) => m.id === 'sonnet')!;
+  const haikuModel = profile.models.find((m) => m.id === 'haiku')!;
+  const sonnetRecommendation = recommendationFromAssessment(TARGET, {
+    ...assessment,
+    score: 45,
+    complexity: 'moderate',
+    modelId: 'sonnet',
+    effort: 'medium',
+  });
+
+  it('offers the effort levels for Haiku like the other Claude models', () => {
+    const state = stateWith({
+      status: 'ready',
+      recommendation: sonnetRecommendation,
+      choice: { model: haikuModel, effort: 'low' },
+      isCustom: true,
+    });
+    renderWithProviders(<RunRecommendationPanel state={state} />);
+
+    const efforts = screen.getByRole('radiogroup', { name: 'Effort' });
+    expect(within(efforts).getAllByRole('radio')).toHaveLength(5);
+    expect(screen.queryByText(/has no effort setting/)).toBeNull();
+  });
+
+  it('puts Use recommended beside Effort when only the effort was changed', () => {
+    const state = stateWith({
+      status: 'ready',
+      recommendation: sonnetRecommendation,
+      choice: { model: sonnetModel, effort: 'high' },
+      isCustom: true,
+    });
+    renderWithProviders(<RunRecommendationPanel state={state} />);
+
+    const effortHeader = screen.getByText('Effort').parentElement!;
+    const modelHeader = screen.getByText('Model').parentElement!;
+    expect(within(effortHeader).getByRole('button', { name: /Use recommended/ })).toBeVisible();
+    expect(within(modelHeader).queryByRole('button', { name: /Use recommended/ })).toBeNull();
+  });
+
+  it('resets the model and the effort when Use recommended is pressed', async () => {
+    const state = stateWith({
+      status: 'ready',
+      recommendation: sonnetRecommendation,
+      choice: { model: haikuModel, effort: 'low' },
+      isCustom: true,
+    });
+    const { user } = renderWithProviders(<RunRecommendationPanel state={state} />);
+
+    const effortHeader = screen.getByText('Effort').parentElement!;
+    await user.click(within(effortHeader).getByRole('button', { name: /Use recommended/ }));
+
+    expect(state.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no reset while the choice matches the recommendation', () => {
+    const state = stateWith({
+      status: 'ready',
+      recommendation: sonnetRecommendation,
+      choice: sonnetRecommendation.recommended,
+    });
+    renderWithProviders(<RunRecommendationPanel state={state} />);
+
+    expect(screen.queryByRole('button', { name: /Use recommended/ })).toBeNull();
   });
 });

@@ -42,16 +42,35 @@ export interface CloudflareTokenReport {
   checkedAt: number;
 }
 
-export interface CloudflareStatus {
-  /** Whether a token is saved. */
-  configured: boolean;
-  /** The saved token is sealed with the Servers passkey, which is locked right now. */
+/** One connected Cloudflare account: a name the user gave it and the state of its token. */
+export interface CloudflareAccountStatus {
+  id: string;
+  label: string;
+  /** Its token is sealed with the Servers passkey, which is locked right now. */
   locked: boolean;
   report: CloudflareTokenReport | null;
 }
 
+export interface CloudflareStatus {
+  /** Whether at least one account is connected. */
+  configured: boolean;
+  /** Some saved token is sealed with the Servers passkey, which is locked right now. */
+  locked: boolean;
+  accounts: CloudflareAccountStatus[];
+}
+
+/** Adds an account, or with `accountId` replaces that account's token. */
+export interface CloudflareSaveTokenInput {
+  token: string;
+  /** What the user calls a new account. Left out, it is numbered. */
+  label?: string;
+  accountId?: string;
+}
+
 export interface CloudflareZone {
   id: string;
+  /** The connected account that holds this zone. */
+  accountId: string;
   name: string;
   /** Cloudflare's word for it: active, pending, initializing or moved. */
   status: string;

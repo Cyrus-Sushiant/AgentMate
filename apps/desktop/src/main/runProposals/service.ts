@@ -1,21 +1,42 @@
 import { randomUUID } from 'node:crypto';
-import type { Project } from '@agentmat/core';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { Project, ProjectRunCommand } from '@agentmat/core';
 import { configuredRunCommands, normalizeProjectRunCommands } from '@agentmat/core';
 import type {
   RunProposal,
   RunProposalDecision,
+  RunProposalDecisionResult,
   RunProposalResult,
   RunProposalsChanged,
+  RunSetupSession,
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { broadcastToWindows } from '../ipc/send';
 import { store } from '../store';
 import { bridgeScriptSource } from './bridgeScript';
-import { disableRunProposals, enableRunProposals, isRunProposalsEnabled } from './mcpConfig';
+import {
+  disableRunProposals,
+  enableRunProposals,
+  isRunProposalsEnabled,
+  RUN_COMMANDS_SCRIPT_NAME,
+  RUN_COMMANDS_SERVER_NAME,
+} from './mcpConfig';
 import { validateRunProposal } from './validate';
 
 /** More than this waiting for one project is a loop, not a plan, so the agent is told to stop. */
 const MAX_WAITING_PER_PROJECT = 10;
+
+/** How long a run setup started from AgentMate may keep suggesting. */
+const GUIDED_MS = 2 * 60 * 60 * 1000;
+
+const SAFE_PROJECT_ID = /^[A-Za-z0-9_-]+$/;
+
+/** The tools the bridge offers. Allowed by name when the agent is launched from AgentMate. */
+const RUN_COMMANDS_TOOLS = ['list_run_commands', 'propose_run_command'] as const;
+
+/** Projects with a run setup under way, and when that permission ends. Memory only, like the rest. */
+const guidedUntil = new Map<string, number>();
 
 /**
  * Suggestions waiting for the user. Kept in memory on purpose: one nobody answered is dropped when
@@ -46,6 +67,60 @@ function failure(status: number, error: string): RunCommandsResponse {
   return { status, payload: { ok: false, error } };
 }
 
+/**
+ * Starts a run setup from AgentMate: the agent is launched with an MCP config of its own, kept
+ * outside the project folder, so the project needs no `.mcp.json` entry. The tools are named here
+ * so the launcher can allow them without a prompt. The user still approves every suggestion.
+ */
+export async function startGuidedRunSession(
+  projectId: string,
+  options: { directory: string; portFile: string },
+): Promise<RunSetupSession> {
+  const project = await findProject(projectId);
+  if (!project) return { ok: false, error: 'AgentMate does not know this project.' };
+  // The id becomes a folder name, so anything that could leave the sessions folder is refused.
+  if (!SAFE_PROJECT_ID.test(project.id)) {
+    return { ok: false, error: 'This project cannot start a run setup.' };
+  }
+  const folder = join(options.directory, project.id);
+  const script = join(folder, RUN_COMMANDS_SCRIPT_NAME);
+  const mcpConfigPath = join(folder, 'mcp.json');
+  try {
+    await mkdir(folder, { recursive: true });
+    await writeFile(
+      script,
+      bridgeScriptSource({ portFile: options.portFile, projectId: project.id }),
+      'utf-8',
+    );
+    await writeFile(
+      mcpConfigPath,
+      JSON.stringify(
+        { mcpServers: { [RUN_COMMANDS_SERVER_NAME]: { command: 'node', args: [script] } } },
+        null,
+        2,
+      ),
+      'utf-8',
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Could not prepare the run setup.',
+    };
+  }
+  guidedUntil.set(project.id, Date.now() + GUIDED_MS);
+  return {
+    ok: true,
+    mcpConfigPath,
+    allowedTools: RUN_COMMANDS_TOOLS.map((tool) => `mcp__${RUN_COMMANDS_SERVER_NAME}__${tool}`),
+  };
+}
+
+/** A project may suggest while its switch is on, or for a while after a setup started from here. */
+async function mayPropose(project: Project): Promise<boolean> {
+  if ((guidedUntil.get(project.id) ?? 0) > Date.now()) return true;
+  return isRunProposalsEnabled(project.folderPath);
+}
+
 export async function getRunProposalsEnabled(projectId: string): Promise<boolean> {
   const project = await findProject(projectId);
   return project ? isRunProposalsEnabled(project.folderPath) : false;
@@ -60,7 +135,7 @@ export async function handleRunCommandsRequest(body: unknown): Promise<RunComman
   const projectId = typeof request.projectId === 'string' ? request.projectId : '';
   const project = projectId ? await findProject(projectId) : undefined;
   if (!project) return failure(404, 'AgentMate does not know this project.');
-  if (!(await isRunProposalsEnabled(project.folderPath))) {
+  if (!(await mayPropose(project))) {
     return failure(
       403,
       'Run suggestions are off for this project. Turn them on in its MCP section.',
@@ -118,42 +193,48 @@ async function proposeRunCommand(
 }
 
 /** Adds an approved suggestion to its project. Returns the reason it could not be added, if any. */
-async function addRunCommand(proposal: RunProposal): Promise<string | null> {
+async function addRunCommand(
+  proposal: RunProposal,
+): Promise<{ runCommand: ProjectRunCommand } | { error: string }> {
   const projects = await store.getProjects();
   const index = projects.findIndex((project) => project.id === proposal.projectId);
-  if (index === -1) return 'That project no longer exists.';
+  if (index === -1) return { error: 'That project no longer exists.' };
   const project = projects[index];
   // Checked again: the project may have gained the same command since the suggestion was made.
   const checked = validateRunProposal(
     { label: proposal.label, command: proposal.command },
     project.runCommands,
   );
-  if (!checked.ok) return checked.error;
+  if (!checked.ok) return { error: checked.error };
+  const runCommand: ProjectRunCommand = {
+    id: randomUUID(),
+    label: checked.label,
+    command: checked.command,
+  };
   projects[index] = {
     ...project,
     runCommands: normalizeProjectRunCommands({
-      runCommands: [
-        ...project.runCommands,
-        { id: randomUUID(), label: checked.label, command: checked.command },
-      ],
+      runCommands: [...project.runCommands, runCommand],
     }),
     updatedAt: new Date().toISOString(),
   };
   await store.setProjects(projects);
-  return null;
+  return { runCommand };
 }
 
 export async function decideRunProposal(
   id: string,
   decision: RunProposalDecision,
-): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> {
+): Promise<RunProposalDecisionResult> {
   const proposal = pending.get(id);
   if (!proposal) return { ok: false, error: 'That suggestion is no longer waiting.' };
   pending.delete(id);
-  const error = decision === 'add' ? await addRunCommand(proposal) : null;
+  const added = decision === 'add' ? await addRunCommand(proposal) : null;
   announce();
-  if (error) return { ok: false, error };
-  return { ok: true, projectId: proposal.projectId };
+  if (added && 'error' in added) return { ok: false, error: added.error };
+  return added
+    ? { ok: true, projectId: proposal.projectId, runCommand: added.runCommand }
+    : { ok: true, projectId: proposal.projectId };
 }
 
 /**

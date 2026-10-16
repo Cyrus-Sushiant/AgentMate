@@ -95,12 +95,12 @@ describe('PromptComposerDialog', () => {
     );
   });
 
-  it('disables effort levels the chosen model cannot use', () => {
+  it('offers every effort level for Haiku', () => {
     renderDialog(
       { kind: 'scheduled', text: 'quick fix', run: { cliId: 'claude-code', model: 'haiku' } },
       true,
     );
 
-    expect(screen.getByRole('radio', { name: 'High' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('radio', { name: 'High' })).toBeEnabled();
   });
 });

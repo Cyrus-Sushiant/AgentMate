@@ -12,6 +12,7 @@ import { registerCloudflareHandlers } from './cloudflare';
 type Listener = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
 const ZONE = '023e105f4ecef8ad9ca31a8372d0c353';
+const ACCOUNT = 'acct-1';
 const RECORD = '372e67954025e0ba6aaa6d586b9e0b59';
 const TOKEN = 'Gm4pR2e6Tq9VxYb1Lk0NsHjW3cZaDf7U8iOoPl5M';
 const A_RECORD = {
@@ -48,7 +49,7 @@ describe('registerCloudflareHandlers', () => {
   it('answers only the main window', async () => {
     const { service, call } = harness(false);
     await expect(call(IPC.cloudflare.status)).rejects.toThrow(/main window/);
-    await expect(call(IPC.cloudflare.saveToken, TOKEN)).rejects.toThrow(/main window/);
+    await expect(call(IPC.cloudflare.saveToken, { token: TOKEN })).rejects.toThrow(/main window/);
     expect(service.status).not.toHaveBeenCalled();
     expect(service.saveToken).not.toHaveBeenCalled();
   });
@@ -57,10 +58,11 @@ describe('registerCloudflareHandlers', () => {
     const { service, call } = harness();
 
     await call(IPC.cloudflare.status);
-    await call(IPC.cloudflare.saveToken, ` ${TOKEN}\n`);
-    await call(IPC.cloudflare.checkToken);
-    await call(IPC.cloudflare.removeToken);
-    await call(IPC.cloudflare.listZones);
+    await call(IPC.cloudflare.saveToken, { token: ` ${TOKEN}\n`, label: 'Work' });
+    await call(IPC.cloudflare.saveToken, { token: TOKEN, accountId: ACCOUNT });
+    await call(IPC.cloudflare.checkToken, ACCOUNT);
+    await call(IPC.cloudflare.removeToken, ACCOUNT);
+    await call(IPC.cloudflare.listZones, ACCOUNT);
     await call(IPC.cloudflare.listRecords, ZONE);
     await call(IPC.cloudflare.createRecord, ZONE, { ...A_RECORD, extra: 'dropped' });
     await call(IPC.cloudflare.updateRecord, ZONE, RECORD, {
@@ -96,7 +98,11 @@ describe('registerCloudflareHandlers', () => {
     await call(IPC.cloudflare.planPointDomain, point);
     await call(IPC.cloudflare.pointDomain, point);
 
-    expect(service.saveToken).toHaveBeenCalledWith(TOKEN);
+    expect(service.saveToken).toHaveBeenCalledWith({ token: TOKEN, label: 'Work' });
+    expect(service.saveToken).toHaveBeenCalledWith({ token: TOKEN, accountId: ACCOUNT });
+    expect(service.checkToken).toHaveBeenCalledWith(ACCOUNT);
+    expect(service.removeToken).toHaveBeenCalledWith(ACCOUNT);
+    expect(service.listZones).toHaveBeenCalledWith(ACCOUNT);
     expect(service.createRecord).toHaveBeenCalledWith(ZONE, A_RECORD);
     expect(service.updateRecord).toHaveBeenCalledWith(ZONE, RECORD, {
       type: 'SRV',
@@ -141,7 +147,30 @@ describe('registerCloudflareHandlers', () => {
   it('refuses a token that is not text, or far too long to be one', async () => {
     const { service, call } = harness();
     await expect(call(IPC.cloudflare.saveToken, 7)).rejects.toThrow(/token/);
-    await expect(call(IPC.cloudflare.saveToken, 'x'.repeat(5000))).rejects.toThrow(/token/);
+    await expect(call(IPC.cloudflare.saveToken, { token: 7 })).rejects.toThrow(/token/);
+    await expect(call(IPC.cloudflare.saveToken, { token: 'x'.repeat(5000) })).rejects.toThrow(
+      /token/,
+    );
+    expect(service.saveToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses account ids and names of the wrong shape', async () => {
+    const { service, call } = harness();
+    for (const bad of [7, '', 'has space', '../x', 'x'.repeat(65)]) {
+      await expect(call(IPC.cloudflare.checkToken, bad)).rejects.toThrow(/Cloudflare account/);
+      await expect(call(IPC.cloudflare.removeToken, bad)).rejects.toThrow(/Cloudflare account/);
+      await expect(call(IPC.cloudflare.listZones, bad)).rejects.toThrow(/Cloudflare account/);
+      await expect(
+        call(IPC.cloudflare.saveToken, { token: TOKEN, accountId: bad }),
+      ).rejects.toThrow(/Cloudflare account/);
+    }
+    await expect(call(IPC.cloudflare.saveToken, { token: TOKEN, label: 7 })).rejects.toThrow(
+      /name/,
+    );
+    await expect(
+      call(IPC.cloudflare.saveToken, { token: TOKEN, label: 'x'.repeat(201) }),
+    ).rejects.toThrow(/name/);
+    expect(service.checkToken).not.toHaveBeenCalled();
     expect(service.saveToken).not.toHaveBeenCalled();
   });
 

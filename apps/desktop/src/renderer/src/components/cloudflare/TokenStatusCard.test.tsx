@@ -1,5 +1,9 @@
 import { TOKEN_PAGE } from '@shared/cloudflare/permissions';
-import type { CloudflareStatus, CloudflareTokenReport } from '@shared/cloudflareTypes';
+import type {
+  CloudflareAccountStatus,
+  CloudflareStatus,
+  CloudflareTokenReport,
+} from '@shared/cloudflareTypes';
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmDialogHost } from '@/components/ConfirmDialog';
@@ -33,15 +37,24 @@ const ALL_GRANTED: CloudflareTokenReport = {
   checkedAt: Date.now() - 5 * 60_000,
 };
 
-function status(report: Partial<CloudflareTokenReport> = {}): CloudflareStatus {
-  return { configured: true, locked: false, report: { ...ALL_GRANTED, ...report } };
+function status(report: Partial<CloudflareTokenReport> = {}): CloudflareAccountStatus {
+  return {
+    id: 'acct-1',
+    label: 'Work',
+    locked: false,
+    report: { ...ALL_GRANTED, ...report },
+  };
 }
 
-function renderCard(current: CloudflareStatus, bridge: Record<string, unknown> = {}) {
+function renderCard(
+  current: CloudflareAccountStatus,
+  bridge: Record<string, unknown> = {},
+  showName = false,
+) {
   const onReplace = vi.fn();
   const view = renderWithProviders(
     <>
-      <TokenStatusCard status={current} onReplace={onReplace} />
+      <TokenStatusCard account={current} showName={showName} onReplace={onReplace} />
       <ConfirmDialogHost />
     </>,
     { bridge },
@@ -90,7 +103,7 @@ describe('TokenStatusCard', () => {
   });
 
   it('checks again and shows the new answer', async () => {
-    const fixed = status();
+    const fixed: CloudflareStatus = { configured: true, locked: false, accounts: [status()] };
     const { user, bridge, queryClient } = renderCard(
       status({ permissions: [{ id: 'dns', state: 'missing' }] }),
       { 'cloudflare.checkToken': async () => fixed },
@@ -98,7 +111,7 @@ describe('TokenStatusCard', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Check again' })[0]);
 
-    expect(bridge.$fn('cloudflare.checkToken')).toHaveBeenCalled();
+    expect(bridge.$fn('cloudflare.checkToken')).toHaveBeenCalledWith('acct-1');
     expect(queryClient.getQueryData(queryKeys.cloudflareStatus)).toEqual(fixed);
     expect(toast.success).toHaveBeenCalledWith('Checked the token again.');
   });
@@ -120,7 +133,7 @@ describe('TokenStatusCard', () => {
 
   it('removes the token only after asking, and offers to replace it', async () => {
     const { user, bridge, queryClient, onReplace } = renderCard(status(), {
-      'cloudflare.removeToken': async () => undefined,
+      'cloudflare.removeToken': async () => ({ configured: false, locked: false, accounts: [] }),
     });
     queryClient.setQueryData(queryKeys.cloudflareZones, []);
 
@@ -131,12 +144,36 @@ describe('TokenStatusCard', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Remove the token' }));
 
-    expect(bridge.$fn('cloudflare.removeToken')).toHaveBeenCalled();
+    expect(bridge.$fn('cloudflare.removeToken')).toHaveBeenCalledWith('acct-1');
     expect(queryClient.getQueryData(queryKeys.cloudflareStatus)).toEqual({
       configured: false,
       locked: false,
-      report: null,
+      accounts: [],
     });
     expect(queryClient.getQueryData(queryKeys.cloudflareZones)).toBeUndefined();
+  });
+
+  it('names the account when several are connected, and only that one when removing', async () => {
+    const left: CloudflareStatus = {
+      configured: true,
+      locked: false,
+      accounts: [{ ...status(), id: 'acct-2', label: 'Client' }],
+    };
+    const { user, bridge, queryClient } = renderCard(
+      status(),
+      { 'cloudflare.removeToken': async () => left },
+      true,
+    );
+
+    expect(screen.getByText('Work')).toBeInTheDocument();
+    expect(screen.queryByText('Cloudflare token')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Remove token' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Remove Work?')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Remove the token' }));
+
+    expect(bridge.$fn('cloudflare.removeToken')).toHaveBeenCalledWith('acct-1');
+    expect(queryClient.getQueryData(queryKeys.cloudflareStatus)).toEqual(left);
+    expect(toast.success).toHaveBeenCalledWith('Removed Work.');
   });
 });

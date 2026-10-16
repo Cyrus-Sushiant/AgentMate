@@ -547,7 +547,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
         queryKey: queryKeys.runProposalsEnabled(projectId ?? ''),
       });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change that.'),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : 'Could not change that.'),
   });
 
   const removeMcpServerMutation = useMutation({
@@ -1093,7 +1094,9 @@ export default function ProjectDetailPage(): React.JSX.Element {
                   id="project-run-suggestions"
                   checked={runSuggestionsQuery.data ?? false}
                   disabled={
-                    !project.folderPath || runSuggestionsQuery.isPending || runSuggestionsMutation.isPending
+                    !project.folderPath ||
+                    runSuggestionsQuery.isPending ||
+                    runSuggestionsMutation.isPending
                   }
                   onCheckedChange={(checked) => runSuggestionsMutation.mutate(checked)}
                 />

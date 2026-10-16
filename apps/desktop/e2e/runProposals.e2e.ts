@@ -145,7 +145,9 @@ test('a suggestion from the agent waits for approval, and Add command saves it',
 
   expect(replies.find((reply) => reply.id === 2)).toMatchObject({
     result: {
-      content: [{ type: 'text', text: expect.stringContaining('waits for the user to approve it') }],
+      content: [
+        { type: 'text', text: expect.stringContaining('waits for the user to approve it') },
+      ],
       isError: false,
     },
   });

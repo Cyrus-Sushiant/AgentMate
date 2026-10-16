@@ -36,7 +36,7 @@ const ADDRESS_TYPES = new Set(['A', 'AAAA', 'CNAME']);
 export interface CloudflareServerOpsDeps {
   cloudflare: Pick<
     CloudflareService,
-    'useApi' | 'withPastedToken' | 'isSavedToken' | 'listZones' | 'listRecords'
+    'useApi' | 'withPastedToken' | 'isSavedToken' | 'allZones' | 'listRecords'
   >;
   links: Pick<CoreLinks, 'call'>;
   roles: (serverId: string) => string[] | null;
@@ -86,16 +86,18 @@ export class CloudflareServerOps {
    */
   async applyOriginLock(input: CloudflareOriginLockInput): Promise<OriginLockResult> {
     if (input.enabled && input.authenticatedOriginPulls) {
-      const domains = await this.domainChecks(input.serverId);
+      const { checks: domains, zones } = await this.domainChecksWithZones(input.serverId);
       const outside = domains.filter((domain) => domain.zoneId === null).map((d) => d.domain);
       if (outside.length > 0) {
         throw new Error(
-          `Authenticated Origin Pulls would cut off ${outside.join(', ')}: no zone of this Cloudflare account holds ${outside.length === 1 ? 'it' : 'them'}. Leave the option off, or add the zone to this account first.`,
+          `Authenticated Origin Pulls would cut off ${outside.join(', ')}: no zone of a connected Cloudflare account holds ${outside.length === 1 ? 'it' : 'them'}. Leave the option off, or add the zone to one of your accounts first.`,
         );
       }
       const zoneIds = [...new Set(domains.map((domain) => domain.zoneId as string))];
       for (const zoneId of zoneIds) {
-        await this.deps.cloudflare.useApi('zoneSettings', (api) =>
+        const accountId = zones.find((zone) => zone.id === zoneId)?.accountId;
+        if (!accountId) throw new Error('That zone is not in a connected Cloudflare account.');
+        await this.deps.cloudflare.useApi(accountId, 'zoneSettings', (api) =>
           api.zones.settings.edit('tls_client_auth', { zone_id: zoneId, value: 'on' }),
         );
       }
@@ -113,7 +115,8 @@ export class CloudflareServerOps {
 
   /**
    * An Origin CA certificate for a site: the core makes the key and its signing request, Cloudflare
-   * signs it with the account token, and the core checks and installs the certificate.
+   * signs it with the token of the account that holds the site's domain, and the core checks and
+   * installs the certificate.
    */
   async originCertificate(
     input: CloudflareOriginCertificateInput,
@@ -122,7 +125,8 @@ export class CloudflareServerOps {
     const request = await this.core(input.serverId, (hub) =>
       hub.createOriginCertificateRequest(input.siteId),
     );
-    const signed = await this.deps.cloudflare.useApi('sslCertificates', (api) =>
+    const accountId = await this.accountForHostnames(request.hostnames);
+    const signed = await this.deps.cloudflare.useApi(accountId, 'sslCertificates', (api) =>
       api.originCACertificates.create({
         csr: request.csrPem,
         hostnames: request.hostnames,
@@ -148,8 +152,8 @@ export class CloudflareServerOps {
    */
   async provisionDnsToken(input: CloudflareDnsTokenInput): Promise<DnsCredentialInfo> {
     this.requireAdmin(input.serverId);
-    const zone = (await this.deps.cloudflare.listZones()).find((item) => item.id === input.zoneId);
-    if (!zone) throw new Error('That zone is not in this Cloudflare account.');
+    const zone = (await this.deps.cloudflare.allZones()).find((item) => item.id === input.zoneId);
+    if (!zone) throw new Error('That zone is not in a connected Cloudflare account.');
     let token: string;
     let tokenId: string | undefined;
     if (input.mode === 'mint') {
@@ -169,11 +173,11 @@ export class CloudflareServerOps {
         }),
       );
     } catch (error) {
-      if (tokenId) await this.forget(tokenId);
+      if (tokenId) await this.forget(zone.accountId, tokenId);
       throw error;
     }
     if (!saved.credential) {
-      if (tokenId) await this.forget(tokenId);
+      if (tokenId) await this.forget(zone.accountId, tokenId);
       throw new Error(saved.problems.join(' ') || 'The server did not keep the token.');
     }
     return saved.credential;
@@ -185,12 +189,20 @@ export class CloudflareServerOps {
     await this.core(input.serverId, (hub) => hub.removeDnsCredential(input.zone));
     if (input.deleteAtCloudflare && known?.tokenId) {
       const tokenId = known.tokenId;
-      await this.deps.cloudflare.useApi('apiTokens', (api) => api.user.tokens.delete(tokenId));
+      const zone = (await this.deps.cloudflare.allZones()).find((item) => item.name === input.zone);
+      if (!zone) {
+        throw new Error(
+          `The token is off the server, but ${input.zone} is not in a connected Cloudflare account, so it could not be deleted at Cloudflare.`,
+        );
+      }
+      await this.deps.cloudflare.useApi(zone.accountId, 'apiTokens', (api) =>
+        api.user.tokens.delete(tokenId),
+      );
     }
   }
 
   private async mint(zone: CloudflareZone, serverName: string) {
-    const groups = await this.deps.cloudflare.useApi('apiTokens', async (api) => {
+    const groups = await this.deps.cloudflare.useApi(zone.accountId, 'apiTokens', async (api) => {
       const page = await api.user.tokens.permissionGroups.list();
       return page.result;
     });
@@ -200,7 +212,7 @@ export class CloudflareServerOps {
     );
     if (!dnsWrite?.id) throw new Error('Cloudflare did not list its DNS Write permission group.');
     const groupId = dnsWrite.id;
-    const created = await this.deps.cloudflare.useApi('apiTokens', (api) =>
+    const created = await this.deps.cloudflare.useApi(zone.accountId, 'apiTokens', (api) =>
       api.user.tokens.create({
         name: `AgentMate DNS-01, ${zone.name} on ${serverName}`.slice(0, 120),
         policies: [
@@ -244,21 +256,56 @@ export class CloudflareServerOps {
   }
 
   /** Deletes a token made here that no server ended up keeping. */
-  private async forget(tokenId: string): Promise<void> {
+  private async forget(accountId: string, tokenId: string): Promise<void> {
     try {
-      await this.deps.cloudflare.useApi('apiTokens', (api) => api.user.tokens.delete(tokenId));
+      await this.deps.cloudflare.useApi(accountId, 'apiTokens', (api) =>
+        api.user.tokens.delete(tokenId),
+      );
     } catch {
       // The token is unused either way; the next look at Cloudflare's token list shows it.
     }
   }
 
+  /**
+   * The account that signs a certificate for these hostnames: the one holding their zones. With a
+   * single account that is simply the account; with several, hostnames that no account holds, or
+   * that sit in different accounts, cannot be signed as one certificate.
+   */
+  private async accountForHostnames(hostnames: string[]): Promise<string> {
+    const zones = await this.deps.cloudflare.allZones();
+    const owners = new Set<string>();
+    const outside: string[] = [];
+    for (const hostname of hostnames) {
+      const zone = zoneOf(hostname, zones);
+      if (zone) owners.add(zone.accountId);
+      else outside.push(hostname);
+    }
+    if (owners.size === 1 && outside.length === 0) return [...owners][0] as string;
+    if (owners.size > 1) {
+      throw new Error(
+        'The names on this certificate are in different Cloudflare accounts. Keep the site to domains of one account, or make one certificate per account.',
+      );
+    }
+    const accounts = [...new Set(zones.map((zone) => zone.accountId))];
+    if (owners.size === 0 && accounts.length === 1) return accounts[0] as string;
+    throw new Error(
+      `No connected Cloudflare account holds ${outside.join(', ')}. Add the domain to one of your accounts, or connect the account that has it.`,
+    );
+  }
+
   private async domainChecks(serverId: string): Promise<CloudflareDomainCheck[]> {
+    return (await this.domainChecksWithZones(serverId)).checks;
+  }
+
+  private async domainChecksWithZones(
+    serverId: string,
+  ): Promise<{ checks: CloudflareDomainCheck[]; zones: CloudflareZone[] }> {
     const sites = await this.core(serverId, (hub) => hub.listSites());
     const domains = [
       ...new Set(sites.flatMap((site) => site.settings.domains.map((d) => d.toLowerCase()))),
     ];
-    if (domains.length === 0) return [];
-    const zones = await this.deps.cloudflare.listZones();
+    if (domains.length === 0) return { checks: [], zones: [] };
+    const zones = await this.deps.cloudflare.allZones();
     const records = new Map<string, Awaited<ReturnType<CloudflareService['listRecords']>>>();
     const checks: CloudflareDomainCheck[] = [];
     for (const domain of domains) {
@@ -279,7 +326,7 @@ export class CloudflareServerOps {
         proxied: own.length === 0 ? null : own.every((record) => record.proxied),
       });
     }
-    return checks;
+    return { checks, zones };
   }
 
   /** Nothing is made at Cloudflare for a server whose core would refuse it anyway. */

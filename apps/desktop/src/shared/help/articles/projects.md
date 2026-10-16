@@ -301,7 +301,7 @@ The Skills section lists skills installed into this project, with their version 
 
 The MCP section lists MCP servers installed into this project with a **Remove** button for each. **Browse marketplace** opens the MCP Servers page for this project. See [MCP Servers](mcp-servers.md).
 
-The switch at the top, **Let agents suggest run commands**, lets an agent in this project propose a run command for you. Turning it on adds an `agentmate` server to the project's `.mcp.json` and writes a small script into `.agentmate`. Claude Code asks you to approve that server the first time it starts in the project. When the agent proposes a command, AgentMate shows it in a dialog with the command exactly as written. **Add command** saves it to the project's run commands, and **Discard** drops it. Nothing runs until you press **Run**. Turning the switch off removes the entry and the script, and drops any proposals still waiting.
+The switch at the top, **Let agents suggest run commands**, lets an agent in this project propose a run command for you. Turning it on adds an `agentmate` server to the project's `.mcp.json` and writes a small script into `.agentmate`. The first time the agent uses it in the project, Claude Code asks you to approve that server and to allow its tools. When the agent proposes a command, AgentMate shows it in a dialog with the command exactly as written. **Add command** saves it to the project's run commands, and **Discard** drops it. Nothing runs until you press **Run**. Turning the switch off removes the entry and the script, and drops any proposals still waiting.
 
 ### Hooks
 

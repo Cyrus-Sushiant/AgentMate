@@ -7,7 +7,7 @@ import {
 } from '../../../shared/cloudflareErrors';
 import type { CloudflarePermissionId, CloudflareStatus } from '../../../shared/cloudflareTypes';
 import { ALL_GRANTS, type FakeToken } from './testing/fakeCloudflare';
-import { connectedService, makeService, NOW, TOKEN } from './testing/harness';
+import { ACCOUNT, connectedService, makeService, NOW, TOKEN } from './testing/harness';
 import { dnsRecord, OTHER_ZONE_ID, RECORD_ID, TOKEN_ID, ZONE_ID } from './testing/recorded';
 
 /**
@@ -17,7 +17,7 @@ import { dnsRecord, OTHER_ZONE_ID, RECORD_ID, TOKEN_ID, ZONE_ID } from './testin
  */
 
 function stateOf(status: CloudflareStatus, id: CloudflarePermissionId): string | undefined {
-  return status.report?.permissions.find((check) => check.id === id)?.state;
+  return status.accounts[0]?.report?.permissions.find((check) => check.id === id)?.state;
 }
 
 async function rejection(promise: Promise<unknown>): Promise<Error> {
@@ -32,16 +32,20 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
 describe('the token (T1)', () => {
   it('starts with nothing saved', async () => {
     const { service } = makeService();
-    expect(await service.status()).toEqual({ configured: false, locked: false, report: null });
+    expect(await service.status()).toEqual({ configured: false, locked: false, accounts: [] });
   });
 
   it('checks a pasted token, seals it and keeps only the report where the page can see it', async () => {
     const { service, fake, port, seal } = makeService();
 
-    const status = await service.saveToken(TOKEN);
+    const status = await service.saveToken({ token: TOKEN });
 
     expect(status.configured).toBe(true);
-    expect(status.report).toMatchObject({ tokenId: TOKEN_ID, status: 'active', checkedAt: NOW });
+    expect(status.accounts[0]?.report).toMatchObject({
+      tokenId: TOKEN_ID,
+      status: 'active',
+      checkedAt: NOW,
+    });
     expect(JSON.stringify(status)).not.toContain(TOKEN);
     expect(seal).toHaveBeenCalledWith(TOKEN);
     expect(JSON.stringify(port.value)).not.toContain(TOKEN);
@@ -60,9 +64,9 @@ describe('the token (T1)', () => {
       token: { grants: { zone: 'read', dns: 'edit', zoneSettings: 'edit' } },
     });
 
-    const status = await service.saveToken(TOKEN);
+    const status = await service.saveToken({ token: TOKEN });
 
-    const missing = (status.report?.permissions ?? [])
+    const missing = (status.accounts[0]?.report?.permissions ?? [])
       .filter((check) => check.state === 'missing')
       .map((check) => check.id);
     expect(status.configured).toBe(true);
@@ -74,16 +78,16 @@ describe('the token (T1)', () => {
 
   it('refuses text that cannot be a token without asking Cloudflare', async () => {
     const { service, fake } = makeService();
-    await expect(service.saveToken('0123456789abcdef0123456789abcdef01234')).rejects.toThrow(
-      /Global API Key/,
-    );
+    await expect(
+      service.saveToken({ token: '0123456789abcdef0123456789abcdef01234' }),
+    ).rejects.toThrow(/Global API Key/);
     expect(fake.requests).toEqual([]);
   });
 
   it('keeps nothing when Cloudflare does not accept the token, and never repeats it', async () => {
     const { service, port } = makeService({ tokens: {} });
 
-    const error = await rejection(service.saveToken(TOKEN));
+    const error = await rejection(service.saveToken({ token: TOKEN }));
 
     expect(error.message).toMatch(/Cloudflare did not accept this token/);
     expect(error.message).not.toContain(TOKEN);
@@ -92,7 +96,7 @@ describe('the token (T1)', () => {
 
   it('refuses a token Cloudflare reports as disabled or expired', async () => {
     const { service } = makeService({ token: { grants: ALL_GRANTS, status: 'expired' } });
-    await expect(service.saveToken(TOKEN)).rejects.toThrow(/expired/);
+    await expect(service.saveToken({ token: TOKEN })).rejects.toThrow(/expired/);
     expect((await service.status()).configured).toBe(false);
   });
 
@@ -102,7 +106,7 @@ describe('the token (T1)', () => {
       new Error('The vault is locked. Unlock it with your passkey first.'),
     );
 
-    const error = await rejection(service.saveToken(TOKEN));
+    const error = await rejection(service.saveToken({ token: TOKEN }));
 
     expect(cloudflareErrorCode(error)).toBe('locked');
     expect((await service.status()).configured).toBe(false);
@@ -115,16 +119,16 @@ describe('the token (T1)', () => {
 
     // Cloudflare keeps the token's value when its permissions change.
     token.grants = ALL_GRANTS;
-    const status = await service.checkToken();
+    const status = await service.checkToken(ACCOUNT);
 
     expect(stateOf(status, 'dns')).toBe('granted');
   });
 
   it('asks for a token before anything else', async () => {
     const { service } = makeService();
-    const error = await rejection(service.listZones());
+    const error = await rejection(service.listZones(ACCOUNT));
     expect(cloudflareErrorCode(error)).toBe('no-token');
-    await expect(service.checkToken()).rejects.toThrow(/Connect Cloudflare/);
+    await expect(service.checkToken(ACCOUNT)).rejects.toThrow(/Connect Cloudflare/);
   });
 
   it('says when the saved token is locked behind the Servers passkey', async () => {
@@ -132,13 +136,13 @@ describe('the token (T1)', () => {
     lock.value = true;
 
     expect((await service.status()).locked).toBe(true);
-    expect(cloudflareErrorCode(await rejection(service.listZones()))).toBe('locked');
+    expect(cloudflareErrorCode(await rejection(service.listZones(ACCOUNT)))).toBe('locked');
   });
 
   it('forgets the token on request', async () => {
     const { service } = await connectedService();
-    await service.removeToken();
-    expect(await service.status()).toEqual({ configured: false, locked: false, report: null });
+    await service.removeToken(ACCOUNT);
+    expect(await service.status()).toEqual({ configured: false, locked: false, accounts: [] });
   });
 
   it('passes on that Cloudflare no longer accepts the saved token', async () => {
@@ -148,7 +152,7 @@ describe('the token (T1)', () => {
       errors: [{ code: 1000, message: 'Invalid API Token' }],
     });
 
-    const error = await rejection(service.listZones());
+    const error = await rejection(service.listZones(ACCOUNT));
 
     expect(cloudflareErrorCode(error)).toBe('token-rejected');
   });
@@ -163,9 +167,10 @@ describe('zones and DNS records (T2)', () => {
       ],
     });
 
-    expect(await service.listZones()).toEqual([
+    expect(await service.listZones(ACCOUNT)).toEqual([
       {
         id: ZONE_ID,
+        accountId: ACCOUNT,
         name: 'example.com',
         status: 'active',
         paused: false,
@@ -392,7 +397,7 @@ describe('zones and DNS records (T2)', () => {
     expect(cloudflareErrorCode(error)).toBe('missing-permission');
     expect(cloudflareErrorPermission(error)).toBe('dns');
     expect(cloudflareErrorMessage(error)).toMatch(/add Zone > DNS > Edit/);
-    const report = (await service.status()).report;
+    const report = (await service.status()).accounts[0]?.report;
     expect(report?.permissions.find((check) => check.id === 'dns')?.state).toBe('missing');
   });
 });

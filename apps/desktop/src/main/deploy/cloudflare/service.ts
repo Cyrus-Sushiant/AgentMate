@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   RecordBatchParams,
   RecordCreateParams,
@@ -26,6 +27,7 @@ import type {
   CloudflarePointDomainResult,
   CloudflarePurgeRequest,
   CloudflareRecordInput,
+  CloudflareSaveTokenInput,
   CloudflareSecurityLevel,
   CloudflareSettingChange,
   CloudflareSslMode,
@@ -40,12 +42,13 @@ import type { CloudflareState } from './state';
 import { checkToken } from './tokenCheck';
 
 /**
- * The Cloudflare page's main-process side. The API token arrives once from the renderer, is
- * checked against Cloudflare, sealed with the Servers vault and saved; after that the renderer
- * only ever sees whether one is set and what it may do. Every call unseals the token for the
- * length of that call and goes through the official SDK. When Cloudflare refuses a call for want
- * of a permission, the error names it (and the saved report marks it missing), so the page can
- * show exactly what to add to the token.
+ * The Cloudflare page's main-process side. Any number of accounts can be connected. Each API token
+ * arrives once from the renderer, is checked against Cloudflare, sealed with the Servers vault and
+ * saved; after that the renderer only ever sees whether one is set and what it may do. Every call
+ * unseals the token of the account it is for (a zone call finds the account that holds the zone)
+ * for the length of that call and goes through the official SDK. When Cloudflare refuses a call
+ * for want of a permission, the error names it (and the account's saved report marks it missing),
+ * so the page can show exactly what to add to the token.
  *
  * Origin CA certificates (T5), the Cloudflare-only origin lock (T6) and DNS-01 tokens for a
  * server (T7) involve the server core too; they live in serverOps.ts and use this service's
@@ -67,6 +70,8 @@ export interface CloudflareServiceDeps {
   baseURL?: string;
   maxRetries?: number;
   now?: () => number;
+  /** Ids for new accounts; tests pass a counter. */
+  newId?: () => string;
 }
 
 const CUSTOM_PHASE = 'http_request_firewall_custom';
@@ -85,6 +90,9 @@ const SETTING_IDS = {
   alwaysUseHttps: 'always_use_https',
 } as const;
 const NO_TOKEN = 'Connect Cloudflare first: paste an API token on the Cloudflare page.';
+const NO_ZONE = 'That domain is not in any of the connected Cloudflare accounts.';
+const UNKNOWN_ACCOUNT = 'That Cloudflare account is not connected any more.';
+const MAX_LABEL = 60;
 const LOCKED =
   'Your saved servers are locked with a passkey, and the Cloudflare token with them. Unlock them first.';
 const RULE_GONE = 'That rule is not in this zone any more. Refresh the list.';
@@ -252,26 +260,55 @@ async function allPages<T>(
   return items;
 }
 
+/** What the user typed for a new account's name, or "Account 2" and so on when they left it out. */
+function cleanLabel(typed: string | undefined, existing: { label: string }[]): string {
+  const label = (typed ?? '').trim().slice(0, MAX_LABEL);
+  if (label !== '') return label;
+  const taken = new Set(existing.map((account) => account.label));
+  for (let number = existing.length + 1; ; number += 1) {
+    const candidate = `Account ${number}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 export class CloudflareService {
   private readonly now: () => number;
+  private readonly newId: () => string;
+  /** Which account each listed zone came from, so a zone call finds its token. */
+  private readonly zoneOwners = new Map<string, string>();
 
   constructor(private readonly deps: CloudflareServiceDeps) {
     this.now = deps.now ?? Date.now;
+    this.newId = deps.newId ?? randomUUID;
   }
 
   async status(): Promise<CloudflareStatus> {
-    const [token, report] = await Promise.all([this.deps.state.token(), this.deps.state.report()]);
+    const stored = await this.deps.state.accounts();
+    const accounts = stored.map((account) => ({
+      id: account.id,
+      label: account.label,
+      locked: this.deps.isLocked(account.token.envelope),
+      report: account.report,
+    }));
     return {
-      configured: token !== null,
-      locked: token !== null && this.deps.isLocked(token.envelope),
-      report,
+      configured: accounts.length > 0,
+      locked: accounts.some((account) => account.locked),
+      accounts,
     };
   }
 
-  /** Checks a pasted token, then seals and saves it with its report, missing permissions and all. */
-  async saveToken(token: string): Promise<CloudflareStatus> {
+  /**
+   * Checks a pasted token, then seals and saves it with its report, missing permissions and all.
+   * With an `accountId` it replaces that account's token; without, it connects another account.
+   * A token that is already connected under another name is refused rather than saved twice.
+   */
+  async saveToken(input: CloudflareSaveTokenInput): Promise<CloudflareStatus> {
+    const { token } = input;
     const problem = tokenProblem(token);
     if (problem) throw new Error(problem);
+    const existing = await this.deps.state.accounts();
+    const replacing = input.accountId ? existing.find((item) => item.id === input.accountId) : null;
+    if (input.accountId && !replacing) throw new Error(UNKNOWN_ACCOUNT);
     const api = this.api(token);
     let report: Awaited<ReturnType<typeof checkToken>>;
     try {
@@ -295,37 +332,76 @@ export class CloudflareService {
     } catch {
       throw new Error(encodeCloudflareError('locked', LOCKED));
     }
-    await this.deps.state.save({ envelope, tokenId: report.tokenId, savedAt: this.now() }, report);
+    const twin = existing.find(
+      (item) => item.token.tokenId === report.tokenId && item.id !== replacing?.id,
+    );
+    if (twin) {
+      throw new Error(`This token is already connected as ${twin.label}. Use a different token.`);
+    }
+    await this.deps.state.save({
+      id: replacing?.id ?? this.newId(),
+      label: replacing?.label ?? cleanLabel(input.label, existing),
+      token: { envelope, tokenId: report.tokenId, savedAt: this.now() },
+      report,
+    });
     return this.status();
   }
 
-  /** Checks the saved token again, as after its permissions were edited on Cloudflare. */
-  async checkToken(): Promise<CloudflareStatus> {
-    const report = await this.withApi(undefined, (api) => checkToken(api, this.now()));
-    await this.deps.state.setReport(report);
+  /** Checks an account's saved token again, as after its permissions were edited on Cloudflare. */
+  async checkToken(accountId: string): Promise<CloudflareStatus> {
+    const report = await this.withAccount(accountId, undefined, (api) =>
+      checkToken(api, this.now()),
+    );
+    await this.deps.state.setReport(accountId, report);
     return this.status();
   }
 
-  removeToken(): Promise<void> {
-    return this.deps.state.clear();
+  async removeToken(accountId: string): Promise<CloudflareStatus> {
+    await this.deps.state.remove(accountId);
+    for (const [zoneId, owner] of this.zoneOwners) {
+      if (owner === accountId) this.zoneOwners.delete(zoneId);
+    }
+    return this.status();
   }
 
-  listZones(): Promise<CloudflareZone[]> {
-    return this.withApi('zone', async (api) => {
+  /** The zones one account's token can see. */
+  listZones(accountId: string): Promise<CloudflareZone[]> {
+    return this.withAccount(accountId, 'zone', async (api) => {
       const zones = await allPages((page) => api.zones.list({ page, per_page: 50 }));
-      return zones.map((zone) => ({
-        id: zone.id,
-        name: zone.name,
-        status: zone.status ?? 'active',
-        paused: zone.paused ?? false,
-        plan: zone.plan?.name ?? '',
-        nameServers: zone.name_servers ?? [],
-      }));
+      return zones.map((zone) => {
+        this.zoneOwners.set(zone.id, accountId);
+        return {
+          id: zone.id,
+          accountId,
+          name: zone.name,
+          status: zone.status ?? 'active',
+          paused: zone.paused ?? false,
+          plan: zone.plan?.name ?? '',
+          nameServers: zone.name_servers ?? [],
+        };
+      });
     });
   }
 
+  /**
+   * The zones of every connected account, for the flows that work from a domain name rather than
+   * from one account. An account whose token fails is left out so the others still answer; only
+   * when none answers is the first failure thrown.
+   */
+  async allZones(): Promise<CloudflareZone[]> {
+    const accounts = await this.deps.state.accounts();
+    if (accounts.length === 0) throw new Error(encodeCloudflareError('no-token', NO_TOKEN));
+    const settled = await Promise.allSettled(accounts.map((account) => this.listZones(account.id)));
+    const zones = settled.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+    const failed = settled.find((result) => result.status === 'rejected');
+    if (failed && zones.length === 0 && settled.every((result) => result.status === 'rejected')) {
+      throw (failed as PromiseRejectedResult).reason;
+    }
+    return zones;
+  }
+
   listRecords(zoneId: string): Promise<CloudflareDnsRecord[]> {
-    return this.withApi('dns', async (api) => {
+    return this.withZone(zoneId, 'dns', async (api) => {
       const records = await allPages((page) =>
         api.dns.records.list({ zone_id: zoneId, page, per_page: PAGE_SIZE }),
       );
@@ -334,7 +410,7 @@ export class CloudflareService {
   }
 
   createRecord(zoneId: string, input: CloudflareRecordInput): Promise<CloudflareDnsRecord> {
-    return this.withApi('dns', async (api) => {
+    return this.withZone(zoneId, 'dns', async (api) => {
       const params = { zone_id: zoneId, ...recordBody(input) } as RecordCreateParams;
       return toRecord((await api.dns.records.create(params)) as unknown as ApiRecord);
     });
@@ -346,24 +422,24 @@ export class CloudflareService {
     recordId: string,
     input: CloudflareRecordInput,
   ): Promise<CloudflareDnsRecord> {
-    return this.withApi('dns', async (api) => {
+    return this.withZone(zoneId, 'dns', async (api) => {
       const params = { zone_id: zoneId, ...recordBody(input) } as RecordEditParams;
       return toRecord((await api.dns.records.edit(recordId, params)) as unknown as ApiRecord);
     });
   }
 
   deleteRecord(zoneId: string, recordId: string): Promise<void> {
-    return this.withApi('dns', async (api) => {
+    return this.withZone(zoneId, 'dns', async (api) => {
       await api.dns.records.delete(recordId, { zone_id: zoneId });
     });
   }
 
   zoneSettings(zoneId: string): Promise<CloudflareZoneSettings> {
-    return this.withApi('zoneSettings', (api) => this.readSettings(api, zoneId));
+    return this.withZone(zoneId, 'zoneSettings', (api) => this.readSettings(api, zoneId));
   }
 
   changeSetting(zoneId: string, change: CloudflareSettingChange): Promise<CloudflareZoneSettings> {
-    return this.withApi('zoneSettings', async (api) => {
+    return this.withZone(zoneId, 'zoneSettings', async (api) => {
       await api.zones.settings.edit(SETTING_IDS[change.setting], {
         zone_id: zoneId,
         value: change.value,
@@ -373,7 +449,7 @@ export class CloudflareService {
   }
 
   purgeCache(zoneId: string, request: CloudflarePurgeRequest): Promise<void> {
-    return this.withApi('cachePurge', async (api) => {
+    return this.withZone(zoneId, 'cachePurge', async (api) => {
       await api.cache.purge(
         'everything' in request
           ? { zone_id: zoneId, purge_everything: true }
@@ -383,7 +459,9 @@ export class CloudflareService {
   }
 
   listCustomRules(zoneId: string): Promise<CloudflareCustomRule[]> {
-    return this.withApi('waf', async (api) => rulesOf(await this.customRuleset(api, zoneId)));
+    return this.withZone(zoneId, 'waf', async (api) =>
+      rulesOf(await this.customRuleset(api, zoneId)),
+    );
   }
 
   /**
@@ -398,7 +476,7 @@ export class CloudflareService {
     const built = buildRule(input.spec);
     if (!built.ok) return Promise.reject(new Error(built.problem));
     const body = ruleBody(built.rule, input.description);
-    return this.withApi('waf', async (api) => {
+    return this.withZone(zoneId, 'waf', async (api) => {
       const ruleset = await this.customRuleset(api, zoneId);
       if (!ruleset) {
         const created = await api.rulesets.create({
@@ -427,7 +505,7 @@ export class CloudflareService {
     ruleId: string,
     enabled: boolean,
   ): Promise<CloudflareCustomRule[]> {
-    return this.withApi('waf', async (api) => {
+    return this.withZone(zoneId, 'waf', async (api) => {
       const { ruleset, rule } = await this.findRule(api, zoneId, ruleId);
       const params = {
         zone_id: zoneId,
@@ -443,7 +521,7 @@ export class CloudflareService {
   }
 
   deleteCustomRule(zoneId: string, ruleId: string): Promise<CloudflareCustomRule[]> {
-    return this.withApi('waf', async (api) => {
+    return this.withZone(zoneId, 'waf', async (api) => {
       const { ruleset } = await this.findRule(api, zoneId, ruleId);
       const after = await api.rulesets.rules.delete(ruleId, {
         zone_id: zoneId,
@@ -454,7 +532,7 @@ export class CloudflareService {
   }
 
   listAccessRules(zoneId: string): Promise<CloudflareAccessRule[]> {
-    return this.withApi('accessRules', async (api) => {
+    return this.withZone(zoneId, 'accessRules', async (api) => {
       const rules = await allPages((page) =>
         api.firewall.accessRules.list({ zone_id: zoneId, page, per_page: PAGE_SIZE }),
       );
@@ -468,7 +546,7 @@ export class CloudflareService {
   ): Promise<CloudflareAccessRule> {
     const target = accessRuleTarget(input.value);
     if (!target.ok) return Promise.reject(new Error(target.problem));
-    return this.withApi('accessRules', async (api) => {
+    return this.withZone(zoneId, 'accessRules', async (api) => {
       const created = await api.firewall.accessRules.create({
         zone_id: zoneId,
         mode: input.mode,
@@ -480,19 +558,19 @@ export class CloudflareService {
   }
 
   deleteAccessRule(zoneId: string, ruleId: string): Promise<void> {
-    return this.withApi('accessRules', async (api) => {
+    return this.withZone(zoneId, 'accessRules', async (api) => {
       await api.firewall.accessRules.delete(ruleId, { zone_id: zoneId });
     });
   }
 
   /** What pointing the name at the server would change, without changing anything. */
   planPointDomain(input: CloudflarePointDomainInput): Promise<CloudflarePointDomainPlan> {
-    return this.withApi('dns', (api) => this.plan(api, input));
+    return this.withZone(input.zoneId, 'dns', (api) => this.plan(api, input));
   }
 
   /** Applies the plan in one batch, which Cloudflare runs as a single transaction (AC2). */
   pointDomain(input: CloudflarePointDomainInput): Promise<CloudflarePointDomainResult> {
-    return this.withApi('dns', async (api) => {
+    return this.withZone(input.zoneId, 'dns', async (api) => {
       const plan = await this.plan(api, input);
       if (plan.upToDate) return { plan, applied: 0 };
       const deletes = plan.changes.filter((change) => change.action === 'delete');
@@ -620,14 +698,15 @@ export class CloudflareService {
   }
 
   /**
-   * The saved token's API for the server-side flows (serverOps.ts), with the same refusal
-   * handling as the page's own calls. The token never leaves this process.
+   * An account's API for the server-side flows (serverOps.ts), with the same refusal handling as
+   * the page's own calls. The token never leaves this process.
    */
   useApi<T>(
+    accountId: string,
     permission: CloudflareAnyPermissionId | undefined,
     work: (api: CloudflareApi) => Promise<T>,
   ): Promise<T> {
-    return this.withApi(permission, work);
+    return this.withAccount(accountId, permission, work);
   }
 
   /** A client for a token the user pasted for a server (never saved here); errors scrub it. */
@@ -639,32 +718,63 @@ export class CloudflareService {
     }
   }
 
-  /** Whether this is the saved account token, which must never go to a server. */
+  /** Whether this is the token of a connected account, which must never go to a server. */
   async isSavedToken(token: string): Promise<boolean> {
-    const stored = await this.deps.state.token();
-    if (!stored || this.deps.isLocked(stored.envelope)) return false;
-    try {
-      return (await this.deps.unseal(stored.envelope)) === token;
-    } catch {
-      return false;
+    for (const account of await this.deps.state.accounts()) {
+      if (this.deps.isLocked(account.token.envelope)) continue;
+      try {
+        if ((await this.deps.unseal(account.token.envelope)) === token) return true;
+      } catch {
+        // A token that cannot be opened cannot be this one.
+      }
     }
+    return false;
   }
 
   /**
-   * Runs `work` with the saved token, for the length of the call. `permission` is the one the
-   * call needs: a refusal names it in the error and marks it missing in the saved report.
+   * The account that holds a zone. Zones the page has listed are remembered; any other (the page
+   * has not been opened since launch) is looked for in each account in turn.
    */
-  private async withApi<T>(
+  async accountOfZone(zoneId: string): Promise<string> {
+    const known = this.zoneOwners.get(zoneId);
+    if (known) return known;
+    for (const account of await this.deps.state.accounts()) {
+      if (this.deps.isLocked(account.token.envelope)) continue;
+      try {
+        if ((await this.listZones(account.id)).some((zone) => zone.id === zoneId)) {
+          return account.id;
+        }
+      } catch {
+        // This account cannot say; the next one might.
+      }
+    }
+    throw new Error(NO_ZONE);
+  }
+
+  private async withZone<T>(
+    zoneId: string,
     permission: CloudflareAnyPermissionId | undefined,
     work: (api: CloudflareApi) => Promise<T>,
   ): Promise<T> {
-    const stored = await this.deps.state.token();
+    return this.withAccount(await this.accountOfZone(zoneId), permission, work);
+  }
+
+  /**
+   * Runs `work` with an account's token, for the length of the call. `permission` is the one the
+   * call needs: a refusal names it in the error and marks it missing in that account's report.
+   */
+  private async withAccount<T>(
+    accountId: string,
+    permission: CloudflareAnyPermissionId | undefined,
+    work: (api: CloudflareApi) => Promise<T>,
+  ): Promise<T> {
+    const stored = await this.deps.state.account(accountId);
     if (!stored) throw new Error(encodeCloudflareError('no-token', NO_TOKEN));
-    if (this.deps.isLocked(stored.envelope))
+    if (this.deps.isLocked(stored.token.envelope))
       throw new Error(encodeCloudflareError('locked', LOCKED));
     let token: string;
     try {
-      token = await this.deps.unseal(stored.envelope);
+      token = await this.deps.unseal(stored.token.envelope);
     } catch {
       throw new Error(encodeCloudflareError('locked', LOCKED));
     }
@@ -672,7 +782,7 @@ export class CloudflareService {
       return await work(this.api(token));
     } catch (error) {
       if (permission && isPermissionDenied(error) && isMainPermission(permission)) {
-        await this.deps.state.markMissing(permission);
+        await this.deps.state.markMissing(accountId, permission);
       }
       throw cloudflareFailure(error, token, permission);
     }

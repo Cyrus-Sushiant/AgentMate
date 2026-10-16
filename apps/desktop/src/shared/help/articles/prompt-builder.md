@@ -74,7 +74,7 @@ Under the generated prompt, the **Recommended run** panel tells you how heavy th
 When a result is ready the panel shows:
 
 - A one-line summary and a task label, **Light task**, **Moderate task** or **Complex task**, with a small meter.
-- **Model**: cards for the target agent's models, each with its tier and a cost meter. A check mark badge shows the recommended one. Click a card to choose a different model. **Use recommended** puts it back.
+- **Model**: cards for the target agent's models, each with its tier and a cost meter. A check mark badge shows the recommended one. Click a card to choose a different model. **Use recommended** puts the model and the effort back to the suggestion. It shows beside **Model** or **Effort**, whichever you changed.
 - **Effort**: a switch of effort levels for the model, with a dot on the recommended one. Some agents have no effort setting, and then the panel says so.
 - **Why**: small up and down arrows with reasons that made the task heavier or lighter.
 - A cost line (**Lowest cost** to **Highest cost**), the model's price per million tokens when known, and a ready-made command such as the CLI name with `--model` and `--effort` flags. Click the copy button next to it to copy the command.

@@ -20,15 +20,22 @@ const TOKEN = 'Gm4pR2e6Tq9VxYb1Lk0NsHjW3cZaDf7U8iOoPl5M';
 const SAVED: CloudflareStatus = {
   configured: true,
   locked: false,
-  report: {
-    tokenId: 'ed17574386854bf78a67040be0a770b0',
-    status: 'active',
-    expiresOn: null,
-    source: 'probes',
-    permissions: [],
-    zoneCount: 1,
-    checkedAt: Date.now(),
-  },
+  accounts: [
+    {
+      id: 'acct-1',
+      label: 'Work',
+      locked: false,
+      report: {
+        tokenId: 'ed17574386854bf78a67040be0a770b0',
+        status: 'active',
+        expiresOn: null,
+        source: 'probes',
+        permissions: [],
+        zoneCount: 1,
+        checkedAt: Date.now(),
+      },
+    },
+  ],
 };
 
 function deferred<T>() {
@@ -74,14 +81,48 @@ describe('TokenSetupCard', () => {
     await user.type(field, TOKEN);
     await user.click(screen.getByRole('button', { name: 'Save and check' }));
 
-    expect(bridge.$fn('cloudflare.saveToken')).toHaveBeenCalledWith(TOKEN);
+    expect(bridge.$fn('cloudflare.saveToken')).toHaveBeenCalledWith({ token: TOKEN });
     expect(screen.getByRole('button', { name: /Checking with Cloudflare/ })).toBeDisabled();
     saving.resolve(SAVED);
 
     expect(await screen.findByRole('button', { name: 'Save and check' })).toBeInTheDocument();
     expect(field).toHaveValue('');
     expect(queryClient.getQueryData(queryKeys.cloudflareStatus)).toEqual(SAVED);
-    expect(toast.success).toHaveBeenCalledWith('Cloudflare is connected.');
+    expect(toast.success).toHaveBeenCalledWith('Cloudflare account connected.');
+  });
+
+  it('connects another account under the name typed for it', async () => {
+    const { user, bridge } = renderWithProviders(<TokenSetupCard additional />, {
+      bridge: { 'cloudflare.saveToken': async () => SAVED },
+    });
+
+    expect(screen.getByText('Connect another Cloudflare account')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Name (optional)'), '  Client Co ');
+    await user.type(screen.getByLabelText('API token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Save and check' }));
+
+    expect(bridge.$fn('cloudflare.saveToken')).toHaveBeenCalledWith({
+      token: TOKEN,
+      label: 'Client Co',
+    });
+  });
+
+  it('replaces the token of one account without asking for a name again', async () => {
+    const { user, bridge } = renderWithProviders(
+      <TokenSetupCard account={{ id: 'acct-1', label: 'Work' }} />,
+      { bridge: { 'cloudflare.saveToken': async () => SAVED } },
+    );
+
+    expect(screen.getByText('Replace the token for Work')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name (optional)')).toBeNull();
+    await user.type(screen.getByLabelText('API token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Save and check' }));
+
+    expect(bridge.$fn('cloudflare.saveToken')).toHaveBeenCalledWith({
+      token: TOKEN,
+      accountId: 'acct-1',
+    });
+    expect(toast.success).toHaveBeenCalledWith('Replaced the token for Work.');
   });
 
   it('says why pasted text cannot be a token, without sending it anywhere', async () => {
@@ -115,9 +156,20 @@ describe('TokenSetupCard', () => {
 
   it('offers to keep the current token when it replaces one', async () => {
     const onCancel = vi.fn();
-    const { user } = renderWithProviders(<TokenSetupCard onCancel={onCancel} />);
+    const { user } = renderWithProviders(
+      <TokenSetupCard account={{ id: 'acct-1', label: 'Work' }} onCancel={onCancel} />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'Keep the current token' }));
+
+    expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('offers to cancel when it adds another account', async () => {
+    const onCancel = vi.fn();
+    const { user } = renderWithProviders(<TokenSetupCard additional onCancel={onCancel} />);
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(onCancel).toHaveBeenCalled();
   });

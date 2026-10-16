@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron';
+import { join } from 'node:path';
+import { app, ipcMain } from 'electron';
 import type { RunProposalDecision } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { portFilePath } from '../notifications/hookServer';
@@ -7,9 +8,10 @@ import {
   getRunProposalsEnabled,
   listPendingRunProposals,
   setRunProposalsEnabled,
+  startGuidedRunSession,
 } from '../runProposals/service';
 
-/** The renderer's side of run suggestions: the approval dialog, and the switch on each project. */
+/** The renderer's side of run suggestions: the approval dialog, the switch, and starting a setup. */
 export function registerRunProposalHandlers(): void {
   ipcMain.handle(IPC.runProposals.list, () => listPendingRunProposals());
   ipcMain.handle(
@@ -24,5 +26,11 @@ export function registerRunProposalHandlers(): void {
     IPC.runProposals.setEnabled,
     (_event, args: { projectId: string; enabled: boolean }) =>
       setRunProposalsEnabled(args.projectId, args.enabled === true, portFilePath()),
+  );
+  ipcMain.handle(IPC.runProposals.startGuided, (_event, projectId: string) =>
+    startGuidedRunSession(projectId, {
+      directory: join(app.getPath('userData'), 'run-suggestions'),
+      portFile: portFilePath(),
+    }),
   );
 }
