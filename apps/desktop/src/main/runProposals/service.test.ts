@@ -177,9 +177,7 @@ describe('run suggestions for a project', () => {
       { id: 'dev', label: 'dev', command: 'npm run dev' },
       { id: expect.any(String), label: 'android dev', command: 'flutter run' },
     ]);
-    expect(project.runCommands[1]).toEqual(
-      (decided as { runCommand: unknown }).runCommand,
-    );
+    expect(project.runCommands[1]).toEqual((decided as { runCommand: unknown }).runCommand);
   });
 
   it('discards a suggestion without touching the project', async () => {

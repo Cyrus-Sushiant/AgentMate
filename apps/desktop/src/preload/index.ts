@@ -2537,10 +2537,7 @@ const splash = {
 /** Run commands an AI agent suggests for a project. Each suggestion waits for the user's decision. */
 const runProposals = {
   list: (): Promise<RunProposal[]> => ipcRenderer.invoke(IPC.runProposals.list),
-  decide: (
-    id: string,
-    decision: RunProposalDecision,
-  ): Promise<RunProposalDecisionResult> =>
+  decide: (id: string, decision: RunProposalDecision): Promise<RunProposalDecisionResult> =>
     ipcRenderer.invoke(IPC.runProposals.decide, { id, decision }),
   getEnabled: (projectId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.runProposals.getEnabled, projectId),

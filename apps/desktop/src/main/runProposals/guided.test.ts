@@ -53,7 +53,12 @@ function seedProject(id: string): void {
   ]);
 }
 
-const proposal = { projectId: 'p1', action: 'propose', label: 'android dev', command: 'flutter run' };
+const proposal = {
+  projectId: 'p1',
+  action: 'propose',
+  label: 'android dev',
+  command: 'flutter run',
+};
 
 describe('guided run setup', () => {
   it('writes the bridge and an MCP config outside the project folder', async () => {
@@ -106,7 +111,10 @@ describe('guided run setup', () => {
     expect((await service.handleRunCommandsRequest(proposal)).status).toBe(200);
 
     vi.setSystemTime(new Date('2026-10-16T12:00:01.000Z'));
-    const late = await service.handleRunCommandsRequest({ ...proposal, command: 'flutter run --release' });
+    const late = await service.handleRunCommandsRequest({
+      ...proposal,
+      command: 'flutter run --release',
+    });
     expect(late.status).toBe(403);
   });
 
@@ -122,7 +130,10 @@ describe('guided run setup', () => {
     seedProject('../escape');
     const service = await load();
 
-    const result = await service.startGuidedRunSession('../escape', { directory, portFile: PORT_FILE });
+    const result = await service.startGuidedRunSession('../escape', {
+      directory,
+      portFile: PORT_FILE,
+    });
 
     expect(result).toEqual({ ok: false, error: 'This project cannot start a run setup.' });
     expect(existsSync(join(directory, '..', 'escape'))).toBe(false);
