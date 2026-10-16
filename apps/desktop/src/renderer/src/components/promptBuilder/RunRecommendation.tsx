@@ -276,8 +276,8 @@ export function RunRecommendationPanel({
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-background/60">
             {profile.cliId ? (
               <CliLogo cliId={profile.cliId} className="h-3.5 w-3.5" />
