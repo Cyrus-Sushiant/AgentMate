@@ -1,17 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { electronState } from '../test/main/electronMock';
-import { shouldDeferDownloadedBroadcast } from './updater';
 
 /**
- * Regression test for the macOS "Restart now does nothing" bug.
- *
- * On macOS electron-updater emits `update-downloaded` as soon as the zip is in
- * its cache, before Squirrel.Mac has fetched it from the local proxy server.
- * The app used to broadcast `downloaded` immediately, so the dialog offered
- * "Restart now" while MacUpdater.quitAndInstall() could only wait for the
- * native event: the click appeared dead and the dialog stayed open.
- * `shouldDeferDownloadedBroadcast` is the gate that keeps the dialog hidden
- * until the native handoff has resolved; these tests pin its truth table.
+ * Regression tests for the update restart step. The release macOS builds are unsigned, so
+ * Squirrel.Mac never accepted electron-updater's handoff: the dialog first offered a dead
+ * "Restart now", then (after deferring it) sat at 100%. macOS now swaps its own bundle, so
+ * restarting there must never go through `autoUpdater.quitAndInstall()`.
  */
 
 vi.mock('electron-updater', () => ({
@@ -28,31 +22,27 @@ vi.mock('electron-updater', () => ({
 vi.mock('./ipc/send', () => ({ broadcastToWindows: vi.fn() }));
 vi.mock('./ipc/terminal', () => ({ preserveTerminalsOnQuit: vi.fn() }));
 vi.mock('./quitGuard', () => ({ allowQuit: vi.fn() }));
+vi.mock('./updater/macInstall', () => ({
+  launchMacInstall: vi.fn(),
+  pickMacZip: vi.fn(),
+  prepareMacUpdate: vi.fn(),
+}));
 
-describe('shouldDeferDownloadedBroadcast', () => {
-  it('defers the downloaded dialog on macOS while the native handoff is in flight', () => {
-    expect(shouldDeferDownloadedBroadcast('darwin', true)).toBe(true);
-  });
+const realPlatform = process.platform;
 
-  it('shows the dialog on macOS once the handoff has resolved', () => {
-    expect(shouldDeferDownloadedBroadcast('darwin', false)).toBe(false);
-  });
-
-  it('never defers on Windows, even with an active download', () => {
-    expect(shouldDeferDownloadedBroadcast('win32', true)).toBe(false);
-    expect(shouldDeferDownloadedBroadcast('win32', false)).toBe(false);
-  });
-
-  it('never defers on Linux, even with an active download', () => {
-    expect(shouldDeferDownloadedBroadcast('linux', true)).toBe(false);
-    expect(shouldDeferDownloadedBroadcast('linux', false)).toBe(false);
-  });
-});
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: platform });
+}
 
 describe('quitAndInstall', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     electronState.isPackaged = true;
+    setPlatform('win32');
+  });
+
+  afterEach(() => {
+    setPlatform(realPlatform);
   });
 
   it('keeps terminals, lifts the quit guard, then hands off to the installer', async () => {
@@ -93,5 +83,20 @@ describe('quitAndInstall', () => {
     updater.quitAndInstall();
 
     expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it('on macOS, reports an error instead of handing off to Squirrel when nothing is staged', async () => {
+    setPlatform('darwin');
+    const updater = await import('./updater');
+    const { autoUpdater } = await import('electron-updater');
+    const { launchMacInstall } = await import('./updater/macInstall');
+    const { broadcastToWindows } = await import('./ipc/send');
+
+    expect(() => updater.quitAndInstall()).toThrow('No downloaded update to install.');
+    expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+    expect(launchMacInstall).not.toHaveBeenCalled();
+    expect(electronState.quitCalls).toBe(0);
+    const status = vi.mocked(broadcastToWindows).mock.calls[0][1] as { state: string };
+    expect(status.state).toBe('error');
   });
 });

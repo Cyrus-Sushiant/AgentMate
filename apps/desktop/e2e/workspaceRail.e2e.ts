@@ -142,3 +142,61 @@ test('dragging a rail tile reorders the rail without opening the tile', async ()
   await tile(page, 'alpha').click();
   await expect(tile(page, 'alpha')).toHaveAttribute('aria-current', 'page');
 });
+
+/**
+ * The thickness of the horizontal scrollbar on the rail's scroller, 0 when it has none. This is
+ * what a user sees as a grey bar between the last tile and the "+" button.
+ */
+function horizontalScrollbar(page: Page): Promise<number> {
+  return page
+    .locator('nav[aria-label="Open workspaces"] .rail-scroll')
+    .evaluate((scroller: HTMLElement) => scroller.offsetHeight - scroller.clientHeight);
+}
+
+/** Lets React and the browser apply what the last input did. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const channel = new MessageChannel();
+        let turns = 0;
+        channel.port1.onmessage = () => {
+          turns += 1;
+          if (turns < 5) channel.port2.postMessage(null);
+          else setTimeout(resolve, 60);
+        };
+        channel.port2.postMessage(null);
+      }),
+  );
+}
+
+// A pressed tile is lifted with a 5% scale, which makes it a pixel or two wider than the rail.
+// With the scroller free to scroll sideways that grew a horizontal scrollbar under the last
+// tile, and every click made it flash.
+test('pressing or dragging a rail tile never gives the rail a horizontal scrollbar', async () => {
+  launched = await launchApp({ settings: { defaultCliId: 'claude-code' } });
+  const { page } = launched;
+  await openThreeWorkspaces(launched);
+
+  const box = await tile(page, 'bravo').boundingBox();
+  if (!box) throw new Error('The rail tile has no layout');
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+
+  await page.mouse.move(x, y);
+  await settle(page);
+  expect(await horizontalScrollbar(page), 'hovering').toBe(0);
+
+  await page.mouse.down();
+  await settle(page);
+  expect(await horizontalScrollbar(page), 'pressed').toBe(0);
+
+  // Dragging lifts the tile for as long as it is held.
+  await page.mouse.move(x, y + 12, { steps: 4 });
+  await settle(page);
+  expect(await horizontalScrollbar(page), 'dragging').toBe(0);
+
+  await page.mouse.up();
+  await settle(page);
+  expect(await horizontalScrollbar(page), 'dropped').toBe(0);
+});

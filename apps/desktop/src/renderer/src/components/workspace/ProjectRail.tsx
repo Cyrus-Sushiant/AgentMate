@@ -377,11 +377,12 @@ export function ProjectRail({
       aria-label="Open workspaces"
       className="flex w-14 shrink-0 flex-col items-center border-r border-border/70 bg-card/30 pb-3 glass:border-r-0 glass:bg-transparent"
     >
-      {/* Only the projects scroll; the open button stays pinned right under them. */}
+      {/* Only the projects scroll; the open button stays pinned right under them. Never sideways:
+          a lifted tile is a pixel or two wider than the rail, which would grow a scrollbar. */}
       <OverflowScroll
         surface="chrome"
         rootClassName="flex w-full flex-col"
-        className="rail-scroll flex w-full flex-col items-center gap-2.5 pb-2.5 pt-3"
+        className="rail-scroll flex w-full flex-col items-center gap-2.5 overflow-x-hidden pb-2.5 pt-3"
       >
         <ReorderableGroup
           items={railProjects}

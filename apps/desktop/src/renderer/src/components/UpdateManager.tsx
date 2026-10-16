@@ -328,8 +328,8 @@ function UpdateDialogBody({ status }: { status: UpdateStatus }): React.JSX.Eleme
 }
 
 /**
- * The restart step hands off to the OS installer, which can take a moment on
- * macOS while Squirrel finishes its local handoff. Disable both buttons while
+ * The restart step hands off to the installer, which can take a moment before
+ * the app quits. Disable both buttons while
  * the IPC call is in flight so a click that has not quit yet never looks dead,
  * and surface a failure instead of staying on a stuck dialog.
  */

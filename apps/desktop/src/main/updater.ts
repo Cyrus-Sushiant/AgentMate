@@ -13,6 +13,12 @@ import { preserveTerminalsOnQuit } from './ipc/terminal';
 import { allowQuit } from './quitGuard';
 import { isE2E } from './testMode';
 import {
+  launchMacInstall,
+  type PreparedMacUpdate,
+  pickMacZip,
+  prepareMacUpdate,
+} from './updater/macInstall';
+import {
   DownloadAbortedError,
   DownloadFatalError,
   fileSize,
@@ -31,7 +37,9 @@ import {
  * its temp file on any timeout, which on a weak connection means starting the
  * whole download again. We keep bytes in userData, retry from there, then
  * hand the complete file to electron-updater's cache so quit-and-install
- * still goes through its usual path.
+ * still goes through its usual path. macOS is the exception: Squirrel.Mac
+ * won't install into an unsigned app, so there the app swaps its own bundle
+ * (see updater/macInstall.ts).
  */
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const GITHUB_OWNER = 'Cyrus-Sushiant';
@@ -45,6 +53,8 @@ let activeDownload: ResumableDownload | null = null;
 let downloadLock: Promise<void> | null = null;
 let powerSaveBlockerId: number | null = null;
 let lastProgress: UpdateDownloadProgress | null = null;
+let pendingMacInstall: PreparedMacUpdate | null = null;
+let macInstallLaunched = false;
 
 interface ResolvedAsset {
   url: string;
@@ -76,23 +86,6 @@ interface AutoUpdaterInternals {
 
 function internals(): AutoUpdaterInternals {
   return autoUpdater as unknown as AutoUpdaterInternals;
-}
-
-/**
- * On macOS electron-updater emits `update-downloaded` as soon as the zip is in
- * its cache, before Squirrel.Mac has fetched it from the local proxy server
- * (see MacUpdater.updateDownloaded). Showing "Restart now" at that point leaves
- * the button dead: MacUpdater.quitAndInstall() only waits for the native
- * `update-downloaded` event and quits later, with no feedback. While our own
- * resumable download still holds the lock, the native handoff has not finished,
- * so the `downloaded` broadcast must wait until `autoUpdater.downloadUpdate()`
- * resolves (which on macOS is after Squirrel has the file).
- */
-export function shouldDeferDownloadedBroadcast(
-  platform: NodeJS.Platform,
-  hasActiveDownload: boolean,
-): boolean {
-  return platform === 'darwin' && hasActiveDownload;
 }
 
 const HTML_ENTITIES: Record<string, string> = {
@@ -299,15 +292,21 @@ function wireEvents(): void {
 
   autoUpdater.on('update-downloaded', (info) => {
     activeUpdateInfo = toUpdateInfo(info);
-    if (shouldDeferDownloadedBroadcast(process.platform, downloadLock != null)) {
-      // macOS only: the zip is cached but Squirrel.Mac has not picked it up yet.
-      // runDownload() broadcasts `downloaded` after the native handoff resolves,
-      // so `Restart now` only appears once quitAndInstall() can actually quit.
-      return;
-    }
     lastProgress = null;
     broadcast({ state: 'downloaded', info: activeUpdateInfo });
   });
+
+  // The dialog promises a downloaded update installs on the next quit. On macOS that is
+  // our own swap; elsewhere electron-updater's autoInstallOnAppQuit covers it.
+  app.on('will-quit', () => {
+    if (!pendingMacInstall || macInstallLaunched) return;
+    macInstallLaunched = true;
+    launchMacInstall(pendingMacInstall, process.pid, false);
+  });
+}
+
+function isArmMac(): boolean {
+  return process.arch === 'arm64' || app.runningUnderARM64Translation === true;
 }
 
 async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
@@ -319,11 +318,23 @@ async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
 
   if (bundle?.provider) {
     const files = bundle.provider.resolveFiles(bundle.info);
-    const preferredExt =
-      process.platform === 'darwin' ? '.zip' : process.platform === 'linux' ? '.AppImage' : '.exe';
-    const match =
-      files.find((file) => file.url.pathname.toLowerCase().endsWith(preferredExt.toLowerCase())) ??
-      files[0];
+    let match: ResolvedFileInfo | undefined;
+    if (process.platform === 'darwin') {
+      const picked = pickMacZip(
+        files.map((file) => file.url.pathname),
+        isArmMac(),
+      );
+      match = files.find((file) => file.url.pathname === picked);
+      if (!match) {
+        throw new DownloadFatalError(
+          `This release has no update for ${isArmMac() ? 'Apple Silicon' : 'Intel'} Macs. Download it from the releases page instead.`,
+        );
+      }
+    } else {
+      const preferredExt = process.platform === 'linux' ? '.appimage' : '.exe';
+      match =
+        files.find((file) => file.url.pathname.toLowerCase().endsWith(preferredExt)) ?? files[0];
+    }
     if (match) {
       url = match.url.href;
       fileName = basename(decodeURIComponent(match.url.pathname));
@@ -459,6 +470,32 @@ export async function checkForUpdates(manual: boolean): Promise<UpdateStatus> {
   });
 }
 
+/**
+ * Hands the verified file to whatever installs it. Windows and Linux go through
+ * electron-updater (its `update-downloaded` event broadcasts `downloaded`); macOS
+ * unpacks it for our own bundle swap.
+ */
+async function handOffToInstaller(
+  asset: ResolvedAsset,
+  filePath: string,
+  info: UpdateInfo,
+): Promise<void> {
+  if (process.platform === 'darwin') {
+    pendingMacInstall = await prepareMacUpdate({
+      zipPath: filePath,
+      execPath: process.execPath,
+      workDir: versionDir(info.version),
+    });
+    macInstallLaunched = false;
+    activeUpdateInfo = info;
+    lastProgress = null;
+    broadcast({ state: 'downloaded', info });
+    return;
+  }
+  await seedElectronUpdaterCache(asset, filePath);
+  await autoUpdater.downloadUpdate();
+}
+
 async function runDownload(): Promise<void> {
   if (!app.isPackaged) return;
   wireEvents();
@@ -476,15 +513,7 @@ async function runDownload(): Promise<void> {
   if (existingComplete > 0) {
     const digest = await hashFileSha512(done);
     if (digest === asset.sha512) {
-      await seedElectronUpdaterCache(asset, done);
-      await autoUpdater.downloadUpdate();
-      if (shouldDeferDownloadedBroadcast(process.platform, true)) {
-        // The `update-downloaded` event above was deferred; Squirrel.Mac has the
-        // file now, so `Restart now` will actually quit.
-        activeUpdateInfo = info;
-        lastProgress = null;
-        broadcast({ state: 'downloaded', info });
-      }
+      await handOffToInstaller(asset, done, info);
       return;
     }
     await rm(done, { force: true });
@@ -547,14 +576,7 @@ async function runDownload(): Promise<void> {
       );
     }
     await rename(part, done);
-    await seedElectronUpdaterCache(asset, done);
-    await autoUpdater.downloadUpdate();
-    if (shouldDeferDownloadedBroadcast(process.platform, true)) {
-      // Same deferred handoff as the cache-hit path above.
-      activeUpdateInfo = info;
-      lastProgress = null;
-      broadcast({ state: 'downloaded', info });
-    }
+    await handOffToInstaller(asset, done, info);
   } catch (error) {
     if (error instanceof DownloadAbortedError) {
       const transferred = await fileSize(part);
@@ -614,7 +636,14 @@ export function quitAndInstall(): void {
   // The user already chose to restart for the update, so open sessions don't ask again.
   allowQuit();
   try {
-    autoUpdater.quitAndInstall();
+    if (process.platform === 'darwin') {
+      if (!pendingMacInstall) throw new Error('No downloaded update to install.');
+      macInstallLaunched = true;
+      launchMacInstall(pendingMacInstall, process.pid, true);
+      app.quit();
+    } else {
+      autoUpdater.quitAndInstall();
+    }
   } catch (error) {
     // BaseUpdater.install dispatches its own error event, but a synchronous throw
     // (e.g. "No update filepath") would otherwise leave the `downloaded` dialog
