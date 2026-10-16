@@ -116,7 +116,7 @@ export function IssueDialog({
           disabledReason={
             coverage.covered
               ? undefined
-              : `Needs a Cloudflare DNS token on this server for ${coverage.missing.join(', ') || 'the site'}. Send one from the Cloudflare page, under Servers.`
+              : `Needs a Cloudflare DNS token on this server for ${coverage.missing.join(', ') || 'the site'}. Send one from Cloudflare: domains and DNS, on the Servers tab.`
           }
         />
         <ToggleRow

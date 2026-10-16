@@ -46,15 +46,22 @@ function status(report: Partial<CloudflareTokenReport> = {}): CloudflareAccountS
   };
 }
 
+/** `defaultOpen` is on here so most tests start with the details showing; the folding has its own. */
 function renderCard(
   current: CloudflareAccountStatus,
   bridge: Record<string, unknown> = {},
   showName = false,
+  defaultOpen = true,
 ) {
   const onReplace = vi.fn();
   const view = renderWithProviders(
     <>
-      <TokenStatusCard account={current} showName={showName} onReplace={onReplace} />
+      <TokenStatusCard
+        account={current}
+        showName={showName}
+        defaultOpen={defaultOpen}
+        onReplace={onReplace}
+      />
       <ConfirmDialogHost />
     </>,
     { bridge },
@@ -175,5 +182,58 @@ describe('TokenStatusCard', () => {
     expect(bridge.$fn('cloudflare.removeToken')).toHaveBeenCalledWith('acct-1');
     expect(queryClient.getQueryData(queryKeys.cloudflareStatus)).toEqual(left);
     expect(toast.success).toHaveBeenCalledWith('Removed Work.');
+  });
+
+  describe('folding', () => {
+    it('is one line while the token is fine, and unfolds on request', async () => {
+      const { user } = renderCard(status(), {}, false, false);
+
+      expect(screen.getByText('Active')).toBeInTheDocument();
+      expect(screen.getByText(/It can see 2 domains/)).toBeInTheDocument();
+      expect(screen.queryByText('Zone > DNS > Edit')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Replace token' })).toBeNull();
+
+      const toggle = screen.getByRole('button', { name: 'Details' });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await user.click(toggle);
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByText('Zone > DNS > Edit')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Replace token' })).toBeInTheDocument();
+      await user.click(toggle);
+      expect(screen.queryByText('Zone > DNS > Edit')).toBeNull();
+    });
+
+    it('opens by itself when a permission is missing', () => {
+      renderCard(status({ permissions: [{ id: 'dns', state: 'missing' }] }), {}, false, false);
+
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      expect(screen.getByRole('region', { name: 'What to add to the token' })).toBeInTheDocument();
+    });
+
+    it('opens by itself when the token is expired or sees no domains', () => {
+      const { unmount } = renderCard(status({ status: 'expired' }), {}, false, false);
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      unmount();
+
+      renderCard(status({ zoneCount: 0 }), {}, false, false);
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+
+    it('opens by itself for a token that was never checked', () => {
+      renderCard({ id: 'acct-1', label: 'Work', locked: false, report: null }, {}, false, false);
+
+      expect(screen.getByText('Saved, but not checked yet.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Replace token' })).toBeInTheDocument();
+    });
   });
 });

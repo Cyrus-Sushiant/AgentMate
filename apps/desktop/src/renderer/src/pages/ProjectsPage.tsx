@@ -215,10 +215,8 @@ export default function ProjectsPage(): React.JSX.Element {
 
   function handleRun(project: Project): void {
     requestRun(project, {
-      onEmpty: () => {
-        toast.info('Set a run command on this project first.');
-        navigate(`/projects/${project.id}`);
-      },
+      // Nothing to run yet, so go where one gets made: the project page opens its AI helper.
+      onEmpty: () => navigate(`/projects/${project.id}?createRun=ai`),
     });
   }
 
@@ -1085,7 +1083,7 @@ function RunButton({
   const commands = configuredRunCommands(project);
   const label =
     commands.length === 0
-      ? 'No run command yet. Open the project to set one.'
+      ? 'No run command yet. Click to create one with AI.'
       : commands.length === 1
         ? projectRunCommandHint(commands[0])
         : 'Choose which command to run';

@@ -142,7 +142,7 @@ The play button starts the project's run command, for example `pnpm dev`. Its to
 
 - With one run command, it starts right away. With several, a picker asks which one. A command that asks for values opens a form for them first.
 - Right-click the button to list the project's commands and pick one, or choose **Edit run commands** (or **Add a run command** when there are none).
-- With no command set, a message says **{project} has no run command yet** and offers **Edit run commands**.
+- With no command set, the button opens **Create a run command with AI**. Describe what you want to run and Claude Code opens in a new tab, reads the project and suggests a command for you to approve. The right-click menu has **Create with AI** too, and the dialog has **I'll write it myself** to open the run commands instead. See [Run commands](projects.md#run-commands).
 
 To open a dev server in a pane instead, start it in a terminal tab. See [Browser and tests](workspace-browser-tests.md).
 

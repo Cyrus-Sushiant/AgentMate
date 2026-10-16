@@ -1,3 +1,4 @@
+import type { CloudflareStatus } from '@shared/cloudflareTypes';
 import type {
   DeployAccess,
   DeployCoreRecord,
@@ -51,6 +52,8 @@ const CORE: DeployCoreRecord = {
   os: 'Ubuntu 24.04.1 LTS',
   architecture: 'x86_64',
 };
+
+const NO_CLOUDFLARE: CloudflareStatus = { configured: false, locked: false, accounts: [] };
 
 function server(overrides: Partial<DeployServer> = {}): DeployServer {
   return {
@@ -149,18 +152,19 @@ describe('DeployPage states', () => {
     expect(screen.getByRole('button', { name: /Open Remote/ })).toBeTruthy();
   });
 
-  it('leads to the Cloudflare page, with servers or without', async () => {
-    const { unmount } = renderPage({ 'deploy.listServers': async () => [] });
-    expect(await screen.findByRole('button', { name: /Manage Cloudflare/ })).toBeTruthy();
+  it('opens the Cloudflare dialog, with servers or without', async () => {
+    const { user, unmount } = renderPage({
+      'deploy.listServers': async () => [],
+      'cloudflare.status': async () => NO_CLOUDFLARE,
+    });
+    await user.click(await screen.findByRole('button', { name: /Manage Cloudflare/ }));
+    expect(await screen.findByRole('dialog', { name: 'Cloudflare' })).toBeTruthy();
     unmount();
 
-    renderPage();
+    const again = renderPage({ 'cloudflare.status': async () => NO_CLOUDFLARE });
     const rail = await screen.findByRole('navigation', { name: 'Servers' });
-    expect(
-      within(rail)
-        .getByRole('link', { name: /Cloudflare/ })
-        .getAttribute('href'),
-    ).toBe('/deploy/cloudflare');
+    await again.user.click(within(rail).getByRole('button', { name: /Cloudflare/ }));
+    expect(await screen.findByRole('dialog', { name: 'Cloudflare' })).toBeTruthy();
   });
 
   it('says why the list failed and offers to try again', async () => {
@@ -805,7 +809,7 @@ describe('DeployPage WordPress sites', () => {
     expect(await screen.findByLabelText('Connection key')).toBeTruthy();
   });
 
-  it('opens Remote and the Cloudflare page from the empty state', async () => {
+  it('opens Remote and the Cloudflare dialog from the empty state', async () => {
     const { user, unmount } = renderPage({
       'deploy.listServers': async () => [],
       'deployWordPress.listSites': async () => [],
@@ -817,9 +821,31 @@ describe('DeployPage WordPress sites', () => {
     const again = renderPage({
       'deploy.listServers': async () => [],
       'deployWordPress.listSites': async () => [],
+      'cloudflare.status': async () => NO_CLOUDFLARE,
     });
     await again.user.click(await screen.findByRole('button', { name: /Manage Cloudflare/ }));
-    expect(screen.getByTestId('path').textContent).toBe('/deploy/cloudflare');
+    expect(await screen.findByRole('dialog', { name: 'Cloudflare' })).toBeTruthy();
+    expect(screen.getByTestId('path').textContent).toBe('/deploy?dialog=cloudflare');
+  });
+
+  it('closes the Cloudflare dialog and stays on the server it was opened from', async () => {
+    const { user } = renderPage(
+      {
+        'deploy.listServers': async () => [server(), server({ id: 'srv-2', nickname: 'Staging' })],
+        'cloudflare.status': async () => NO_CLOUDFLARE,
+      },
+      '/deploy?server=srv-2',
+    );
+    expect(await screen.findByRole('heading', { name: 'Staging' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Cloudflare: domains and DNS/ }));
+    expect(await screen.findByRole('dialog', { name: 'Cloudflare' })).toBeTruthy();
+    expect(screen.getByTestId('path').textContent).toBe('/deploy?server=srv-2&dialog=cloudflare');
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cloudflare' })).toBeNull());
+    expect(screen.getByTestId('path').textContent).toBe('/deploy?server=srv-2');
+    expect(screen.getByRole('heading', { name: 'Staging' })).toBeTruthy();
   });
 
   it('says why the sites did not load when there are no servers, and tries again', async () => {

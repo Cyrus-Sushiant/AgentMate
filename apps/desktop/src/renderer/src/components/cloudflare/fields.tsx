@@ -2,7 +2,7 @@ import { SectionCard } from '@/components/pageKit';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
-/** Form pieces the Cloudflare page shares, in the look of the app's own inputs. */
+/** Form pieces the Cloudflare dialog shares, in the look of the app's own inputs. */
 
 export function NativeSelect({
   className,
@@ -43,7 +43,7 @@ export function Field({
 }
 
 /**
- * The kit's notice and card under the names the Cloudflare page has always used. A Cloudflare
+ * The kit's notice and card under the names the Cloudflare dialog has always used. A Cloudflare
  * card is flush: its parts pad themselves, so tables and hairline rows can run edge to edge.
  */
 export {

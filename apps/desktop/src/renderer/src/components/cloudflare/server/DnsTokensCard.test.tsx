@@ -7,7 +7,7 @@ import { renderWithProviders } from '../../../../../test/renderer/renderWithProv
 import { ZONE } from '../testing/fixtures';
 
 /**
- * E14 T7 on the Cloudflare page: which servers hold a DNS token for the zone, making one (with a
+ * E14 T7 on the Cloudflare dialog: which servers hold a DNS token for the zone, making one (with a
  * guided fix when the account token cannot), pasting one, and removing it after a confirm.
  */
 

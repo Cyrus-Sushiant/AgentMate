@@ -149,7 +149,7 @@ attributes), Tapper 1.14 (attributes), `@microsoft/signalr` 10.0.x, `cloudflare`
   - A "Deploy" nav item after Pipelines, with a server rail.
   - Each server gets a sub-nav: Overview, Apps, Containers, App Store, Websites, Firewall, Logs,
     Security.
-  - Cloudflare lives at `/deploy/cloudflare` because it is account-level.
+  - Cloudflare opens as a dialog over Deploy (`/deploy?dialog=cloudflare`) because it is account-level.
   - An Assistant drawer is available on every Deploy screen.
 - **Signature interactions:**
   - A server pulse header.

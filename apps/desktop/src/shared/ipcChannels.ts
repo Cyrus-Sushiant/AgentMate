@@ -978,7 +978,7 @@ export const IPC = {
     /** main -> the main window: the steps of a pull, deploy, rollback or new project. */
     onProgress: 'deployWordPress:onProgress',
   },
-  /** The Deploy section's Cloudflare page: the API token, zones, DNS, settings and rules. */
+  /** The Deploy section's Cloudflare dialog: the API token, zones, DNS, settings and rules. */
   cloudflare: {
     status: 'cloudflare:status',
     saveToken: 'cloudflare:saveToken',

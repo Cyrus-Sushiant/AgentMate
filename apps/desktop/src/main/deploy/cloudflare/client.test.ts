@@ -3,7 +3,7 @@ import { CLOUDFLARE_API, createCloudflareApi } from './client';
 import { ALL_GRANTS, createFakeCloudflare } from './testing/fakeCloudflare';
 
 /**
- * The SDK client the Cloudflare page uses. It must talk to Cloudflare and nobody else, with only
+ * The SDK client the Cloudflare dialog uses. It must talk to Cloudflare and nobody else, with only
  * the token it was given: the SDK would otherwise pick up a base URL, a Global API Key or an email
  * from the environment, and log to the console.
  */

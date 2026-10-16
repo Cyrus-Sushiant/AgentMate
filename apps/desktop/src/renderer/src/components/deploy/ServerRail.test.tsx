@@ -24,6 +24,7 @@ function renderRail(props: Partial<Parameters<typeof ServerRail>[0]> = {}) {
   const onSelect = vi.fn();
   const onSelectSite = vi.fn();
   const onConnectSite = vi.fn();
+  const onOpenCloudflare = vi.fn();
   const view = renderWithProviders(
     <ServerRail
       servers={[SERVER]}
@@ -32,11 +33,21 @@ function renderRail(props: Partial<Parameters<typeof ServerRail>[0]> = {}) {
       sites={[]}
       onSelectSite={onSelectSite}
       onConnectSite={onConnectSite}
+      onOpenCloudflare={onOpenCloudflare}
       {...props}
     />,
   );
-  return { ...view, onSelect, onSelectSite, onConnectSite };
+  return { ...view, onSelect, onSelectSite, onConnectSite, onOpenCloudflare };
 }
+
+describe('ServerRail Cloudflare', () => {
+  it('opens the Cloudflare dialog from its row', async () => {
+    const { user, onOpenCloudflare } = renderRail();
+
+    await user.click(screen.getByRole('button', { name: /Cloudflare: domains and DNS/ }));
+    expect(onOpenCloudflare).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('ServerRail WordPress sites', () => {
   it('lists each site with its host, last contact and badges', () => {
@@ -114,7 +125,14 @@ describe('ServerRail WordPress sites', () => {
   });
 
   it('shows no sites group when the page passes none', () => {
-    renderWithProviders(<ServerRail servers={[SERVER]} selectedId="srv-1" onSelect={vi.fn()} />);
+    renderWithProviders(
+      <ServerRail
+        servers={[SERVER]}
+        selectedId="srv-1"
+        onSelect={vi.fn()}
+        onOpenCloudflare={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByText('WordPress sites')).toBeNull();
   });

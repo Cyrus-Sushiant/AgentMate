@@ -19,7 +19,7 @@ import { CloudflareService } from './service';
 import { CloudflareState, cloudflareFilePort } from './state';
 
 /**
- * Wires the Cloudflare page into Electron. The token is sealed with the Servers vault, so it moves
+ * Wires the Cloudflare dialog into Electron. The token is sealed with the Servers vault, so it moves
  * with a passkey change like the Deploy device keys. "Point domain to this server" takes the
  * public addresses the server's core reports, and the saved server's host when the core is not
  * there or knows of none. The server-side flows (origin lock, Origin CA, DNS-01 tokens) ride the

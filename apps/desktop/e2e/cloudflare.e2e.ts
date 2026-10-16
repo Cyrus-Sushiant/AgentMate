@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { type LaunchedApp, launchApp } from './app';
 
 /**
- * The Cloudflare page in the built app: it opens from the Deploy section and starts with its
+ * The Cloudflare dialog in the built app: it opens over the Deploy section and starts with its
  * token guide, served by the real main process. The test profile has no token, so nothing ever
  * reaches Cloudflare: the guide's link would open a browser and is left alone, and text that
  * cannot be a token is refused in the app before anything is sent.
@@ -40,6 +40,6 @@ test('opens from Deploy and walks through the token setup', async () => {
   await page.getByRole('button', { name: 'Save and check' }).click();
   await expect(page.getByRole('alert')).toContainText('Global API Key');
 
-  await page.getByRole('link', { name: /Back to Deploy/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
   await expect(page.getByText('No servers yet')).toBeVisible();
 });

@@ -4,20 +4,20 @@ category: Deploy
 order: 90
 summary: Connect your Cloudflare account with an API token, manage DNS records, zone settings and security rules, point a domain at a server, and use Cloudflare with your servers for DNS-01 certificates, Origin CA certificates and the Cloudflare-only origin lock.
 keywords: cloudflare, dns, domain, zone, api token, records, proxy, orange cloud, waf, firewall rules, cache purge, ssl mode, dns-01, wildcard certificate, origin ca, origin lock, point domain, nameservers
-route: /deploy/cloudflare
+route: /deploy?dialog=cloudflare
 ---
 
-The Cloudflare page manages your domains on Cloudflare without leaving AgentMate. You connect each account once with an API token, then pick a domain (a zone) to edit its DNS records, its settings, its cache and its security rules. It also links Cloudflare to your servers in Deploy: you can point a domain at a server in one step, give a server a DNS token for wildcard certificates, install a Cloudflare Origin CA certificate, and lock a server so only Cloudflare can reach it.
+The Cloudflare dialog manages your domains on Cloudflare without leaving AgentMate. You connect each account once with an API token, then pick a domain (a zone) to edit its DNS records, its settings, its cache and its security rules. It also links Cloudflare to your servers in Deploy: you can point a domain at a server in one step, give a server a DNS token for wildcard certificates, install a Cloudflare Origin CA certificate, and lock a server so only Cloudflare can reach it.
 
 ## Where to find it
 
-Open **Deploy** in the sidebar under Ship, then click **Cloudflare: domains and DNS** under the server rail. If you have no saved servers yet, the Deploy page offers **Manage Cloudflare** instead. The address is `/deploy/cloudflare`. **Back to Deploy** at the top of the page returns you to your servers.
+Open **Deploy** in the sidebar under Ship, then click **Cloudflare: domains and DNS** under the server rail. The Cloudflare dialog opens over the Deploy page, the way **Connect a WordPress site** does, so your servers stay where they were. If you have no saved servers yet, the Deploy page offers **Manage Cloudflare** instead. Close the dialog with its X button or the Escape key to go back to your servers. The address is `/deploy?dialog=cloudflare`.
 
-Cloudflare accounts are not tied to one server, so the page sits beside the server rail. The domain and tab you pick are remembered in the address, so going back and forth lands you in the same place.
+Cloudflare accounts are not tied to one server, so the dialog opens from the server rail rather than from a server. The domain and tab you pick are remembered, so opening the dialog again lands you in the same place.
 
 ## Connect Cloudflare with a token
 
-The first time (or after you remove every account), the page shows a **Connect Cloudflare** card with two steps.
+The first time (or after you remove every account), the dialog shows **Connect Cloudflare** with two steps side by side, so the field for the token is in view while you follow the first step.
 
 1. **Create a token on Cloudflare.** Click **Open Cloudflare's token page**. It opens with the permissions below already chosen and the name "AgentMate". Under Zone Resources, include all zones or just the domains AgentMate should manage, then create the token and copy it.
 2. **Paste the token here.** Type or paste it into **API token** and click **Save and check**. AgentMate checks it with Cloudflare, seals it on this computer the way it seals your server passwords, and never shows it again.
@@ -39,14 +39,16 @@ Two more permissions are asked for only when a feature needs them, so the main t
 
 ### The token card
 
-Once a token is saved, the **Cloudflare token** card shows when it was last checked, how many domains it can see, and a badge: **Active**, **Missing permissions**, **Expired** or **Disabled**. Every permission is listed as **Granted**, **Missing** or **Checked when first used**. Some tokens are checked by reading only, which changes nothing, so edit access is confirmed the first time you make a change.
+Once a token is saved, the **Cloudflare token** card above the domain is one line: when the token was last checked, how many domains it can see, and a badge: **Active**, **Missing permissions**, **Expired** or **Disabled**. Click **Details** to open it. It then lists every permission as **Granted**, **Missing** or **Checked when first used**, and shows the buttons below. Some tokens are checked by reading only, which changes nothing, so edit access is confirmed the first time you make a change.
+
+A card that needs attention opens by itself: a missing permission, an expired or disabled token, a token that sees no domains, or one that was never checked.
 
 When something is missing, a yellow box lists the exact permissions to add. Click **Edit the token on Cloudflare**, add them, then click **Check again**. If the token sees no domains, include them under Zone Resources on Cloudflare.
 
-Other buttons on the card:
+Buttons inside **Details**:
 
 - **Check again** re-reads the token and refreshes the lists.
-- **Replace token** shows the setup steps again (and **Keep the current token** backs out). A different token can see different zones.
+- **Replace token** shows the setup steps beside the domain list (and **Keep the current token** backs out). A different token can see different zones.
 - **Remove token** asks first. AgentMate forgets the token and stops managing your domains. The token keeps working on Cloudflare until you delete it there.
 
 > [!NOTE]
@@ -56,8 +58,8 @@ Other buttons on the card:
 
 You can connect as many Cloudflare accounts as you like, for example your own and a client's. Each account has its own API token, made on that account.
 
-- Click **Add account** under the Domains rail (or **Add another account** when the page is a single column). Paste the token and, if you like, give the account a name such as "Client Co". Left empty, the name is "Account 2" and so on.
-- With more than one account, the **Domains** rail groups the domains under the account's name. Click a name to open that account's token card. Opening a domain shows the card of the account that holds it.
+- Click **Add account** under the Domains rail (or **Add another account** when there is no domain list yet). The setup steps open beside the domain list, with the permissions folded away under **Permissions the token needs**. Paste the token and, if you like, give the account a name such as "Client Co". Left empty, the name is "Account 2" and so on. **Cancel** goes back to your domains.
+- With more than one account, the **Domains** rail groups the domains under the account's name. Click a name to open that account's token card with its details showing. Opening a domain shows the card of the account that holds it.
 - **Replace token** and **Remove token** on a card only touch that account. The other accounts keep working. If one account's token stops working, only its group shows the error and **Try again**.
 - The same token can't be added twice.
 - Servers use the right account on their own. An Origin CA certificate is signed by the account that holds the site's domains (a certificate can't mix domains from two accounts), and a DNS token for a server is made in the account that holds the zone.
@@ -77,7 +79,7 @@ A zone has four tabs: **DNS**, **Settings**, **Security** and **Servers**.
 The **DNS records** card lists every record in the zone with its **Type**, **Name** (relative to the zone, `@` for the zone itself), **Content**, **Proxy** and **TTL**. Long content is shown in full in a tooltip.
 
 - The **Proxy** switch turns Cloudflare's proxy on or off for A, AAAA and CNAME records, and says **Proxied** or **DNS only** next to it. Proxied means visitors reach Cloudflare first. DNS only means visitors reach the server directly.
-- The pencil edits a record and the trash deletes it (after a confirmation that says what stops answering). Record types this page cannot edit are listed with "Edit on Cloudflare".
+- The pencil edits a record and the trash deletes it (after a confirmation that says what stops answering). Record types AgentMate cannot edit here are listed with "Edit on Cloudflare".
 
 ### Add or edit a record
 
@@ -98,7 +100,7 @@ The **DNS records** card lists every record in the zone with its **Type**, **Nam
 3. Turn **Also point www** on or off, and **Proxy through Cloudflare** on or off.
 4. Click **Preview changes**. The list shows every record that would be added, changed or removed, with the server's addresses. Nothing happens that you have not seen. If the names already point at the server, it says there is nothing to change.
 5. Click **Apply N changes**. Everything runs as one batch on Cloudflare, and running it again finds nothing to change.
-6. A final screen offers **Add a website on <server>**. It opens that server's Websites section with a new site already filled in with those names. See [Websites and certificates](deploy-websites-certificates.md).
+6. A final screen offers **Add a website on <server>**. It closes this dialog and opens that server's Websites section with a new site already filled in with those names. See [Websites and certificates](deploy-websites-certificates.md).
 
 If you proxy the records and Cloudflare's SSL/TLS mode is weak (Off or Flexible, or Full without strict), the preview adds a warning that you can fix under **Settings**.
 
@@ -156,7 +158,7 @@ Once a server has the token, the **Issue a certificate** dialog on a site's SSL 
 
 ## Cloudflare on each server
 
-Besides this page, Cloudflare shows up in a server's own sections:
+Besides this dialog, Cloudflare shows up in a server's own sections:
 
 - **Websites, SSL tab**: the **Cloudflare Origin CA** button has Cloudflare sign a certificate for a key the server makes. Only Cloudflare trusts it, so keep the site's records proxied and set SSL/TLS to Full (strict). It needs the SSL and Certificates permission. See [Websites and certificates](deploy-websites-certificates.md#cloudflare-origin-ca).
 - **Websites, Domains tab**: arriving from **Point domain to a server** starts a new site with the pointed names.

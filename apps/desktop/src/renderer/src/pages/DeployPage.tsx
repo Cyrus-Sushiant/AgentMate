@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { CloudflareDialog } from '@/components/cloudflare/CloudflareDialog';
 import { CloudflareMark } from '@/components/cloudflare/CloudflareMark';
 import { AppStorePanel } from '@/components/deploy/appStore/AppStorePanel';
 import { AppsPanel } from '@/components/deploy/apps/AppsPanel';
@@ -251,6 +252,20 @@ export default function DeployPage(): React.JSX.Element {
   const [connectOpen, setConnectOpen] = useState(false);
   useConnectionUpdates();
   useFinishedRuns((serverId) => setUpdating((current) => (current === serverId ? null : current)));
+  // The Cloudflare dialog lives in the address. A link out of Deploy (point a domain, then add its
+  // website) takes the dialog away with the rest of it, and closing it keeps the server selected.
+  const cloudflareOpen = params.get('dialog') === 'cloudflare';
+  function setCloudflareOpen(open: boolean): void {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (open) next.set('dialog', 'cloudflare');
+        else next.delete('dialog');
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const siteParam = params.get('site');
   // A site asked for by the address, or no servers to fall back on: wait for the sites rather
@@ -294,6 +309,9 @@ export default function DeployPage(): React.JSX.Element {
       }}
     />
   );
+  const cloudflareDialog = (
+    <CloudflareDialog open={cloudflareOpen} onOpenChange={setCloudflareOpen} />
+  );
 
   if (servers.length === 0 && sitesQuery.isError) {
     return (
@@ -320,7 +338,7 @@ export default function DeployPage(): React.JSX.Element {
               <Button variant="soft" onClick={() => setConnectOpen(true)}>
                 <WordPressMark className="h-3.5 w-3.5" /> Connect a WordPress site
               </Button>
-              <Button variant="soft" onClick={() => navigate('/deploy/cloudflare')}>
+              <Button variant="soft" onClick={() => setCloudflareOpen(true)}>
                 <CloudflareMark className="h-3.5 w-3.5" /> Manage Cloudflare
               </Button>
             </div>
@@ -328,6 +346,7 @@ export default function DeployPage(): React.JSX.Element {
         />
         <ConnectorDownloadCard />
         {connectDialog}
+        {cloudflareDialog}
       </div>
     );
   }
@@ -342,6 +361,7 @@ export default function DeployPage(): React.JSX.Element {
     onSelectSite: (siteId: string) => setParams({ site: siteId }, { replace: true }),
     onRetrySites: () => void sitesQuery.refetch(),
     onConnectSite: () => setConnectOpen(true),
+    onOpenCloudflare: () => setCloudflareOpen(true),
   };
 
   const selectedSite =
@@ -374,6 +394,7 @@ export default function DeployPage(): React.JSX.Element {
         />
         {connectDialog}
         {unlockDialog}
+        {cloudflareDialog}
       </DeployLayout>
     );
   }
@@ -473,6 +494,7 @@ export default function DeployPage(): React.JSX.Element {
       {sections && <AssistantLauncher server={selected} />}
       {connectDialog}
       {unlockDialog}
+      {cloudflareDialog}
     </>
   );
 }

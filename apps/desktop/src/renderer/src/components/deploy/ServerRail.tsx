@@ -170,7 +170,7 @@ function GroupHeading({ label, count }: { label: string; count?: number }): Reac
   );
 }
 
-/** A quiet link row for the places this page hands off to. */
+/** A quiet row for the places this rail hands off to: Remote, and the Cloudflare dialog. */
 const LINK_ROW =
   'flex h-8 items-center gap-2 rounded-lg px-3 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:shrink-0';
 
@@ -246,10 +246,13 @@ export function ServerRail({
   onSelectSite,
   onRetrySites,
   onConnectSite,
+  onOpenCloudflare,
 }: {
   servers: DeployServer[];
   selectedId: string | null;
   onSelect: (serverId: string) => void;
+  /** Opens the Cloudflare dialog over Deploy. */
+  onOpenCloudflare: () => void;
   /** Left out, the WordPress group is not shown at all. */
   sites?: DeployWordPressSite[];
   sitesLoading?: boolean;
@@ -280,9 +283,9 @@ export function ServerRail({
           <Link to="/remote" className={LINK_ROW}>
             <ExternalLink /> Add or edit servers in Remote
           </Link>
-          <Link to="/deploy/cloudflare" className={LINK_ROW}>
+          <button type="button" onClick={onOpenCloudflare} className={cn(LINK_ROW, 'w-full')}>
             <CloudflareMark /> Cloudflare: domains and DNS
-          </Link>
+          </button>
         </div>
         {(sites !== undefined || sitesLoading || sitesError !== null) && onSelectSite && (
           <SiteGroup

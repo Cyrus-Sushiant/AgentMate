@@ -40,7 +40,7 @@ interface Editing {
 
 const DOMAIN = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
-/** `?newSite=a.example.com,www.a.example.com`, as the Cloudflare page links here. */
+/** `?newSite=a.example.com,www.a.example.com`, as Cloudflare's point-domain dialog links here. */
 function domainsFrom(param: string | null): string[] | null {
   if (!param) return null;
   const domains = param

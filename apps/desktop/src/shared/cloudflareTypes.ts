@@ -1,7 +1,7 @@
 import type { OriginLockPreview } from './deploy/protocol/generated/AgentMate.ServerCore.Contracts';
 
 /**
- * Plain data the Cloudflare page passes between the main process and the renderer. The API token
+ * Plain data the Cloudflare dialog passes between the main process and the renderer. The API token
  * is not in here on purpose: the renderer hands it over once to be saved, and from then on only
  * learns that one is set and what it is allowed to do.
  */

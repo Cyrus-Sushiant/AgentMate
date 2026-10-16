@@ -1,6 +1,7 @@
 import type { Project } from '@agentmat/core';
 import { AGENT_TYPE_LABELS } from '@agentmat/core';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
 
@@ -466,6 +467,9 @@ interface Box {
 
 describe('ProjectsPage drag to reorder', () => {
   afterEach(() => {
+    // A finished drag swallows the next click for 300 ms. Use that up here, so it cannot eat the
+    // first click of whichever test runs after this one.
+    window.dispatchEvent(new MouseEvent('click'));
     localStorage.removeItem('agentmate.projects.view');
     vi.restoreAllMocks();
   });
@@ -611,5 +615,45 @@ describe('ProjectsPage drag to reorder', () => {
       expect(bridge.$fn('projects.reorder')).toHaveBeenCalledWith(['p2', 'p1', 'p3', 'p4']),
     );
     expect(orderOf(container)).toEqual(['p2', 'p1', 'p3', 'p4']);
+  });
+});
+
+/** Shows where the page navigated to, since the test router has no other pages. */
+function LocationProbe(): React.JSX.Element {
+  const location = useLocation();
+  return <output aria-label="Location">{location.pathname + location.search}</output>;
+}
+
+describe('ProjectsPage Run on a project with no run command', () => {
+  function renderEmpty() {
+    return renderWithProviders(
+      <>
+        <ProjectsPage />
+        <LocationProbe />
+      </>,
+      { bridge: { 'projects.list': [project({ runCommands: [] })] } },
+    );
+  }
+
+  it('opens the project on the AI helper, so Run leads to a run command', async () => {
+    const { user } = renderEmpty();
+    await screen.findByRole('button', { name: 'Apollo' });
+
+    await user.click(screen.getByRole('button', { name: 'Run' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(
+        '/projects/p1?createRun=ai',
+      ),
+    );
+  });
+
+  it('says in the Run tooltip that an AI agent can create one', async () => {
+    const { user } = renderEmpty();
+    await screen.findByRole('button', { name: 'Apollo' });
+
+    await user.hover(screen.getByRole('button', { name: 'Run' }));
+
+    expect((await screen.findAllByText(/create one with AI/))[0]).toBeTruthy();
   });
 });

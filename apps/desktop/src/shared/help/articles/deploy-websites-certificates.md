@@ -13,7 +13,7 @@ The **Websites** section of a server in Deploy manages nginx on that server. You
 
 Click **Deploy** in the sidebar under Ship, pick a server in the rail on the left, then click **Websites** in the strip of sections (Overview, Apps, Containers, App Store, Websites, Firewall, Logs, Security). The server needs its core installed and you must be signed in to it (see [Servers and setup](deploy-servers-setup.md)). Direct TLS lives in **Security**, on the **Connection** tab.
 
-You can also arrive here from the [Cloudflare page](cloudflare.md): after you point a domain at a server, a button there opens the Websites section with a new site already filled in.
+You can also arrive here from [Cloudflare](cloudflare.md): after you point a domain at a server, a button there opens the Websites section with a new site already filled in.
 
 ## Who can do what
 

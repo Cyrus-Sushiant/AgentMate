@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildRunSetupPrompt,
-  DEFAULT_RUN_SETUP_REQUEST,
-  runSetupExamples,
-} from './runSetupPrompt';
+import { buildRunSetupPrompt, DEFAULT_RUN_SETUP_REQUEST, runSetupExamples } from './runSetupPrompt';
 
 const base = {
   request: 'Run the mobile app on the emulator',
@@ -90,6 +86,8 @@ describe('runSetupExamples', () => {
   });
 
   it('keeps the default request, which a fresh dialog starts with, in plain words', () => {
-    expect(DEFAULT_RUN_SETUP_REQUEST).toBe('Work out how to run this project and create a run command for it.');
+    expect(DEFAULT_RUN_SETUP_REQUEST).toBe(
+      'Work out how to run this project and create a run command for it.',
+    );
   });
 });

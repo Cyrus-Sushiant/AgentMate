@@ -173,4 +173,27 @@ describe('TokenSetupCard', () => {
 
     expect(onCancel).toHaveBeenCalled();
   });
+
+  describe('the permission list', () => {
+    it('shows in full the first time', () => {
+      renderWithProviders(<TokenSetupCard />);
+
+      expect(screen.getByText('Zone > DNS > Edit')).toBeVisible();
+    });
+
+    it('folds away when it adds another account, and opens on request', async () => {
+      const { user } = renderWithProviders(<TokenSetupCard additional />);
+
+      const permission = screen.getByText('Zone > DNS > Edit');
+      expect(permission).not.toBeVisible();
+      await user.click(screen.getByText('Permissions the token needs'));
+      expect(permission).toBeVisible();
+    });
+
+    it('folds away when it replaces a token', () => {
+      renderWithProviders(<TokenSetupCard account={{ id: 'acct-1', label: 'Work' }} />);
+
+      expect(screen.getByText('Zone > DNS > Edit')).not.toBeVisible();
+    });
+  });
 });

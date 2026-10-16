@@ -28,6 +28,7 @@ import {
   TerminalSquare,
   Trash2,
   Upload,
+  Wand2,
   X,
 } from '@/components/icons';
 import { ProjectIcon } from '@/components/projects/ProjectIcon';
@@ -106,6 +107,11 @@ export interface ProjectFormDialogProps {
   isSubmitting?: boolean;
   /** Opens on the Agent tab with the run commands scrolled into view. */
   focusRunCommands?: boolean;
+  /**
+   * Adds a "Create with AI" button to the run commands. The form closes first, because a command
+   * the agent adds later would not show up in a form that is already open.
+   */
+  onCreateWithAi?: () => void;
 }
 
 function splitTags(raw: string): string[] {
@@ -157,6 +163,7 @@ export function ProjectFormDialog({
   onSubmit,
   isSubmitting,
   focusRunCommands = false,
+  onCreateWithAi,
 }: ProjectFormDialogProps): React.JSX.Element {
   const ids = useId();
   const [tab, setTab] = useState('basics');
@@ -923,6 +930,21 @@ export function ProjectFormDialog({
                     <Button type="button" variant="outline" size="sm" onClick={addCommandThatAsks}>
                       <Keyboard className="h-3.5 w-3.5" /> Add command that asks for input
                     </Button>
+                    {onCreateWithAi ? (
+                      <SimpleTooltip label="Closes this form and lets an AI agent suggest a command. Unsaved changes here are lost.">
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => {
+                            onOpenChange(false);
+                            onCreateWithAi();
+                          }}
+                        >
+                          <Wand2 className="h-3.5 w-3.5" /> Create with AI
+                        </Button>
+                      </SimpleTooltip>
+                    ) : null}
                   </div>
                 </div>
               </Field>

@@ -195,3 +195,49 @@ describe('ProjectFormDialog run command inputs', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ runCommands: [command] }));
   });
 });
+
+describe('ProjectFormDialog create with AI', () => {
+  function renderEditor(onCreateWithAi?: () => void) {
+    const onOpenChange = vi.fn();
+    const view = renderWithProviders(
+      <ProjectFormDialog
+        open
+        onOpenChange={onOpenChange}
+        initial={project()}
+        onSubmit={vi.fn()}
+        focusRunCommands
+        onCreateWithAi={onCreateWithAi}
+      />,
+      { bridge: { 'settings.get': {} } },
+    );
+    return { ...view, onOpenChange };
+  }
+
+  it('has no AI button unless the parent can start one', async () => {
+    renderEditor();
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).queryByRole('button', { name: 'Create with AI' })).toBeNull();
+  });
+
+  it('closes the form and hands over to the AI dialog', async () => {
+    const onCreateWithAi = vi.fn();
+    const { user, onOpenChange } = renderEditor(onCreateWithAi);
+    const dialog = await screen.findByRole('dialog');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Create with AI' }));
+
+    expect(onCreateWithAi).toHaveBeenCalledOnce();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('warns in a styled tooltip that unsaved changes in the form are lost', async () => {
+    const { user } = renderEditor(vi.fn());
+    const dialog = await screen.findByRole('dialog');
+
+    await user.hover(within(dialog).getByRole('button', { name: 'Create with AI' }));
+
+    expect((await screen.findAllByText(/Unsaved changes here are lost/))[0]).toBeTruthy();
+    expect(document.querySelector('[title]')).toBeNull();
+  });
+});

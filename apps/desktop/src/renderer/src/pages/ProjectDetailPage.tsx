@@ -77,6 +77,7 @@ import {
   BootstrapDescriptionDialog,
 } from '@/components/projects/BootstrapDescriptionDialog';
 import { BlueprintTab } from '@/components/projects/blueprint/BlueprintTab';
+import { CreateRunWithAiDialog } from '@/components/projects/CreateRunWithAiDialog';
 import {
   DiffrayReviewLaunchCard,
   DiffrayReviewWizard,
@@ -173,6 +174,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const { requestRun, runPicker } = useProjectRun();
   const [editOpen, setEditOpen] = useState(false);
   const [editFocusRun, setEditFocusRun] = useState(false);
+  const [createRunAiOpen, setCreateRunAiOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -232,6 +234,21 @@ export default function ProjectDetailPage(): React.JSX.Element {
       { replace: true },
     );
   }, [editParam, setSearchParams]);
+
+  // `?createRun=ai` (from Run on a project with no run command) opens the AI helper for one.
+  const createRunParam = searchParams.get('createRun');
+  useEffect(() => {
+    if (createRunParam !== 'ai') return;
+    setCreateRunAiOpen(true);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('createRun');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [createRunParam, setSearchParams]);
   const project = projectsQuery.data?.find((p) => p.id === projectId);
 
   // The WordPress section only exists for a linked project; an old link to it lands on Overview.
@@ -606,7 +623,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
   function handleRun(): void {
     if (!project) return;
-    requestRun(project);
+    requestRun(project, { onEmpty: () => setCreateRunAiOpen(true) });
   }
 
   function handleDelete(): void {
@@ -684,6 +701,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onRun={handleRun}
         onPrompt={() => setPromptOpen(true)}
         onEdit={() => setEditOpen(true)}
+        onCreateRunWithAi={() => setCreateRunAiOpen(true)}
         onDelete={handleDelete}
         onToggleArchive={() => archiveMutation.mutate(!project.archived)}
         onCopyPath={() => void handleCopyPath()}
@@ -1210,6 +1228,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
                 setEditFocusRun(true);
                 setEditOpen(true);
               }}
+              onCreateWithAi={() => setCreateRunAiOpen(true)}
             />
           )}
 
@@ -1237,6 +1256,17 @@ export default function ProjectDetailPage(): React.JSX.Element {
         initial={project}
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}
+        onCreateWithAi={() => setCreateRunAiOpen(true)}
+      />
+
+      <CreateRunWithAiDialog
+        open={createRunAiOpen}
+        onOpenChange={setCreateRunAiOpen}
+        project={project}
+        onWriteMyself={() => {
+          setEditFocusRun(true);
+          setEditOpen(true);
+        }}
       />
 
       <SkillSecurityDialog
@@ -1285,11 +1315,13 @@ function ProjectTerminalSection({
   onOpenHere,
   onRun,
   onSetRun,
+  onCreateWithAi,
 }: {
   project: Project;
   onOpenHere: () => void;
   onRun: () => void;
   onSetRun: () => void;
+  onCreateWithAi: () => void;
 }): React.JSX.Element {
   const sessions = useTerminalStore((s) => s.sessions);
   const activeSessionId = useTerminalStore((s) => s.activeSessionId);
@@ -1364,9 +1396,14 @@ function ProjectTerminalSection({
             {runCommands.length === 1 ? `Run ${runCommandSummary(runCommands[0].command)}` : 'Run'}
           </Button>
         ) : (
-          <Button variant="soft" onClick={onSetRun}>
-            Set a run command
-          </Button>
+          <>
+            <Button variant="soft" onClick={onSetRun}>
+              Set a run command
+            </Button>
+            <Button variant="soft" onClick={onCreateWithAi}>
+              <Wand2 /> Create with AI
+            </Button>
+          </>
         )}
         {terminalShortcut ? (
           <span className="ml-1 text-xs text-muted-foreground">

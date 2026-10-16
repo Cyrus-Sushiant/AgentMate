@@ -42,7 +42,7 @@ import type { CloudflareState } from './state';
 import { checkToken } from './tokenCheck';
 
 /**
- * The Cloudflare page's main-process side. Any number of accounts can be connected. Each API token
+ * The Cloudflare dialog's main-process side. Any number of accounts can be connected. Each API token
  * arrives once from the renderer, is checked against Cloudflare, sealed with the Servers vault and
  * saved; after that the renderer only ever sees whether one is set and what it may do. Every call
  * unseals the token of the account it is for (a zone call finds the account that holds the zone)
@@ -89,7 +89,7 @@ const SETTING_IDS = {
   ssl: 'ssl',
   alwaysUseHttps: 'always_use_https',
 } as const;
-const NO_TOKEN = 'Connect Cloudflare first: paste an API token on the Cloudflare page.';
+const NO_TOKEN = 'Connect Cloudflare first: paste an API token in Cloudflare: domains and DNS.';
 const NO_ZONE = 'That domain is not in any of the connected Cloudflare accounts.';
 const UNKNOWN_ACCOUNT = 'That Cloudflare account is not connected any more.';
 const MAX_LABEL = 60;

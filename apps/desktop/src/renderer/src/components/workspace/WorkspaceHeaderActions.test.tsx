@@ -245,6 +245,54 @@ describe('WorkspaceHeaderActions run menu', () => {
   });
 });
 
+describe('WorkspaceHeaderActions create a run command with AI', () => {
+  it('opens the AI dialog, not a toast, when Run is pressed on a project with no command', async () => {
+    run.requestRun.mockImplementation((_project, options) => options?.onEmpty?.());
+    const { user } = await renderHeader();
+
+    await user.click(screen.getByRole('button', { name: 'Set a run command for A' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+    expect(within(dialog).getByText(/Say what you want to run in A/)).toBeInTheDocument();
+  });
+
+  it('puts Create with AI above Add a run command in the menu of an empty project', async () => {
+    const { user } = await renderHeader();
+    const menu = await openRunMenu(user, 'Set a run command for A');
+
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Create with AI', 'Add a run command']);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Create with AI' }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create a run command with AI' }),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves it out of the menu once the project has a command', async () => {
+    const { user } = await renderHeader([{ ...project('a'), runCommands: [dev] }]);
+    const menu = await openRunMenu(user, 'Run A (pnpm dev)');
+
+    expect(within(menu).queryByRole('menuitem', { name: 'Create with AI' })).toBeNull();
+  });
+
+  it("takes the person to the run commands editor from the dialog's write-it-myself button", async () => {
+    const { user } = await renderHeader();
+    const menu = await openRunMenu(user, 'Set a run command for A');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Create with AI' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+
+    await user.click(within(dialog).getByRole('button', { name: "I'll write it myself" }));
+
+    expect(screen.getByRole('status', { name: 'Location' })).toHaveTextContent(
+      '/projects/a?edit=run',
+    );
+  });
+});
+
 describe('WorkspaceHeaderActions run labels for placeholders', () => {
   const ask = { id: 'serve', label: 'serve', command: 'pnpm dev -- --port {{port=3000}}' };
 

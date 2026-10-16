@@ -234,7 +234,6 @@ export default defineConfig({
         'src/main/ipc/cloudflareServer.ts': { lines: 95, branches: 90 },
         'src/shared/cloudflare/dns01.ts': { lines: 95, branches: 90 },
         'src/renderer/src/components/cloudflare/**': { lines: 85, functions: 75, branches: 75 },
-        'src/renderer/src/pages/CloudflarePage.tsx': { lines: 85, functions: 75, branches: 75 },
         'src/renderer/src/lib/cloudflare/**': { lines: 95, branches: 90 },
         // Registry sign-ins (E08): sealed here, sent with each deploy, never shown again.
         'src/main/deploy/registry/**': { lines: 95, branches: 85 },

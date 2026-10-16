@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * A native select in the shared field look (see `.field-surface` in index.css), the same pill
- * as ui/input and the Cloudflare page's NativeSelect. The `.dark .field-surface` rule sets the
+ * as ui/input and the Cloudflare dialog's NativeSelect. The `.dark .field-surface` rule sets the
  * colour scheme, so the option popup follows the theme too.
  */
 export const SELECT_CLASS =

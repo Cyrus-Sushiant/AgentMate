@@ -3,7 +3,7 @@ title: Projects
 category: Getting started
 order: 50
 summary: Add and organise your projects, then use each project's page for its prompts and Blueprint, git, token usage and cost, security scans, packages, Docker, bootstrap files, skills, MCP servers, hooks and environments.
-keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, placeholder, run input, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts, usage, cost, tokens, spend
+keywords: projects, project, new project, folder, pin, archive, tags, icon, run command, create with ai, placeholder, run input, bootstrap, blueprint, standing prompt, git, tag version, security scan, packages, environments, hooks, diffray, drafts, usage, cost, tokens, spend
 route: /projects
 ---
 
@@ -39,7 +39,7 @@ Each project card or row shows its icon, name, "Updated ..." time, description, 
 - **Pin to top** or **Unpin project**, and **Archive project** or **Restore project**, appear on hover. Archiving moves a project out of the way without deleting it.
 - The agent badge (for example Claude Code) opens that agent's CLI in a terminal in the project folder. Generic projects have no CLI, so their badge does nothing.
 - The folder link opens the project folder in your file manager. The globe and branch icons open its website and its repository.
-- **Run** starts the project's run command in a terminal. If the project has several commands it opens a **Run command** dialog to pick one. A command that asks for values opens a short form for them first. If it has none, a message says to set one and the project page opens. See [Run commands](#run-commands).
+- **Run** starts the project's run command in a terminal. If the project has several commands it opens a **Run command** dialog to pick one. A command that asks for values opens a short form for them first. If it has none, the project page opens with a dialog that offers to create one with AI. See [Run commands](#run-commands).
 - A small group of three icon buttons: **Open the Git section** (the project's Git tab), **Review with diffray** (the review wizard) and **Build a prompt for this project** (the Build Prompt dialog).
 
 An empty list shows "No projects yet" with a **New Project** button. If a search matches nothing, the page says so and offers **Clear filters**.
@@ -87,6 +87,22 @@ The order matters. **Run** lists the commands top to bottom, and a project with 
 
 When you click **Run**, AgentMate opens a terminal in the project folder, types the command and runs it, and shows a message such as `Running "dev".` The status bar then shows the run with its port, CPU and memory, and `Shift+F5` stops the run in the drawer (or the newest run). If the project still has Docker containers running when you stop, AgentMate asks whether to stop them too, see [Docker](docker.md#when-you-stop-a-run). See [Interface tour](interface-tour.md).
 
+### Create a run command with AI
+
+If you are not sure what to run, let an AI agent work it out. Click **Create with AI** in the Run commands list of Edit project, in the Terminal section while the project has no run command, or in the **More project actions** menu. In the Workspace, right-click **Run** and choose **Create with AI**. Pressing **Run** on a project with no run command opens it too.
+
+The dialog asks **What should it run?** and starts with a plain request you can change. Click an example to use it, such as running the mobile app on the Android emulator, starting the dev server, or creating a `.bat` file that runs the project together with a run command that calls it. Click **Start**, or press `Ctrl+Enter` (`Cmd+Enter` on a Mac).
+
+AgentMate opens Claude Code in a new tab in the project's Workspace and types your request into it, with the details the agent needs. Press Enter in the tab to send it. The agent reads the project, may write a script, and suggests one command. The suggestion comes back to AgentMate as **Add "name" to project?** with the command exactly as written:
+
+- **Add command** saves it to the project's run commands.
+- **Add and run** saves it and starts it right away.
+- **Discard** drops it.
+
+Nothing is saved until you choose, and nothing runs until you press **Run** or **Add and run**. If you would rather type the command yourself, click **I'll write it myself**.
+
+This needs [Claude Code](cli-manager.md) to be installed. For this one session the agent gets two things: a list of the project's run commands and a way to suggest a new one. That access ends after two hours, and nothing is added to the project's `.mcp.json`.
+
 ### Commands that ask for a value
 
 A command can leave a value open until you run it. Write a name in double braces where the value goes, for example `npm run dev -- --port {{port}}`. When you click **Run**, AgentMate opens a short form with one field per name, shows the command exactly as it will run, and starts it in the project folder once you press Enter or **Run**.
@@ -114,7 +130,7 @@ The page has a header, a section list on the left (a tab bar on narrow windows) 
 - **Run** appears when the project has a run command.
 - **Open workspace** opens this project in the [Workspace](workspace.md).
 - **Prompt** opens the standing prompt editor. See [Overview](#overview).
-- The **More project actions** menu has **Edit project**, **Set a run command** (when there is none), **Open folder**, **Open terminal**, **Archive project** or **Restore project**, and **Remove project**. Removing asks first and only removes the project from AgentMate: your files on disk are kept.
+- The **More project actions** menu has **Edit project**, **Set a run command** and **Create run command with AI** (when there is none), **Open folder**, **Open terminal**, **Archive project** or **Restore project**, and **Remove project**. Removing asks first and only removes the project from AgentMate: your files on disk are kept.
 
 ### Sections
 
@@ -268,7 +284,7 @@ The Docker section lists containers started with `docker compose` from this exac
 
 ### Terminal
 
-The Terminal section opens a shell in the project folder. **Open terminal here** opens it in the terminal drawer, **Run** (or **Run** followed by the command, if there is only one) starts the project, asking for any values first, and **Set a run command** opens Edit project on the run commands when there are none. Terminals already open for this project are listed under **Open here** with a **Show** button. Hiding the drawer does not stop the shell.
+The Terminal section opens a shell in the project folder. **Open terminal here** opens it in the terminal drawer, **Run** (or **Run** followed by the command, if there is only one) starts the project, asking for any values first, and, when there are none, **Set a run command** opens Edit project on the run commands while **Create with AI** has an agent suggest one. Terminals already open for this project are listed under **Open here** with a **Show** button. Hiding the drawer does not stop the shell.
 
 ### Bootstrap
 
@@ -301,7 +317,7 @@ The Skills section lists skills installed into this project, with their version 
 
 The MCP section lists MCP servers installed into this project with a **Remove** button for each. **Browse marketplace** opens the MCP Servers page for this project. See [MCP Servers](mcp-servers.md).
 
-The switch at the top, **Let agents suggest run commands**, lets an agent in this project propose a run command for you. Turning it on adds an `agentmate` server to the project's `.mcp.json` and writes a small script into `.agentmate`. The first time the agent uses it in the project, Claude Code asks you to approve that server and to allow its tools. When the agent proposes a command, AgentMate shows it in a dialog with the command exactly as written. **Add command** saves it to the project's run commands, and **Discard** drops it. Nothing runs until you press **Run**. Turning the switch off removes the entry and the script, and drops any proposals still waiting.
+The switch at the top, **Let agents suggest run commands**, lets an agent in this project propose a run command for you. Turning it on adds an `agentmate` server to the project's `.mcp.json` and writes a small script into `.agentmate`. The first time the agent uses it in the project, Claude Code asks you to approve that server and to allow its tools. When the agent proposes a command, AgentMate shows it in a dialog with the command exactly as written. **Add command** saves it to the project's run commands, **Add and run** saves it and starts it, and **Discard** drops it. Nothing runs until you press **Run** or **Add and run**. This switch is for agents you start yourself. **Create with AI** under [Run commands](#run-commands) sets this up for you and needs no switch. Turning the switch off removes the entry and the script, and drops any proposals still waiting.
 
 ### Hooks
 

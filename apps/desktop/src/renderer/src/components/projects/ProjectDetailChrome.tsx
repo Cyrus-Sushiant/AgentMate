@@ -269,6 +269,7 @@ export function ProjectDetailHeader({
   onRun,
   onPrompt,
   onEdit,
+  onCreateRunWithAi,
   onDelete,
   onToggleArchive,
   onCopyPath,
@@ -281,6 +282,8 @@ export function ProjectDetailHeader({
   onRun: () => void;
   onPrompt: () => void;
   onEdit: () => void;
+  /** Adds "Create run command with AI" to the menu while the project has no run command. */
+  onCreateRunWithAi?: () => void;
   onDelete: () => void;
   onToggleArchive: () => void;
   onCopyPath: () => void;
@@ -414,6 +417,11 @@ export function ProjectDetailHeader({
               {!hasRunCommand ? (
                 <DropdownMenuItem onSelect={onEdit}>
                   <Run className="h-4 w-4" /> Set a run command
+                </DropdownMenuItem>
+              ) : null}
+              {!hasRunCommand && onCreateRunWithAi ? (
+                <DropdownMenuItem onSelect={onCreateRunWithAi}>
+                  <Wand2 className="h-4 w-4" /> Create run command with AI
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuItem onSelect={onOpenFolder}>

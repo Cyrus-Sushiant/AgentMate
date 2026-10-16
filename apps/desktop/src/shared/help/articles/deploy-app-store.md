@@ -65,7 +65,7 @@ Click **Cancel** to close the sheet without installing.
 
 Turn on **Put it on a domain** to add a site in Websites that forwards your domain to the app. This switch is only available when the app has a web interface and you are an Admin. If it is disabled, the hint tells you why: either the app has no web interface to put on a domain (the hint may add a note, for example that only a management UI can go on a domain), or you are not an Admin and the app stays on `127.0.0.1` until an Admin adds it in Websites.
 
-1. Type the **Domain**, for example `app.example.com`. Point its DNS at the server first, so the certificate can be issued. Cloudflare users can do that on the [Cloudflare page](cloudflare.md).
+1. Type the **Domain**, for example `app.example.com`. Point its DNS at the server first, so the certificate can be issued. Cloudflare users can do that from [Cloudflare](cloudflare.md).
 2. Leave the checkbox on to get a free certificate from Let's Encrypt for HTTPS. Ticking it accepts Let's Encrypt's terms of service.
 
 After the install starts, the app view shows three **Domain steps**: **Add the site in Websites**, **Apply nginx** and **Ask for a certificate**. Each step shows working, done, failed or skipped, with a detail line when something fails. The certificate step says that Let's Encrypt is checking the domain, and the site's **SSL** tab in Websites shows when the certificate arrives. If you did not ask for a certificate, the step is skipped and you can add one later from the site's **SSL** tab. The site starts without the redirect from HTTP to HTTPS, so turn that on in Websites once the certificate is there. See [Websites and certificates](deploy-websites-certificates.md).

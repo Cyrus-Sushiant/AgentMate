@@ -1948,7 +1948,7 @@ const deploySecurity = {
 };
 
 /**
- * The Deploy section's Cloudflare page. The API token goes in through saveToken and never comes
+ * The Deploy section's Cloudflare dialog. The API token goes in through saveToken and never comes
  * back: everything else answers with zones, records, settings and rules.
  */
 const cloudflare = {

@@ -4,10 +4,10 @@ import {
   projectRunCommandTitle,
   runCommandSummary,
 } from '@agentmat/core';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { Cpu, FolderOpen, Keyboard, Pencil, Play, Run, Tag } from '@/components/icons';
+import { Cpu, FolderOpen, Keyboard, Pencil, Play, Run, Tag, Wand2 } from '@/components/icons';
+import { CreateRunWithAiDialog } from '@/components/projects/CreateRunWithAiDialog';
 import { useProjectRun } from '@/components/projects/useProjectRun';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,7 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const navigate = useNavigate();
   const activeProjectId = useWorkspaceStore((s) => s.activeProjectId);
   const { requestRun, runCommand, runPicker } = useProjectRun();
+  const [createAiOpen, setCreateAiOpen] = useState(false);
   const tagDialogProjectId = useVersionDialogStore((s) => s.openProjectId);
   const openVersionDialog = useVersionDialogStore((s) => s.open);
   const closeVersionDialog = useVersionDialogStore((s) => s.close);
@@ -55,17 +56,8 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
   const runHandler = useRef<() => void>(() => undefined);
   runHandler.current = () => {
     if (!project || !parentId || !activeProjectId) return;
-    requestRun(project, {
-      onEmpty: () => {
-        toast.info(`${project.name} has no run command yet`, {
-          description: 'Add one with Edit project on the project page.',
-          action: {
-            label: 'Edit run commands',
-            onClick: () => navigate(`/projects/${parentId}?edit=run`),
-          },
-        });
-      },
-    });
+    // Nothing to run yet, so Run turns into the way to get one: the AI helper opens right here.
+    requestRun(project, { onEmpty: () => setCreateAiOpen(true) });
   };
   useEffect(() => {
     const onRun = (): void => runHandler.current();
@@ -132,7 +124,13 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
               <ContextMenuSeparator />
             </>
           ) : (
-            <ContextMenuLabel>No run commands yet</ContextMenuLabel>
+            <>
+              <ContextMenuLabel>No run commands yet</ContextMenuLabel>
+              <ContextMenuItem onSelect={() => setCreateAiOpen(true)}>
+                <Wand2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                Create with AI
+              </ContextMenuItem>
+            </>
           )}
           <ContextMenuItem onSelect={editRunCommands}>
             <Pencil className="h-3.5 w-3.5 shrink-0" />
@@ -171,6 +169,12 @@ export function WorkspaceHeaderActions(): React.JSX.Element | null {
         </Button>
       </SimpleTooltip>
       {runPicker}
+      <CreateRunWithAiDialog
+        open={createAiOpen}
+        onOpenChange={setCreateAiOpen}
+        project={project}
+        onWriteMyself={editRunCommands}
+      />
       {/* Keyed by project so each one gets its own form, suggestion and tag run. One shared
           instance let a project's pending answer or finished tag land in the next project. */}
       <ProjectVersionDialogs

@@ -1,8 +1,9 @@
 import type { CloudflareStatus } from '@shared/cloudflareTypes';
 import { screen, within } from '@testing-library/react';
+import { useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { PANEL_WIDTHS, usePanelWidthStore } from '@/stores/panelWidthStore';
-import { renderWithProviders } from '../../../test/renderer/renderWithProviders';
+import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
 import {
   A_RECORD,
   ACCOUNT,
@@ -11,10 +12,10 @@ import {
   OTHER_ZONE,
   SETTINGS,
   ZONE,
-} from '../components/cloudflare/testing/fixtures';
+} from './testing/fixtures';
 
 /**
- * The Cloudflare page (T8) at /deploy/cloudflare: account wide, so it starts from the token,
+ * The Cloudflare dialog, opened over the Deploy page: account wide, so it starts from the token,
  * then lists the zones it can see, and for the picked zone its DNS, settings and security rules.
  * Every state says what is going on in words, and loading shimmers card by card.
  */
@@ -22,35 +23,49 @@ import {
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('sonner', () => ({ toast }));
 
-const { default: CloudflarePage } = await import('./CloudflarePage');
+const { CloudflareDialog } = await import('./CloudflareDialog');
 
 const NOTHING: CloudflareStatus = { configured: false, locked: false, accounts: [] };
 
-function renderPage(bridge: Record<string, unknown> = {}, route = '/deploy/cloudflare') {
-  return renderWithProviders(<CloudflarePage />, {
-    route,
-    bridge: {
-      'cloudflare.status': async () => CONNECTED,
-      'cloudflare.listZones': async () => [ZONE, OTHER_ZONE],
-      'cloudflare.listRecords': async () => [A_RECORD],
-      'cloudflare.zoneSettings': async () => SETTINGS,
-      'cloudflare.listCustomRules': async () => [],
-      'cloudflare.listAccessRules': async () => [],
-      'ssh.vaultStatus': async () => ({ hasPasskey: false, unlocked: false }),
-      'deploy.listServers': async () => [],
-      ...bridge,
-    },
-  });
+/** Shows the address, so a test can check what the dialog left in it. */
+function LocationProbe(): React.JSX.Element {
+  const location = useLocation();
+  return <span data-testid="address">{`${location.pathname}${location.search}`}</span>;
 }
 
-describe('CloudflarePage', () => {
+function renderDialog(bridge: Record<string, unknown> = {}, route = '/deploy?dialog=cloudflare') {
+  const onOpenChange = vi.fn();
+  const view = renderWithProviders(
+    <>
+      <CloudflareDialog open onOpenChange={onOpenChange} />
+      <LocationProbe />
+    </>,
+    {
+      route,
+      bridge: {
+        'cloudflare.status': async () => CONNECTED,
+        'cloudflare.listZones': async () => [ZONE, OTHER_ZONE],
+        'cloudflare.listRecords': async () => [A_RECORD],
+        'cloudflare.zoneSettings': async () => SETTINGS,
+        'cloudflare.listCustomRules': async () => [],
+        'cloudflare.listAccessRules': async () => [],
+        'ssh.vaultStatus': async () => ({ hasPasskey: false, unlocked: false }),
+        'deploy.listServers': async () => [],
+        ...bridge,
+      },
+    },
+  );
+  return { ...view, onOpenChange };
+}
+
+describe('CloudflareDialog', () => {
   it('shimmers while it asks whether a token is saved', () => {
-    const { container } = renderPage({ 'cloudflare.status': () => new Promise(() => undefined) });
-    expect(container.querySelector('[aria-busy="true"] .shimmer')).not.toBeNull();
+    renderDialog({ 'cloudflare.status': () => new Promise(() => undefined) });
+    expect(document.querySelector('[aria-busy="true"] .shimmer')).not.toBeNull();
   });
 
   it('says what went wrong when the status cannot be read', async () => {
-    renderPage({
+    renderDialog({
       'cloudflare.status': async () => {
         throw ipcError('status', 'Cloudflare is only available in the main window.');
       },
@@ -59,15 +74,14 @@ describe('CloudflarePage', () => {
   });
 
   it('starts with the token guide when nothing is saved', async () => {
-    const { bridge } = renderPage({ 'cloudflare.status': async () => NOTHING });
+    const { bridge } = renderDialog({ 'cloudflare.status': async () => NOTHING });
 
     expect(await screen.findByText('Connect Cloudflare')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Back to Deploy/ })).toHaveAttribute('href', '/deploy');
     expect(() => bridge.$fn('cloudflare.listZones')).toThrow();
   });
 
   it('lists the zones and opens the first one on its DNS records', async () => {
-    renderPage();
+    renderDialog();
 
     const rail = await screen.findByRole('navigation', { name: 'Zones' });
     expect(await within(rail).findByText('example.com')).toBeInTheDocument();
@@ -77,7 +91,7 @@ describe('CloudflarePage', () => {
   });
 
   it('opens the zone in the address and switches between its tabs', async () => {
-    const { user } = renderPage({}, `/deploy/cloudflare?zone=${OTHER_ZONE.id}`);
+    const { user } = renderDialog({}, `/deploy?dialog=cloudflare&zone=${OTHER_ZONE.id}`);
 
     expect(await screen.findByRole('heading', { name: 'example.org' })).toBeInTheDocument();
     expect(screen.getByText(/bob\.ns\.cloudflare\.com/)).toBeInTheDocument();
@@ -90,7 +104,7 @@ describe('CloudflarePage', () => {
   });
 
   it('marks the open zone in the rail', async () => {
-    const { user } = renderPage();
+    const { user } = renderDialog();
     const rail = await screen.findByRole('navigation', { name: 'Zones' });
     const first = await within(rail).findByRole('button', { name: /example\.com/ });
     const second = within(rail).getByRole('button', { name: /example\.org/ });
@@ -103,7 +117,7 @@ describe('CloudflarePage', () => {
 
   it('resizes the domain list from the keyboard and remembers the width', async () => {
     usePanelWidthStore.setState({ widths: {} });
-    const { user } = renderPage();
+    const { user } = renderDialog();
     await screen.findByRole('navigation', { name: 'Zones' });
     const handle = screen.getByRole('separator', { name: 'Resize domains' });
     const rail = screen.getByRole('complementary', { name: 'Cloudflare domains' });
@@ -117,33 +131,38 @@ describe('CloudflarePage', () => {
   });
 
   it('shows the token guide on its own, without an empty domain list', async () => {
-    renderPage({ 'cloudflare.status': async () => NOTHING });
+    renderDialog({ 'cloudflare.status': async () => NOTHING });
     expect(await screen.findByText('Connect Cloudflare')).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Cloudflare domains' })).toBeNull();
     expect(screen.queryByRole('separator', { name: 'Resize domains' })).toBeNull();
   });
 
-  it('picks another zone from the rail', async () => {
-    const { user } = renderPage();
+  it('picks another zone from the rail and keeps the rest of the address', async () => {
+    const { user } = renderDialog({}, '/deploy?server=srv-1&dialog=cloudflare');
     const rail = await screen.findByRole('navigation', { name: 'Zones' });
     await user.click(await within(rail).findByRole('button', { name: /example\.org/ }));
+
     expect(await screen.findByRole('heading', { name: 'example.org' })).toBeInTheDocument();
+    const address = new URLSearchParams(screen.getByTestId('address').textContent?.split('?')[1]);
+    expect(address.get('zone')).toBe(OTHER_ZONE.id);
+    expect(address.get('server')).toBe('srv-1');
+    expect(address.get('dialog')).toBe('cloudflare');
   });
 
   it('shimmers while the zones load, and explains when there are none', async () => {
-    const { container, unmount } = renderPage({
+    const { unmount } = renderDialog({
       'cloudflare.listZones': () => new Promise(() => undefined),
     });
     await screen.findByText('Cloudflare token');
-    expect(container.querySelector('nav[aria-busy="true"] .shimmer')).not.toBeNull();
+    expect(document.querySelector('nav[aria-busy="true"] .shimmer')).not.toBeNull();
     unmount();
 
-    renderPage({ 'cloudflare.listZones': async () => [] });
+    renderDialog({ 'cloudflare.listZones': async () => [] });
     expect(await screen.findByText(/cannot see any domains yet/)).toBeInTheDocument();
   });
 
   it('says why the zones could not be listed', async () => {
-    renderPage({
+    renderDialog({
       'cloudflare.listZones': async () => {
         throw ipcError('listZones', 'Could not reach Cloudflare.');
       },
@@ -152,7 +171,7 @@ describe('CloudflarePage', () => {
   });
 
   it('asks to unlock the Servers passkey before reading anything with the token', async () => {
-    const { user, bridge } = renderPage({
+    const { user, bridge } = renderDialog({
       'cloudflare.status': async () => ({ ...CONNECTED, locked: true }),
       'ssh.vaultStatus': async () => ({ hasPasskey: true, unlocked: false }),
     });
@@ -160,13 +179,14 @@ describe('CloudflarePage', () => {
     expect(await screen.findByText(/locked with a passkey/)).toBeInTheDocument();
     expect(() => bridge.$fn('cloudflare.listZones')).toThrow();
     await user.click(screen.getByRole('button', { name: 'Unlock' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Unlock the vault' })).toBeInTheDocument();
   });
 
   it('replaces the token from the token card, or keeps it', async () => {
-    const { user } = renderPage();
+    const { user } = renderDialog();
 
-    await user.click(await screen.findByRole('button', { name: 'Replace token' }));
+    await user.click(await screen.findByRole('button', { name: 'Details' }));
+    await user.click(screen.getByRole('button', { name: 'Replace token' }));
     expect(await screen.findByText('Replace the token for Cloudflare')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep the current token' }));
     expect(await screen.findByText('Cloudflare token')).toBeInTheDocument();
@@ -174,7 +194,7 @@ describe('CloudflarePage', () => {
 
   it('reads the zones once the passkey is unlocked', async () => {
     let locked = true;
-    const { user, bridge } = renderPage({
+    const { user, bridge } = renderDialog({
       'cloudflare.status': async () => ({ ...CONNECTED, locked }),
       'ssh.vaultStatus': async () => ({ hasPasskey: true, unlocked: !locked }),
       'ssh.unlockVault': async () => {
@@ -185,7 +205,11 @@ describe('CloudflarePage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Unlock' }));
     await user.type(await screen.findByLabelText('Passkey'), 'secret');
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Unlock' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Unlock the vault' })).getByRole('button', {
+        name: 'Unlock',
+      }),
+    );
 
     expect(await screen.findByRole('navigation', { name: 'Zones' })).toBeInTheDocument();
     expect(bridge.$fn('cloudflare.listZones')).toHaveBeenCalled();
@@ -194,7 +218,7 @@ describe('CloudflarePage', () => {
   it('tries the status and the zones again on request', async () => {
     let failStatus = true;
     let failZones = true;
-    const { user } = renderPage({
+    const { user } = renderDialog({
       'cloudflare.status': async () => {
         if (failStatus) {
           failStatus = false;
@@ -217,6 +241,26 @@ describe('CloudflarePage', () => {
     expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
   });
 
+  it('closes from its close button, and reports it', async () => {
+    const { user, onOpenChange } = renderDialog();
+
+    await screen.findByRole('navigation', { name: 'Zones' });
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps the token card to one line while the token is fine, so the zone has the room', async () => {
+    const { user } = renderDialog();
+
+    expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Replace token' })).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Details' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(toggle);
+    expect(screen.getByRole('button', { name: 'Replace token' })).toBeInTheDocument();
+  });
+
   describe('with several accounts', () => {
     const SECOND_ZONE = { ...OTHER_ZONE, accountId: 'acct-2' };
     const TWO: CloudflareStatus = {
@@ -231,7 +275,7 @@ describe('CloudflarePage', () => {
     };
 
     it('groups the domains under the account that holds them', async () => {
-      renderPage(several);
+      renderDialog(several);
 
       const rail = await screen.findByRole('navigation', { name: 'Zones' });
       const work = await within(rail).findByRole('region', { name: 'Cloudflare' });
@@ -242,14 +286,14 @@ describe('CloudflarePage', () => {
     });
 
     it('asks each account for its own zones', async () => {
-      const { bridge } = renderPage(several);
+      const { bridge } = renderDialog(several);
       await screen.findByRole('heading', { name: 'example.com' });
       expect(bridge.$fn('cloudflare.listZones')).toHaveBeenCalledWith('acct-1');
       expect(bridge.$fn('cloudflare.listZones')).toHaveBeenCalledWith('acct-2');
     });
 
     it('shows the token card of the account that holds the open zone', async () => {
-      const { user } = renderPage(several);
+      const { user } = renderDialog(several);
       const rail = await screen.findByRole('navigation', { name: 'Zones' });
 
       expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
@@ -261,7 +305,7 @@ describe('CloudflarePage', () => {
     });
 
     it('keeps the other accounts domains when one account fails', async () => {
-      renderPage({
+      renderDialog({
         ...several,
         'cloudflare.listZones': async (accountId: string) => {
           if (accountId === 'acct-2') throw ipcError('listZones', 'Could not reach Cloudflare.');
@@ -274,7 +318,7 @@ describe('CloudflarePage', () => {
     });
 
     it('adds another account from the rail, and goes back without saving', async () => {
-      const { user } = renderPage(several);
+      const { user } = renderDialog(several);
 
       await user.click(await screen.findByRole('button', { name: 'Add account' }));
       expect(await screen.findByText('Connect another Cloudflare account')).toBeInTheDocument();
@@ -284,8 +328,46 @@ describe('CloudflarePage', () => {
       expect(await screen.findByRole('navigation', { name: 'Zones' })).toBeInTheDocument();
     });
 
+    it('draws the connect steps beside the domains, not in a second dialog on top', async () => {
+      const { user } = renderDialog(several);
+
+      await user.click(await screen.findByRole('button', { name: 'Add account' }));
+
+      expect(await screen.findByText('Connect another Cloudflare account')).toBeInTheDocument();
+      expect(screen.getByRole('navigation', { name: 'Zones' })).toBeInTheDocument();
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(await screen.findByRole('heading', { name: 'example.com' })).toBeInTheDocument();
+      expect(screen.queryByText('Connect another Cloudflare account')).toBeNull();
+    });
+
+    it('leaves the connect steps when another domain is picked', async () => {
+      const { user } = renderDialog(several);
+
+      await user.click(await screen.findByRole('button', { name: 'Add account' }));
+      expect(await screen.findByText('Connect another Cloudflare account')).toBeInTheDocument();
+      const rail = screen.getByRole('navigation', { name: 'Zones' });
+      await user.click(await within(rail).findByRole('button', { name: /example\.org/ }));
+
+      expect(await screen.findByRole('heading', { name: 'example.org' })).toBeInTheDocument();
+      expect(screen.queryByText('Connect another Cloudflare account')).toBeNull();
+    });
+
+    it("opens an account's token details when its name is picked in the rail", async () => {
+      const { user } = renderDialog(several);
+      const rail = await screen.findByRole('navigation', { name: 'Zones' });
+
+      await user.click(await within(rail).findByRole('button', { name: 'Client Co' }));
+
+      expect(await screen.findByRole('button', { name: 'Replace token' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+
     it('lets the first account be added from the one-column view too', async () => {
-      const { user } = renderPage({
+      const { user } = renderDialog({
         ...several,
         'cloudflare.status': async () => ({ ...TWO, locked: true }),
         'ssh.vaultStatus': async () => ({ hasPasskey: true, unlocked: false }),

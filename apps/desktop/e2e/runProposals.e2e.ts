@@ -183,3 +183,48 @@ test('Discard drops the suggestion and leaves the project as it was', async () =
   await expect(dialog).toHaveCount(0);
   await expect.poll(() => runCommandsOnDisk(current, id)).toEqual([]);
 });
+
+test('Create with AI starts Claude Code for the project, and its suggestion needs approval', async () => {
+  launched = await launchApp({ settings: {} });
+  const current = launched;
+  const { page } = current;
+  const id = await createProject(current);
+  await openRoute(current, `#/projects/${id}`);
+  await expect(page.getByRole('heading', { name: NAME })).toBeVisible();
+
+  // The person finds the button where a run command is missing, with no switch to turn on first.
+  await page.getByRole('button', { name: /^Terminal/ }).click();
+  await page.getByRole('button', { name: 'Create with AI' }).click();
+  const setup = page.getByRole('dialog', { name: 'Create a run command with AI' });
+  await expect(setup).toBeVisible();
+  await expect(setup.getByRole('textbox', { name: 'What should it run?' })).toBeFocused();
+
+  await setup.getByRole('button', { name: 'Start', exact: true }).click();
+
+  // Claude Code starts in the project's workspace with the setup's MCP config and tool access.
+  await expect(page).toHaveURL(new RegExp(`#/workspace/${id}`));
+  await expect.poll(() => current.claudeLaunches().join('\n')).toContain('--mcp-config');
+  const launch = current.claudeLaunches().join('\n');
+  expect(launch).toContain('--allowedTools');
+  expect(launch).toContain('mcp__agentmate__propose_run_command');
+  // The project's own files stay as they were: this flow never touches .mcp.json.
+  expect(existsSync(join(current.projectDir, '.mcp.json'))).toBe(false);
+
+  // Now play the agent: start the bridge from the config that was handed to Claude Code.
+  const configPath = join(current.userDataDir, 'run-suggestions', id, 'mcp.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+    mcpServers: { agentmate: { command: string; args: string[] } };
+  };
+  await talkToBridge(config.mcpServers.agentmate.args[0], proposeMessages(SUGGESTED), 2);
+
+  const dialog = page.getByRole('dialog', { name: `Add "android dev" to ${NAME}?` });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(SUGGESTED)).toBeVisible();
+  expect(runCommandsOnDisk(current, id)).toEqual([]);
+
+  await dialog.getByRole('button', { name: 'Add command' }).click();
+
+  await expect
+    .poll(() => runCommandsOnDisk(current, id))
+    .toEqual([{ id: expect.any(String), label: 'android dev', command: SUGGESTED }]);
+});

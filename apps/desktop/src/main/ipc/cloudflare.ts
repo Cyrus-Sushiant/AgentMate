@@ -22,7 +22,7 @@ import { IPC } from '../../shared/ipcChannels';
 import type { CloudflareService } from '../deploy/cloudflare/service';
 
 /**
- * The Cloudflare page's invoke channels. Like the rest of Deploy they answer only the app's main
+ * The Cloudflare dialog's invoke channels. Like the rest of Deploy they answer only the app's main
  * window, since browser tabs and webviews share the preload. Every argument is checked here, with
  * the same rules the page uses as the user types, before the service (and the token) sees it.
  */

@@ -586,6 +586,114 @@ describe('ProjectDetailPage edit run commands link', () => {
   });
 });
 
+describe('ProjectDetailPage create a run command with AI', () => {
+  const withRun = project({ runCommands: [{ id: 'dev', label: 'Dev', command: 'pnpm dev' }] });
+  const bridge = { 'cli.detectAll': [{ id: 'claude-code', installed: true }] };
+
+  function renderAt(route: string, projects: Project[] = [project()]) {
+    return renderWithProviders(<ProjectDetailPage />, {
+      route,
+      path: 'projects/:projectId',
+      bridge: { ...bridge, 'projects.list': projects },
+    });
+  }
+
+  it('offers it next to Set a run command when the project has none', async () => {
+    const { user } = renderAt('/projects/p1?tab=terminal');
+    await screen.findByText('Project terminal');
+    expect(screen.getByRole('button', { name: 'Set a run command' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Create with AI' }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create a run command with AI' }),
+    ).toBeTruthy();
+  });
+
+  it('does not push it on a project that already has a run command', async () => {
+    renderAt('/projects/p1?tab=terminal', [withRun]);
+    await screen.findByText('Project terminal');
+
+    expect(screen.queryByRole('button', { name: 'Create with AI' })).toBeNull();
+  });
+
+  it('opens on the AI dialog when the route asks for ?createRun=ai', async () => {
+    renderAt('/projects/p1?createRun=ai');
+
+    const dialog = await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+    expect(within(dialog).getByText(/Say what you want to run in Apollo/)).toBeTruthy();
+  });
+
+  it('does not open it again once it has been closed', async () => {
+    const { user } = renderAt('/projects/p1?createRun=ai');
+    await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await user.click(await screen.findByRole('button', { name: 'More project actions' }));
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('puts it in the project menu while there is no run command', async () => {
+    const { user } = renderAt('/projects/p1');
+    const menu = await openHeaderMenu(user);
+
+    await user.click(within(menu).getByRole('menuitem', { name: /Create run command with AI/ }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create a run command with AI' }),
+    ).toBeTruthy();
+  });
+
+  it('leaves it out of the project menu once there is a run command', async () => {
+    const { user } = renderAt('/projects/p1', [withRun]);
+    const menu = await openHeaderMenu(user);
+
+    expect(within(menu).queryByRole('menuitem', { name: /Create run command with AI/ })).toBeNull();
+  });
+
+  it('swaps the edit form for the AI dialog when Create with AI is pressed in the form', async () => {
+    const { user } = renderAt('/projects/p1?edit=run');
+    const form = await screen.findByRole('dialog', { name: 'Edit project' });
+
+    await user.click(within(form).getByRole('button', { name: 'Create with AI' }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create a run command with AI' }),
+    ).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit project' })).toBeNull());
+  });
+
+  it("opens the run commands editor from the dialog's write-it-myself button", async () => {
+    const { user } = renderAt('/projects/p1?createRun=ai');
+    const dialog = await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+
+    await user.click(within(dialog).getByRole('button', { name: "I'll write it myself" }));
+
+    const form = await screen.findByRole('dialog', { name: 'Edit project' });
+    expect(within(form).getByRole('tab', { name: /Agent/, selected: true })).toBeTruthy();
+  });
+
+  it('asks the agent for the project, not for something else', async () => {
+    const { user, bridge: fns } = renderWithProviders(<ProjectDetailPage />, {
+      route: '/projects/p1?createRun=ai',
+      path: 'projects/:projectId',
+      bridge: {
+        ...bridge,
+        'projects.list': [project()],
+        'runProposals.startGuided': { ok: false, error: 'No.' },
+      },
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Create a run command with AI' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Start' }));
+
+    await waitFor(() => expect(fns.$fn('runProposals.startGuided')).toHaveBeenCalledWith('p1'));
+  });
+});
+
 describe('ProjectDetailPage WordPress section', () => {
   const linked = project({
     wordpress: {
