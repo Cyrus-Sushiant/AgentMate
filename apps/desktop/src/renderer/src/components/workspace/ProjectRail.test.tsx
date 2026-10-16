@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { Project, WorktreeInfo } from '@agentmat/core';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useWorktreeDialogStore } from '@/stores/worktreeDialogStore';
 import { renderWithProviders } from '../../../../test/renderer/renderWithProviders';
@@ -29,6 +29,8 @@ const project = {
   iconColor: null,
   archived: false,
 } as unknown as Project;
+
+const other = { ...project, id: 'p2', name: 'Billing', folderPath: 'C:\\code\\billing' } as Project;
 
 function worktree(id: string, branch: string, patch: Partial<WorktreeInfo> = {}): WorktreeInfo {
   return {
@@ -63,6 +65,48 @@ beforeEach(() => {
     railExpanded: {},
   });
   useWorktreeDialogStore.setState({ create: null, remove: null });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('opening a project from the rail', () => {
+  /**
+   * A tile is also the grip that reorders the rail. Chromium sends the click that ends a press to
+   * the element holding the pointer, and to the element under it otherwise, so a tile that held
+   * the pointer on press never got its button clicked and no project could be opened. Jsdom has no
+   * pointer capture, so this follows what Chromium would do with whatever the tile asked for.
+   */
+  function pressAndRelease(target: HTMLElement): void {
+    const held: Element[] = [];
+    vi.spyOn(Element.prototype, 'setPointerCapture').mockImplementation(function (this: Element) {
+      held.push(this);
+    });
+    fireEvent.pointerDown(target, { button: 0, clientX: 4, clientY: 4, pointerId: 1 });
+    fireEvent.pointerUp(target, { pointerId: 1 });
+    fireEvent.click(held.at(-1) ?? target);
+  }
+
+  it('opens the project whose tile is clicked', () => {
+    useWorkspaceStore.setState({ railProjectIds: ['p1', 'p2'] });
+    renderWithProviders(<ProjectRail projects={[project, other]} activeProjectId="p1" />, {
+      bridge: { 'worktrees.list': [] },
+    });
+
+    pressAndRelease(screen.getByRole('button', { name: 'Open Billing' }));
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/workspace/p2');
+
+    pressAndRelease(screen.getByRole('button', { name: 'Open AgentMate' }));
+    expect(navigate).toHaveBeenLastCalledWith('/workspace/p1');
+  });
+
+  it('opens the project that is already showing, too', () => {
+    renderRail('p1', []);
+    pressAndRelease(screen.getByRole('button', { name: 'Open AgentMate' }));
+    expect(navigate).toHaveBeenCalledWith('/workspace/p1');
+  });
 });
 
 describe('worktrees in the rail', () => {

@@ -51,7 +51,15 @@ function Row({ item, motion }: { item: Item; motion: ReorderMotion }): React.JSX
   );
 }
 
-function setup(props: { items?: Item[]; enabled?: boolean; boxes?: Box[] } = {}) {
+function setup(
+  props: {
+    items?: Item[];
+    enabled?: boolean;
+    boxes?: Box[];
+    /** Replaces the default row, for items whose grip holds something clickable. */
+    row?: (item: Item, motion: ReorderMotion) => React.ReactNode;
+  } = {},
+) {
   const items = props.items ?? ITEMS;
   const boxes = props.boxes ?? stackedRows(items.length);
   // Layout follows the DOM: whichever item sits in a place reads that place's box.
@@ -90,7 +98,9 @@ function setup(props: { items?: Item[]; enabled?: boolean; boxes?: Box[] } = {})
       getId={(item) => item.id}
       enabled={props.enabled ?? true}
       onMove={onMove}
-      renderItem={(item, motion) => <Row item={item} motion={motion} />}
+      renderItem={(item, motion) =>
+        props.row ? props.row(item, motion) : <Row item={item} motion={motion} />
+      }
     />
   );
   const { container, rerender } = render(view(items));
@@ -126,6 +136,9 @@ function orderOf(container: HTMLElement): string[] {
 }
 
 afterEach(() => {
+  // A drop that travelled leaves a one-shot click swallower on the window for 300ms. Spend it, or
+  // it eats the first click of whichever test runs next.
+  window.dispatchEvent(new MouseEvent('click'));
   vi.restoreAllMocks();
 });
 
@@ -229,6 +242,97 @@ describe('ReorderableGroup', () => {
 
     rerender([...ITEMS]);
     expect(orderOf(container)).toEqual(['a', 'b', 'c']);
+  });
+
+  describe('pointer capture', () => {
+    /** Records which element is asked to hold the pointer, as Chromium would honour it. */
+    function trackCapture(): Element[] {
+      const held: Element[] = [];
+      vi.spyOn(Element.prototype, 'setPointerCapture').mockImplementation(function (this: Element) {
+        held.push(this);
+      });
+      return held;
+    }
+
+    it('leaves the pointer alone on a press that never moves', () => {
+      const held = trackCapture();
+      setup();
+      press('a', 0, 0);
+      release('a');
+      expect(held).toEqual([]);
+    });
+
+    it('leaves the pointer alone on a press that only jitters', () => {
+      const held = trackCapture();
+      setup();
+      press('a', 0, 0);
+      moveTo('a', 1, 1);
+      moveTo('a', 2, 0);
+      release('a');
+      expect(held).toEqual([]);
+    });
+
+    it('takes the pointer once, on the grip, when the press becomes a drag', () => {
+      const held = trackCapture();
+      setup();
+      press('a', 0, 0);
+      moveTo('a', 0, 10);
+      moveTo('a', 0, 30);
+      moveTo('a', 0, 70);
+      expect(held).toEqual([grip('a')]);
+      release('a');
+    });
+
+    // Chromium sends the click that ends a press to the element holding the pointer, and to the
+    // element under it otherwise. A grip that held the pointer on press therefore swallowed the
+    // click of any button inside it, so no rail tile could be opened.
+    it('lets a click reach a button inside the grip after a press that did not move', () => {
+      const held = trackCapture();
+      const onOpen = vi.fn();
+      setup({
+        row: (item, motion) => (
+          <div {...motion.itemProps}>
+            <div onPointerDown={motion.onGripPointerDown}>
+              <button type="button" onClick={() => onOpen(item.id)}>
+                {`Open ${item.name}`}
+              </button>
+            </div>
+          </div>
+        ),
+      });
+      const button = screen.getByRole('button', { name: 'Open Alpha' });
+
+      fireEvent.pointerDown(button, { button: 0, clientX: 4, clientY: 4, pointerId: 1 });
+      fireEvent.pointerUp(button, { pointerId: 1 });
+      fireEvent.click(held.at(-1) ?? button);
+
+      expect(onOpen).toHaveBeenCalledWith('a');
+    });
+
+    it('eats the click that follows a drag, wherever it lands', () => {
+      trackCapture();
+      const onOpen = vi.fn();
+      const { onMove } = setup({
+        row: (item, motion) => (
+          <div {...motion.itemProps}>
+            <div onPointerDown={motion.onGripPointerDown}>
+              <button type="button" onClick={() => onOpen(item.id)}>
+                {`Open ${item.name}`}
+              </button>
+            </div>
+          </div>
+        ),
+      });
+      const button = screen.getByRole('button', { name: 'Open Alpha' });
+
+      fireEvent.pointerDown(button, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(button, { clientX: 0, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(button, { pointerId: 1 });
+      fireEvent.click(button);
+
+      expect(onMove).toHaveBeenCalledWith(0, 1);
+      expect(onOpen).not.toHaveBeenCalled();
+    });
   });
 
   it('moves across a grid row and slides the cards it passes', () => {

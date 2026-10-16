@@ -42,6 +42,8 @@ interface Point {
 /** One pointer drag, from the grip going down to the pointer letting go. */
 interface Drag {
   pointerId: number;
+  /** The grip the press landed on. It takes the pointer once the press becomes a real drag. */
+  grip: HTMLElement;
   startX: number;
   startY: number;
   /** The dragged item's id, to tell whether the items changed under the drag. */
@@ -169,13 +171,16 @@ export function ReorderableGroup<T>({
     const group = groupRef.current;
     if (!enabled || !group || event.button !== 0) return;
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // The pointer is not captured yet. A grip can wrap a button (a rail tile does), and a captured
+    // pointer sends the click that follows to the grip rather than to the button inside it, so a
+    // plain press and release would never open anything. Capture waits for real movement.
     const boxes = Array.from(
       group.querySelectorAll<HTMLElement>(':scope > [data-reorder-id]'),
       boxOf,
     );
     const next: Drag = {
       pointerId: event.pointerId,
+      grip: event.currentTarget,
       startX: event.clientX,
       startY: event.clientY,
       id: getId(order[index]),
@@ -231,6 +236,8 @@ export function ReorderableGroup<T>({
     ) {
       return;
     }
+    // From here the pointer belongs to the drag, so it keeps reaching the group wherever it goes.
+    if (travelled && !current.travelled) current.grip.setPointerCapture(event.pointerId);
     const next = { ...current, offset, to, travelled };
     dragRef.current = next;
     setDrag(next);
