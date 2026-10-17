@@ -7,7 +7,7 @@ import { expect, type Page, test } from '@playwright/test';
 import { type LaunchedApp, launchApp } from './app';
 
 /**
- * Project health checks (E22) through the real UI, against a small endpoint in this process that
+ * Monitoring (E22) through the real UI, against a small endpoint in this process that
  * follows the AgentMate Health Protocol the way the setup prompt asks: it keeps only the key's
  * SHA-256, answers 401 with an empty body to anything else, and reports a failing database with
  * its error when told to.
@@ -136,16 +136,27 @@ test('a target goes healthy, shows a failing service, and turns a rotated key do
 
   await createProject(current);
   await page.evaluate(() => {
-    location.hash = '#/health';
+    location.hash = '#/monitoring';
   });
   await page.reload();
 
-  // First use explains the three steps.
+  // First use explains the three steps, starting with having the agent build the endpoint.
   await expect(page.getByRole('list', { name: 'How to start' })).toBeVisible();
+  await page.getByRole('button', { name: 'Build with AI' }).click();
+  const build = page.getByRole('dialog', { name: 'Build the endpoint with AI' });
+  await build.getByRole('combobox', { name: 'Project', exact: true }).click();
+  await page.getByRole('option', { name: PROJECT }).click();
+  const prompt = build.getByRole('region', { name: 'Prompt for your agent' });
+  await expect(prompt).toContainText(`Add a healthcheck endpoint to ${PROJECT}`);
+  await expect(prompt).toContainText('AGENTMATE_HEALTH_TOKEN_SHA256');
+  await expect(prompt).not.toContainText(/amh_[A-Za-z0-9_-]{10,}/);
+  await build.getByRole('button', { name: 'Close' }).click();
+  await expect(build).toBeHidden();
 
   await page.getByRole('button', { name: 'Add a target' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Project', { exact: true }).selectOption({ label: PROJECT });
+  await dialog.getByRole('combobox', { name: 'Project', exact: true }).click();
+  await page.getByRole('option', { name: PROJECT }).click();
   await dialog.getByLabel('Name', { exact: true }).fill('API');
   await dialog.getByLabel('Server', { exact: true }).fill('web-1');
   await dialog.getByLabel('Endpoint URL', { exact: true }).fill(server.url);

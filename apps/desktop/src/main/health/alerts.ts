@@ -8,7 +8,7 @@ import type { StoredHealthTarget } from './store';
 
 /**
  * Tells the user when a healthcheck target is confirmed down or back up (E22): an OS notification
- * and an entry in the app's inbox, both opening the target on the Health page. Only transitions
+ * and an entry in the app's inbox, both opening the target on the Monitoring page. Only transitions
  * reach here, so a target that stays down is announced once, not on every probe.
  */
 
@@ -48,7 +48,7 @@ function formatDowntime(ms: number): string {
 }
 
 export function healthRoute(targetId: string): string {
-  return `/health?target=${encodeURIComponent(targetId)}`;
+  return `/monitoring?target=${encodeURIComponent(targetId)}`;
 }
 
 export function createHealthAlerts(deps: HealthAlertDeps) {

@@ -71,8 +71,8 @@ export const PROJECT_SECTION_IDS = [
   'security',
   'packages',
   'docker',
-  // Health checks of the project's endpoints (E22).
-  'health',
+  // Monitoring of the project's health endpoints (E22).
+  'monitoring',
   // Only shown for a project linked to a WordPress site (E21).
   'wordpress',
   // Old links: the schedule now lives under Prompts, and the page redirects there.
@@ -105,7 +105,7 @@ const SECTIONS: {
   { id: 'security', label: 'Security', icon: Shield, group: 'work' },
   { id: 'packages', label: 'Packages', icon: Package, group: 'work' },
   { id: 'docker', label: 'Docker', icon: Docker, group: 'work' },
-  { id: 'health', label: 'Health', icon: HeartPulse, group: 'work' },
+  { id: 'monitoring', label: 'Monitoring', icon: HeartPulse, group: 'work' },
   { id: 'wordpress', label: 'WordPress', icon: WordPressSectionIcon, group: 'work' },
   { id: 'terminal', label: 'Terminal', icon: TerminalSquare, group: 'work' },
   { id: 'bootstrap', label: 'Bootstrap', icon: Wand2, group: 'setup' },

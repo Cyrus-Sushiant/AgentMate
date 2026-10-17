@@ -110,7 +110,7 @@ export function Sidebar(): React.JSX.Element {
             </span>
           )
         ) : null}
-        {item.to === '/health' && healthIncidents > 0 ? (
+        {item.to === '/monitoring' && healthIncidents > 0 ? (
           collapsed ? (
             <span className="absolute right-1 top-1 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
           ) : (
@@ -119,7 +119,7 @@ export function Sidebar(): React.JSX.Element {
             </span>
           )
         ) : null}
-        {item.to === '/health' && healthIncidents > 0 ? (
+        {item.to === '/monitoring' && healthIncidents > 0 ? (
           <span className="sr-only">
             , {healthIncidents} open incident{healthIncidents === 1 ? '' : 's'}
           </span>

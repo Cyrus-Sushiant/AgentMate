@@ -4,7 +4,7 @@ import type { HealthTargetSummary } from '@shared/healthTypes';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useId, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { HeartPulse, Plus } from '@/components/icons';
+import { HeartPulse, Plus, Sparkles } from '@/components/icons';
 import {
   CARD_GRID,
   Chip,
@@ -20,13 +20,15 @@ import {
 } from '@/components/pageKit';
 import { ipcErrorMessage } from '@/components/projects/environments/ipcError';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { HealthBuildDialog } from './HealthBuildDialog';
 import { HealthPulseHeader } from './HealthPulseHeader';
 import { HealthSetupDialog } from './HealthSetupDialog';
 import { HealthTargetCard, HealthTargetCardSkeleton } from './HealthTargetCard';
 import { HealthTargetDetail } from './HealthTargetDetail';
-import { HealthTargetDialog, NativeSelect } from './HealthTargetDialog';
+import { HealthTargetDialog } from './HealthTargetDialog';
 import {
   groupHealthTargets,
   type HealthEnvironmentGroup,
@@ -39,8 +41,8 @@ import {
 import { useHealthTargets, useNow } from './useHealth';
 
 /**
- * The Health view: the overview, the filters, and the targets grouped by project and then
- * environment. The Health page shows every project; a project's own tab passes `projectId` and
+ * The Monitoring view: the overview, the filters, and the targets grouped by project and then
+ * environment. The Monitoring page shows every project; a project's own tab passes `projectId` and
  * gets the same view for just that project. `?target=<id>` opens a target's panel, so links from
  * notifications land on it.
  */
@@ -50,20 +52,26 @@ const NO_ENV_VALUE = '__none__';
 
 const STEPS = [
   {
-    title: 'Add a target',
-    body: 'The address of the health endpoint, one per environment or server.',
+    title: 'Have your AI build the endpoint',
+    body: 'Build with AI gives Claude Code, or any agent, a prompt with the whole protocol. It adds a secured endpoint that checks every service the project uses.',
   },
   {
-    title: 'Give the prompt to your AI',
-    body: 'It adds a secured endpoint to your project that answers in the format AgentMate reads.',
+    title: 'Add a target',
+    body: "The endpoint's address, one per environment or server. You get a key, and its hash goes on the server.",
   },
   {
     title: 'Test the connection',
-    body: 'Once the key hash is on the server, AgentMate checks it and tells you when something breaks.',
+    body: 'AgentMate checks it on its schedule and tells you when something breaks.',
   },
 ];
 
-function FirstRun({ onAdd }: { onAdd: () => void }): React.JSX.Element {
+function FirstRun({
+  onAdd,
+  onBuild,
+}: {
+  onAdd: () => void;
+  onBuild: () => void;
+}): React.JSX.Element {
   return (
     <div className={GLASS_CARD}>
       <EmptyState
@@ -95,10 +103,16 @@ function FirstRun({ onAdd }: { onAdd: () => void }): React.JSX.Element {
           </div>
         }
         action={
-          <Button onClick={onAdd}>
-            <Plus />
-            Add a target
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={onBuild}>
+              <Sparkles />
+              Build with AI
+            </Button>
+            <Button variant="soft" onClick={onAdd}>
+              <Plus />
+              Add a target
+            </Button>
+          </div>
         }
       />
     </div>
@@ -178,6 +192,9 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const [envFilter, setEnvFilter] = useState('');
   const [adding, setAdding] = useState(false);
+  /** The project a target is added for when Build with AI hands over to the add dialog. */
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
   const [editing, setEditing] = useState<HealthTargetSummary | null>(null);
   /** The target the setup dialog is for. An id, so a just-created one shows once the list has it. */
   const [setupId, setSetupId] = useState<string | null>(null);
@@ -289,21 +306,27 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
             ]}
           />
           {envOptions.length > 1 && (
-            <NativeSelect
-              aria-label="Environment filter"
+            <Combobox
+              ariaLabel="Environment filter"
               value={envFilter}
-              onChange={(event) => setEnvFilter(event.target.value)}
-              className="h-8 w-auto min-w-36 text-xs"
-            >
-              <option value="">All environments</option>
-              {envOptions.map((name) => (
-                <option key={name} value={name === NO_ENVIRONMENT ? NO_ENV_VALUE : name}>
-                  {name}
-                </option>
-              ))}
-            </NativeSelect>
+              onChange={setEnvFilter}
+              className="h-8 w-44 text-xs"
+              searchPlaceholder="Search environments…"
+              emptyText="No environment matches."
+              options={[
+                { value: '', label: 'All environments' },
+                ...envOptions.map((name) => ({
+                  value: name === NO_ENVIRONMENT ? NO_ENV_VALUE : name,
+                  label: name,
+                })),
+              ]}
+            />
           )}
-          <Button size="sm" className="ml-auto" onClick={() => setAdding(true)}>
+          <Button size="sm" variant="soft" className="ml-auto" onClick={() => setBuilding(true)}>
+            <Sparkles />
+            Build with AI
+          </Button>
+          <Button size="sm" onClick={() => setAdding(true)}>
             <Plus />
             Add target
           </Button>
@@ -358,7 +381,7 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
           retry={list.refresh}
         />
       ) : firstRun ? (
-        <FirstRun onAdd={() => setAdding(true)} />
+        <FirstRun onAdd={() => setAdding(true)} onBuild={() => setBuilding(true)} />
       ) : groups.length === 0 ? (
         <div className={GLASS_CARD}>
           <EmptyState
@@ -412,13 +435,26 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
         onOpenChange={(open) => {
           if (open) return;
           setAdding(false);
+          setAddingFor(null);
           setEditing(null);
         }}
         projects={projects}
-        defaultProjectId={projectId ?? projectFilter ?? undefined}
+        defaultProjectId={projectId ?? addingFor ?? projectFilter ?? undefined}
         lockProject={scoped}
         target={editing ?? undefined}
         onConnect={setSetupId}
+      />
+
+      <HealthBuildDialog
+        open={building}
+        onOpenChange={setBuilding}
+        projects={projects}
+        defaultProjectId={projectId ?? projectFilter ?? projects[0]?.id}
+        lockProject={scoped}
+        onAddTarget={(id) => {
+          setAddingFor(id);
+          setAdding(true);
+        }}
       />
 
       {setupTarget && (

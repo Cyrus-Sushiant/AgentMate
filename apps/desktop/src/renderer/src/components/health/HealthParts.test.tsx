@@ -58,7 +58,7 @@ describe('HealthPulseHeader', () => {
 
   it('shows the overall uptime and each count with its label', () => {
     renderWithProviders(<HealthPulseHeader summary={summary} loading={false} />);
-    const header = screen.getByRole('region', { name: 'Health overview' });
+    const header = screen.getByRole('region', { name: 'Monitoring overview' });
     expect(within(header).getByText('95.0%')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Healthy, 1/ })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Down, 1/ })).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('HealthPulseHeader', () => {
   it('shimmers the numbers while the first list loads', () => {
     renderWithProviders(<HealthPulseHeader summary={summarizeHealth([])} loading />);
     expect(screen.queryByText('No data')).toBeNull();
-    expect(screen.getByRole('region', { name: 'Health overview' })).toHaveAttribute(
+    expect(screen.getByRole('region', { name: 'Monitoring overview' })).toHaveAttribute(
       'aria-busy',
       'true',
     );

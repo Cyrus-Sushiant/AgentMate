@@ -47,11 +47,48 @@ export function buildPackageNames(packages: PackageInfo[]): string {
   return names.join('\n');
 }
 
+export type PackageCommitMode = 'none' | 'single' | 'each';
+
+/** The choices the "Update with AI" dialog puts into the prompt. */
+export interface PackageUpdatePromptOptions {
+  /** Leave major bumps out of the list, and say they were left out. */
+  skipMajor?: boolean;
+  /** Ask the agent to run the project's checks after updating. On unless turned off. */
+  runChecks?: boolean;
+  commit?: PackageCommitMode;
+  /** Free text from the user, added as is. */
+  notes?: string;
+}
+
+/** The packages the prompt would list, after the options have had their say. */
+export function promptPackages(
+  packages: PackageInfo[],
+  options: PackageUpdatePromptOptions = {},
+): PackageInfo[] {
+  if (!options.skipMajor) return packages;
+  return packages.filter(
+    (pkg) => !pkg.latestVersion || bumpKind(pkg.currentVersion, pkg.latestVersion) !== 'major',
+  );
+}
+
+function commitStep(mode: PackageCommitMode | undefined): string | null {
+  if (mode === 'single') {
+    return 'When everything passes, commit all of the updates together in one commit with a short message that lists the packages.';
+  }
+  if (mode === 'each') {
+    return 'Commit each package on its own once it passes, so any single update can be reverted. Name the package and both versions in the message.';
+  }
+  return null;
+}
+
 /** A prompt an agent can act on to update the given packages to their latest versions. */
 export function buildPackageUpdatePrompt(
   section: PackageManagerSection,
-  packages: PackageInfo[],
+  allPackages: PackageInfo[],
+  options: PackageUpdatePromptOptions = {},
 ): string {
+  const packages = promptPackages(allPackages, options);
+  const skippedMajor = allPackages.length - packages.length;
   const manager = managerName(section);
   const byManifest = new Map<string, PackageInfo[]>();
   for (const pkg of packages) {
@@ -85,11 +122,18 @@ export function buildPackageUpdatePrompt(
     majorCount > 0
       ? `${majorCount} of these ${majorCount === 1 ? 'is a major bump' : 'are major bumps'}. Before updating those, read the changelog or migration guide and fix any breaking changes in the code.`
       : null,
+    skippedMajor > 0
+      ? `Leave major version bumps alone this time. ${skippedMajor} outdated package${skippedMajor === 1 ? ' was' : 's were'} left off the list for that reason.`
+      : null,
     'Only touch the packages listed here. If one package forces another to move (peer dependencies, shared versions), say so and explain why.',
-    'After updating, run the typecheck, lint, tests, and build the project already uses, and fix anything that breaks.',
+    options.runChecks === false
+      ? null
+      : 'After updating, run the typecheck, lint, tests, and build the project already uses, and fix anything that breaks.',
     'If a package cannot be updated cleanly, leave it at its current version and tell me what blocked it.',
+    commitStep(options.commit),
   ].filter((step): step is string => step !== null);
 
+  const notes = options.notes?.trim();
   return [
     `Update ${count} outdated ${manager} package${count === 1 ? '' : 's'} in this project to their latest versions.`,
     '',
@@ -99,6 +143,7 @@ export function buildPackageUpdatePrompt(
     '',
     'How to do it:',
     ...steps.map((step, i) => `${i + 1}. ${step}`),
+    ...(notes ? ['', 'Also keep this in mind:', notes] : []),
     '',
     'When you are done, give me a short summary of what changed and anything that was left behind.',
   ].join('\n');

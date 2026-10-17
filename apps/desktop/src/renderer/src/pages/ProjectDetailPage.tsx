@@ -648,7 +648,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const healthBadge = useProjectHealthBadge(projectId);
   const sectionBadges = useMemo((): Partial<Record<ProjectSectionId, SectionBadge>> => {
     const badges: Partial<Record<ProjectSectionId, SectionBadge>> = {};
-    if (healthBadge) badges.health = healthBadge;
+    if (healthBadge) badges.monitoring = healthBadge;
     const skillCount = installedSkillsQuery.data?.length ?? 0;
     const mcpCount = installedMcpServersQuery.data?.length ?? 0;
     const promptCount = openDraftCount + missedTaskCount;
@@ -1179,11 +1179,11 @@ export default function ProjectDetailPage(): React.JSX.Element {
             </SectionCard>
           )}
 
-          {section === 'packages' && <PackagesTab projectId={project.id} />}
+          {section === 'packages' && <PackagesTab project={project} />}
 
           {section === 'docker' && <DockerTab project={project} />}
 
-          {section === 'health' && <HealthBoard key={project.id} projectId={project.id} />}
+          {section === 'monitoring' && <HealthBoard key={project.id} projectId={project.id} />}
 
           {section === 'wordpress' && project.wordpress && (
             <WordPressProjectSection project={project} />

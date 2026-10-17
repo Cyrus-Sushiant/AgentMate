@@ -50,10 +50,10 @@ const targets = [
   }),
 ];
 
-function renderPage(route = '/health', bridge: Record<string, unknown> = {}) {
+function renderPage(route = '/monitoring', bridge: Record<string, unknown> = {}) {
   return renderWithProviders(<HealthPage />, {
     route,
-    path: 'health',
+    path: 'monitoring',
     bridge: {
       'projects.list': projects,
       'environments.list': environments,
@@ -68,19 +68,37 @@ describe('HealthPage', () => {
   it('names the page in the header', async () => {
     renderPage();
     await screen.findByRole('article', { name: 'API' });
-    expect(usePageHeaderStore.getState().title).toBe('Health');
+    expect(usePageHeaderStore.getState().title).toBe('Monitoring');
   });
 
   it('starts with the three steps when nothing is watched yet', async () => {
-    const { user } = renderPage('/health', { 'health.list': [] });
+    const { user } = renderPage('/monitoring', { 'health.list': [] });
     const steps = await screen.findByRole('list', { name: 'How to start' });
     const items = within(steps).getAllByRole('listitem');
     expect(items).toHaveLength(3);
-    expect(items[0]).toHaveTextContent('Add a target');
-    expect(items[1]).toHaveTextContent('Give the prompt to your AI');
+    expect(items[0]).toHaveTextContent('Have your AI build the endpoint');
+    expect(items[1]).toHaveTextContent('Add a target');
     expect(items[2]).toHaveTextContent('Test the connection');
     await user.click(screen.getByRole('button', { name: 'Add a target' }));
     expect(await screen.findByRole('dialog', { name: 'Add a health check' })).toBeInTheDocument();
+  });
+
+  it('opens Build with AI from the first steps and from the toolbar', async () => {
+    const empty = renderPage('/monitoring', { 'health.list': [] });
+    await screen.findByRole('list', { name: 'How to start' });
+    await empty.user.click(screen.getByRole('button', { name: 'Build with AI' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Build the endpoint with AI' }),
+    ).toBeInTheDocument();
+    empty.unmount();
+
+    const { user } = renderPage();
+    await screen.findByRole('article', { name: 'API' });
+    await user.click(screen.getByRole('button', { name: 'Build with AI' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Build the endpoint with AI' });
+    expect(within(dialog).getByRole('region', { name: 'Prompt for your agent' })).toHaveTextContent(
+      'AgentMate Health Protocol',
+    );
   });
 
   it('groups targets by project, then by environment', async () => {
@@ -100,7 +118,7 @@ describe('HealthPage', () => {
 
   it('counts the states in the overview', async () => {
     renderPage();
-    const overview = await screen.findByRole('region', { name: 'Health overview' });
+    const overview = await screen.findByRole('region', { name: 'Monitoring overview' });
     await waitFor(() =>
       expect(within(overview).getByRole('button', { name: 'Down, 1' })).toBeInTheDocument(),
     );
@@ -111,7 +129,7 @@ describe('HealthPage', () => {
   });
 
   it('opens the panel from a ?target deep link', async () => {
-    renderPage('/health?target=t2');
+    renderPage('/monitoring?target=t2');
     expect(await screen.findByRole('dialog', { name: 'Checkout' })).toBeInTheDocument();
   });
 
@@ -136,10 +154,12 @@ describe('HealthPage', () => {
     expect(screen.getByRole('article', { name: 'Dashboard' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'All projects' }));
 
-    await user.selectOptions(screen.getByLabelText('Environment filter'), 'Staging');
+    await user.click(screen.getByRole('combobox', { name: 'Environment filter' }));
+    await user.click(await screen.findByRole('option', { name: 'Staging' }));
     expect(screen.queryByRole('article', { name: 'API' })).toBeNull();
     expect(screen.getByRole('article', { name: 'Checkout' })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Environment filter'), '');
+    await user.click(screen.getByRole('combobox', { name: 'Environment filter' }));
+    await user.click(await screen.findByRole('option', { name: 'All environments' }));
 
     await user.type(screen.getByLabelText('Search targets'), 'dash');
     expect(screen.getByRole('article', { name: 'Dashboard' })).toBeInTheDocument();
@@ -152,7 +172,7 @@ describe('HealthPage', () => {
       bridge: { 'projects.list': projects, 'health.list': () => new Promise(() => undefined) },
     });
     expect(await screen.findAllByTestId('health-card-skeleton')).toHaveLength(3);
-    expect(screen.getByRole('region', { name: 'Health overview' })).toHaveAttribute(
+    expect(screen.getByRole('region', { name: 'Monitoring overview' })).toHaveAttribute(
       'aria-busy',
       'true',
     );

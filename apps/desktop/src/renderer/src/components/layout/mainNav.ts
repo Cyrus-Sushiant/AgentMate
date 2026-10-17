@@ -82,7 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/usage', label: 'Token Usage', icon: ChartColumn, group: 'Agents' },
   { to: '/pipelines', label: 'Pipelines', icon: Github, group: 'Ship' },
   { to: '/deploy', label: 'Deploy', icon: Rocket, group: 'Ship' },
-  { to: '/health', label: 'Health', icon: HeartPulse, group: 'Ship' },
+  { to: '/monitoring', label: 'Monitoring', icon: HeartPulse, group: 'Ship' },
   { to: '/docker', label: 'Docker', icon: Docker, group: 'Ship' },
   { to: '/android', label: 'Android', icon: Android, group: 'Ship' },
   { to: '/remote', label: 'Remote', icon: Monitor, group: 'Connect' },
@@ -125,7 +125,7 @@ export function useNavBadges(): {
     });
   }, [queryClient]);
 
-  // The same list the Health page reads, so the badge and the page never disagree.
+  // The same list the Monitoring page reads, so the badge and the page never disagree.
   const healthQuery = useQuery({
     queryKey: queryKeys.healthList(),
     queryFn: async () => (await window.agentmat.health.list()) ?? [],

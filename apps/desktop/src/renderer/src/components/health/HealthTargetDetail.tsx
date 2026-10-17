@@ -4,6 +4,7 @@ import {
   type HealthIncident,
   type HealthReport,
   type HealthServiceResult,
+  type HealthState,
   type Project,
 } from '@agentmat/core';
 import type { HealthSecretReveal, HealthTargetSummary } from '@shared/healthTypes';
@@ -19,10 +20,10 @@ import {
   Pause,
   Pencil,
   Play,
-  Plug,
   RefreshCw,
   Robot,
   Server,
+  Sparkles,
   Spinner,
   Trash2,
   TriangleAlert,
@@ -74,6 +75,9 @@ import { useHealthActions, useHealthTarget } from './useHealth';
  * every action the target has. Text from the endpoint and the agent is shown as plain text,
  * never as markup.
  */
+
+/** States where the endpoint may not exist yet, so building it is the likely next step. */
+const NO_ENDPOINT_YET: ReadonlySet<HealthState> = new Set(['pending', 'unreachable', 'invalid']);
 
 function copy(text: string, what: string): void {
   void navigator.clipboard.writeText(text).then(
@@ -626,8 +630,8 @@ export function HealthTargetDetail({
                         Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => onSetup(target)}>
-                        <Plug className="h-3.5 w-3.5" />
-                        Connect the project
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Build the endpoint with AI
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => void rotate(target)}>
                         <Key className="h-3.5 w-3.5" />
@@ -655,6 +659,14 @@ export function HealthTargetDetail({
                         : HEALTH_STATE_META[target.state].tone
                     }
                     size="sm"
+                    action={
+                      NO_ENDPOINT_YET.has(target.state) ? (
+                        <Button size="xs" variant="soft" onClick={() => onSetup(target)}>
+                          <Sparkles />
+                          Build the endpoint with AI
+                        </Button>
+                      ) : undefined
+                    }
                   >
                     <p className="font-medium">{HEALTH_STATE_META[target.state].hint}</p>
                     {note && (

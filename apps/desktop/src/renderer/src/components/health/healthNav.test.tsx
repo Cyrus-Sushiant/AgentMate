@@ -22,10 +22,10 @@ const quiet = { 'appNotifications.unreadCount': 0, 'app.getVersion': '1.0.0' };
 const down = target({ id: 'a', state: 'fail', openIncident: incident({ targetId: 'a' }) });
 const fine = target({ id: 'b' });
 
-describe('Health in the main menu', () => {
+describe('Monitoring in the main menu', () => {
   it('sits under Ship', () => {
-    expect(NAV_ITEMS.find((item) => item.to === '/health')).toMatchObject({
-      label: 'Health',
+    expect(NAV_ITEMS.find((item) => item.to === '/monitoring')).toMatchObject({
+      label: 'Monitoring',
       group: 'Ship',
     });
   });
@@ -43,14 +43,14 @@ describe('Health in the main menu', () => {
 
   it('shows the count on the sidebar entry, said in words as well', async () => {
     renderWithProviders(<Sidebar />, { bridge: { ...quiet, 'health.list': [down, fine] } });
-    const link = await screen.findByRole('link', { name: /Health/ });
+    const link = await screen.findByRole('link', { name: /Monitoring/ });
     await waitFor(() => expect(within(link).getByText('1')).toBeInTheDocument());
     expect(link).toHaveTextContent('1 open incident');
   });
 
   it('carries no badge when nothing is down', async () => {
     renderWithProviders(<Sidebar />, { bridge: { ...quiet, 'health.list': [fine] } });
-    const link = await screen.findByRole('link', { name: /Health/ });
-    await waitFor(() => expect(link.textContent).toBe('Health'));
+    const link = await screen.findByRole('link', { name: /Monitoring/ });
+    await waitFor(() => expect(link.textContent).toBe('Monitoring'));
   });
 });

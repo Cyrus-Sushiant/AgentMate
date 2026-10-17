@@ -177,11 +177,11 @@ export default function App(): React.JSX.Element {
                   }
                 />
                 <Route
-                  path="health"
+                  path="monitoring"
                   element={
                     <Suspense
                       fallback={
-                        <div className="p-6 text-sm text-muted-foreground">Loading Health…</div>
+                        <div className="p-6 text-sm text-muted-foreground">Loading Monitoring…</div>
                       }
                     >
                       <HealthPage />

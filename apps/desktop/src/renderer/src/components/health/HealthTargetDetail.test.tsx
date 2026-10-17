@@ -253,14 +253,30 @@ describe('HealthTargetDetail', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('opens the edit and connect flows from the menu', async () => {
+  it('offers to build the endpoint while the target does not answer with a report', async () => {
+    const { user } = renderPanel({
+      'health.get': async () =>
+        detail({ target: target({ state: 'invalid' }), report: null, incidents: [] }),
+    });
+    const view = await panel();
+    await user.click(within(view).getByRole('button', { name: 'Build the endpoint with AI' }));
+    expect(onSetup).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
+  });
+
+  it('keeps the build button out of the way once the endpoint answers', async () => {
+    renderPanel({ 'health.get': async () => detail({ target: target({ state: 'pass' }) }) });
+    const view = await panel();
+    expect(within(view).queryByRole('button', { name: 'Build the endpoint with AI' })).toBeNull();
+  });
+
+  it('opens the edit and build flows from the menu', async () => {
     const { user } = renderPanel();
     const view = await panel();
     await user.click(within(view).getByRole('button', { name: 'More actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
     await user.click(within(view).getByRole('button', { name: 'More actions' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Connect the project' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Build the endpoint with AI' }));
     expect(onSetup).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
   });
 });

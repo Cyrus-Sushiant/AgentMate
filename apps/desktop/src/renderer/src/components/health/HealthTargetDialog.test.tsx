@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Button } from '@/components/ui/button';
@@ -47,18 +47,20 @@ async function fillBasics(user: ReturnType<typeof renderWithProviders>['user'], 
 
 describe('HealthTargetDialog', () => {
   it('suggests the default path and lists the project environments and servers', async () => {
-    renderWithProviders(<Harness />, { bridge });
+    const { user } = renderWithProviders(<Harness />, { bridge });
     expect(screen.getByLabelText('Endpoint URL')).toHaveAttribute(
       'placeholder',
       'https://your-app/_agentmate/health',
     );
-    const env = screen.getByLabelText('Environment');
-    await waitFor(() => expect(within(env).getByRole('option', { name: 'Staging' })).toBeTruthy());
-    const link = screen.getByLabelText('Linked server');
-    await waitFor(() =>
-      expect(within(link).getByRole('option', { name: /web-1/ })).toBeInTheDocument(),
-    );
-    expect(within(link).getByRole('option', { name: /Shop site/ })).toBeInTheDocument();
+    // The app's own list, not the system's: a combobox that opens a styled listbox.
+    const env = screen.getByRole('combobox', { name: 'Environment' });
+    await user.click(env);
+    expect(await screen.findByRole('option', { name: 'Staging' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('combobox', { name: 'Linked server' }));
+    expect(await screen.findByRole('option', { name: /web-1/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Shop site/ })).toBeInTheDocument();
   });
 
   it('refuses an address that is not http(s) and plain http to another machine', async () => {
@@ -100,7 +102,8 @@ describe('HealthTargetDialog', () => {
   it('shows the new key once, with its hash and variable, and never again after closing', async () => {
     const { user, bridge: fake } = renderWithProviders(<Harness />, { bridge });
     await fillBasics(user, 'https://api.example.com/_agentmate/health');
-    await user.selectOptions(await screen.findByLabelText('Environment'), 'env-staging');
+    await user.click(screen.getByRole('combobox', { name: 'Environment' }));
+    await user.click(await screen.findByRole('option', { name: 'Staging' }));
     await user.click(screen.getByRole('button', { name: 'Add target' }));
 
     await screen.findByRole('heading', { name: 'Save this key now' });

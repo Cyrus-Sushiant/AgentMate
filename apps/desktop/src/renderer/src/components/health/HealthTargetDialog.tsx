@@ -8,17 +8,17 @@ import {
 import type { HealthSecretReveal, HealthTargetSummary } from '@shared/healthTypes';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
-import { HeartPulse, Pencil, Spinner } from '@/components/icons';
+import { HeartPulse, Pencil, Server, Sparkles, Spinner } from '@/components/icons';
 import {
   FOOTER_HAIRLINE,
   Notice,
   Problem,
-  SECTION_HEADING,
   SEGMENT_TRACK,
   segmentClass,
 } from '@/components/pageKit';
 import { ipcErrorMessage } from '@/components/projects/environments/ipcError';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -30,8 +30,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { WordPressMark } from '@/components/wordpress/WordPressMark';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { described, Field, FormSection } from './formParts';
 import { HealthSecretStep } from './HealthSecretStep';
 import {
   emptyHealthDraft,
@@ -52,65 +54,6 @@ import { useHealthActions } from './useHealth';
  */
 
 const QUIET = { silentLoading: true } as const;
-
-export function NativeSelect({
-  className,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement>): React.JSX.Element {
-  return (
-    <select
-      {...props}
-      className={cn(
-        'field-surface flex h-9 w-full cursor-pointer rounded-full pl-3 pr-2 text-sm disabled:cursor-not-allowed disabled:opacity-60',
-        className,
-      )}
-    />
-  );
-}
-
-function Field({
-  id,
-  label,
-  hint,
-  error,
-  optional = false,
-  className,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: React.ReactNode;
-  error?: string;
-  optional?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className={cn('min-w-0 space-y-1.5', className)}>
-      <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={id}>{label}</Label>
-        {optional && <span className="text-[11px] text-muted-foreground">Optional</span>}
-      </div>
-      {children}
-      {error ? (
-        <p id={`${id}-error`} className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : hint ? (
-        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function described(id: string, error: string | undefined, hint: boolean) {
-  return {
-    'aria-invalid': error ? true : undefined,
-    'aria-describedby': error ? `${id}-error` : hint ? `${id}-hint` : undefined,
-  } as const;
-}
 
 const AUTH_OPTIONS: { mode: HealthAuthMode; title: string; badge?: string; body: string }[] = [
   {
@@ -154,21 +97,6 @@ function SwitchRow({
         aria-describedby={`${id}-description`}
       />
     </div>
-  );
-}
-
-function FormSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <fieldset className="min-w-0 space-y-3">
-      <legend className={cn(SECTION_HEADING, 'mb-2')}>{title}</legend>
-      {children}
-    </fieldset>
   );
 }
 
@@ -308,7 +236,8 @@ export function HealthTargetDialog({
                     onConnect(targetId);
                   }}
                 >
-                  Connect the project
+                  <Sparkles />
+                  Build the endpoint with AI
                 </Button>
               ) : null
             }
@@ -334,26 +263,24 @@ export function HealthTargetDialog({
               <FormSection title="What to watch">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field id={id('project')} label="Project" error={errors.projectId}>
-                    <NativeSelect
+                    <Combobox
                       id={id('project')}
                       value={draft.projectId}
                       disabled={lockProject}
-                      onChange={(event) =>
+                      placeholder="Pick a project"
+                      searchPlaceholder="Search projects…"
+                      emptyText="No project matches."
+                      onChange={(value) =>
                         setDraft((current) => ({
                           ...current,
-                          projectId: event.target.value,
-                          environmentId: '',
+                          projectId: value,
+                          environmentId: current.projectId === value ? current.environmentId : '',
                         }))
                       }
-                      {...described(id('project'), errors.projectId, false)}
-                    >
-                      <option value="">Pick a project</option>
-                      {projects.map((one) => (
-                        <option key={one.id} value={one.id}>
-                          {one.name}
-                        </option>
-                      ))}
-                    </NativeSelect>
+                      options={projects.map((one) => ({ value: one.id, label: one.name }))}
+                      invalid={Boolean(errors.projectId)}
+                      ariaDescribedBy={errors.projectId ? `${id('project')}-error` : undefined}
+                    />
                   </Field>
                   <Field
                     id={id('environment')}
@@ -365,19 +292,18 @@ export function HealthTargetDialog({
                         : undefined
                     }
                   >
-                    <NativeSelect
+                    <Combobox
                       id={id('environment')}
                       value={draft.environmentId}
                       disabled={!draft.projectId}
-                      onChange={(event) => set('environmentId', event.target.value)}
-                    >
-                      <option value="">No environment</option>
-                      {projectEnvironments.map((env) => (
-                        <option key={env.id} value={env.id}>
-                          {env.name}
-                        </option>
-                      ))}
-                    </NativeSelect>
+                      searchPlaceholder="Search environments…"
+                      emptyText="No environment matches."
+                      onChange={(value) => set('environmentId', value)}
+                      options={[
+                        { value: '', label: 'No environment' },
+                        ...projectEnvironments.map((env) => ({ value: env.id, label: env.name })),
+                      ]}
+                    />
                   </Field>
                   <Field id={id('name')} label="Name" error={errors.name}>
                     <Input
@@ -405,32 +331,29 @@ export function HealthTargetDialog({
                   optional
                   hint="Links the card to a saved SSH server or WordPress site."
                 >
-                  <NativeSelect
+                  <Combobox
                     id={id('link')}
                     value={draft.serverLink}
-                    onChange={(event) => set('serverLink', event.target.value)}
-                    aria-describedby={`${id('link')}-hint`}
-                  >
-                    <option value="">None</option>
-                    {(sshServers.data ?? []).length > 0 && (
-                      <optgroup label="SSH servers">
-                        {(sshServers.data ?? []).map((server) => (
-                          <option key={server.id} value={`ssh:${server.id}`}>
-                            {server.nickname} ({server.host})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {(sites.data ?? []).length > 0 && (
-                      <optgroup label="WordPress sites">
-                        {(sites.data ?? []).map((site) => (
-                          <option key={site.id} value={`wordpress:${site.id}`}>
-                            {site.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </NativeSelect>
+                    onChange={(value) => set('serverLink', value)}
+                    ariaDescribedBy={`${id('link')}-hint`}
+                    searchPlaceholder="Search servers and sites…"
+                    emptyText="No server or site matches."
+                    options={[
+                      { value: '', label: 'None' },
+                      ...(sshServers.data ?? []).map((server) => ({
+                        value: `ssh:${server.id}`,
+                        label: `${server.nickname} (${server.host})`,
+                        keywords: ['ssh', 'server'],
+                        icon: <Server className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />,
+                      })),
+                      ...(sites.data ?? []).map((site) => ({
+                        value: `wordpress:${site.id}`,
+                        label: site.label,
+                        keywords: ['wordpress', 'site'],
+                        icon: <WordPressMark className="h-3.5 w-3.5 shrink-0" />,
+                      })),
+                    ]}
+                  />
                 </Field>
               </FormSection>
 

@@ -33,6 +33,10 @@ export interface ComboboxProps {
   customLabel?: (text: string) => string;
   /** What the field is, for screen readers, when no visible label points at it. */
   ariaLabel?: string;
+  /** Lets a `<Label htmlFor>` name the trigger, the way it names an input. */
+  id?: string;
+  /** Points at the hint or error under the field. */
+  ariaDescribedBy?: string;
   /** Marks the value as rejected, which tints the trigger the way an invalid input is. */
   invalid?: boolean;
   /**
@@ -55,6 +59,8 @@ export function Combobox({
   allowCustom,
   customLabel = (text) => `Use "${text}"`,
   ariaLabel,
+  id,
+  ariaDescribedBy,
   invalid,
   variant = 'default',
 }: ComboboxProps): React.JSX.Element {
@@ -80,9 +86,11 @@ export function Combobox({
       <PopoverPrimitive.Trigger asChild>
         <button
           type="button"
+          id={id}
           role="combobox"
           aria-expanded={open}
           aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy}
           aria-invalid={invalid || undefined}
           disabled={disabled}
           className={cn(

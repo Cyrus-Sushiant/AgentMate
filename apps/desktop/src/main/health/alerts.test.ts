@@ -56,7 +56,7 @@ describe('createHealthAlerts', () => {
     expect(toast).toHaveBeenCalledWith({
       title: 'API is down',
       body: 'Shop: postgres:connection: connect ECONNREFUSED',
-      route: '/health?target=t1',
+      route: '/monitoring?target=t1',
     });
     expect(add).toHaveBeenCalledWith({
       id: 'health:t1:i1:failure',
@@ -66,7 +66,7 @@ describe('createHealthAlerts', () => {
       projectId: 'p1',
       projectName: 'Shop',
       htmlUrl: null,
-      route: '/health?target=t1',
+      route: '/monitoring?target=t1',
       createdAt: new Date(OPENED).toISOString(),
       read: false,
     });
@@ -102,7 +102,7 @@ describe('createHealthAlerts', () => {
   it('encodes the target id in the link', async () => {
     const { toast, announce } = await alerts();
     await announce({ ...opened(), target: { ...target, id: 'a b&c' } });
-    expect(toast.mock.calls[0][0].route).toBe('/health?target=a%20b%26c');
+    expect(toast.mock.calls[0][0].route).toBe('/monitoring?target=a%20b%26c');
   });
 });
 

@@ -47,7 +47,7 @@ export const STARTUP_PAGES = [
   '/api-client',
   '/pipelines',
   '/deploy',
-  '/health',
+  '/monitoring',
   '/skills',
   '/mcp',
   '/tools',

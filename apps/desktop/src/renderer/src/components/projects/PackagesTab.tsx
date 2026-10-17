@@ -1,3 +1,4 @@
+import type { Project } from '@agentmat/core';
 import type { PackageInfo, PackageManagerSection, PackageUpdateRequest } from '@shared/apiTypes';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
@@ -17,6 +18,7 @@ import {
   TriangleAlert,
   X,
 } from '@/components/icons';
+import { PackagesUpdateDialog } from '@/components/projects/PackagesUpdateDialog';
 import { SectionEmptyState } from '@/components/projects/ProjectDetailChrome';
 import {
   type BumpKind,
@@ -384,7 +386,8 @@ function PackagesCopyMenu({
   );
 }
 
-export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Element {
+export function PackagesTab({ project }: { project: Project }): React.JSX.Element {
+  const projectId = project.id;
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<PackageFilter>('all');
@@ -394,6 +397,7 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
     null,
   );
   const [updatingSectionKey, setUpdatingSectionKey] = useState<string | null>(null);
+  const [aiSectionKey, setAiSectionKey] = useState<string | null>(null);
 
   const scanQuery = useQuery({
     queryKey: queryKeys.packages(projectId),
@@ -560,6 +564,8 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
     );
   }
 
+  const aiSection = sections.find((section) => sectionKey(section) === aiSectionKey);
+
   const noVisibleMatches =
     (filter !== 'all' || Boolean(search)) &&
     sections.every(
@@ -707,6 +713,15 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
                 <div className="flex items-center gap-2">
                   <PackagesCopyMenu section={section} selectedPackages={sectionSelected} />
                   <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={outdatedInSection === 0}
+                    onClick={() => setAiSectionKey(sectionKey(section))}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Update with AI
+                  </Button>
+                  <Button
                     size="sm"
                     disabled={sectionSelectedCount === 0 || updateMutation.isPending}
                     onClick={() => runUpdates(section, sectionSelected)}
@@ -822,6 +837,19 @@ export function PackagesTab({ projectId }: { projectId: string }): React.JSX.Ele
           </div>
         );
       })}
+
+      {aiSection && (
+        <PackagesUpdateDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setAiSectionKey(null);
+          }}
+          project={project}
+          section={aiSection}
+          sectionLabel={ecosystemLabel(aiSection)}
+          selectedPackages={aiSection.packages.filter((pkg) => selected.has(packageKey(pkg)))}
+        />
+      )}
 
       {noVisibleMatches && (
         <p className="text-sm text-muted-foreground">

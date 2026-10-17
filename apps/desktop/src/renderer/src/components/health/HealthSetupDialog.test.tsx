@@ -35,6 +35,9 @@ function renderDialog(overrides: Record<string, unknown> = {}) {
 describe('HealthSetupDialog', () => {
   it('shows the prompt and the protocol, each with its own copy button', async () => {
     const { user, bridge } = renderDialog();
+    expect(
+      await screen.findByRole('dialog', { name: 'Build the endpoint with AI' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText(setup.prompt)).toBeInTheDocument();
     expect(bridge.$fn('health.setupPrompt')).toHaveBeenCalledWith('t1');
     await user.click(screen.getByRole('button', { name: 'Copy prompt' }));
@@ -46,10 +49,10 @@ describe('HealthSetupDialog', () => {
     expect(await navigator.clipboard.readText()).toBe(setup.spec);
   });
 
-  it("sends the prompt to the project's agent and opens the workspace", async () => {
+  it("sends the prompt to the project's agent by name and opens the workspace", async () => {
     const { user } = renderDialog();
     await screen.findByText(setup.prompt);
-    await user.click(screen.getByRole('button', { name: 'Send to agent' }));
+    await user.click(screen.getByRole('button', { name: 'Send to Claude Code' }));
     expect(launchPromptTab).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }), {
       cliId: 'claude-code',
       prompt: setup.prompt,

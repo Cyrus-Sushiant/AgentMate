@@ -177,7 +177,7 @@ function GroupMenu({
   pathname: string;
   activePill: React.JSX.Element;
   unread: number;
-  /** Health targets with an incident open, shown on the Health entry. */
+  /** Health targets with an incident open, shown on the Monitoring entry. */
   healthIncidents?: number;
 }): React.JSX.Element {
   const items = NAV_ITEMS.filter((item) => item.group === group);
@@ -185,7 +185,7 @@ function GroupMenu({
   // Unread pipeline results live in Ship; the trigger carries a dot so they show while it is shut.
   const groupUnread = items.some((item) => item.to === '/pipelines') ? unread : 0;
   // Open health incidents live in Ship too, and light the same dot.
-  const groupIncidents = items.some((item) => item.to === '/health') ? healthIncidents : 0;
+  const groupIncidents = items.some((item) => item.to === '/monitoring') ? healthIncidents : 0;
 
   return (
     <DropdownMenu>
@@ -232,7 +232,7 @@ function GroupMenu({
                     {unread > 99 ? '99+' : unread}
                   </span>
                 ) : null}
-                {item.to === '/health' && healthIncidents > 0 ? (
+                {item.to === '/monitoring' && healthIncidents > 0 ? (
                   <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
                     {healthIncidents > 99 ? '99+' : healthIncidents}
                     <span className="sr-only">

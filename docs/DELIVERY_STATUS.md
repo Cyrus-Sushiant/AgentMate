@@ -49,7 +49,7 @@ Plan: docs/ROADMAP.md
 | E19 | WordPress Connector plugin and sync engine | Complete | | Built by four parallel agents against one contract and shared vectors; plugin on PHP 7.4 to 8.4 and multisite, smoke on real WordPress; the sync engine against the real plugin in Docker (`wordpress.int.test.ts`); security review findings fixed; uninstall checked on single site and multisite |
 | E20 | WordPress sites in Deploy | Complete | | Rail group, connect dialog, overview, items, deploys with rollback, access and audit log |
 | E21 | WordPress projects | Complete | | New project flow, WordPress section, pull and deploy reviews with conflicts and the left-out list; `deployWordPress.e2e.ts` passes on the final code (6 of 6, 3.9 minutes; nightly job `wordpress-e2e`). The new-project item step loaded slowly in the e2e window (likely its throttling; unconfirmed in a focused window) |
-| E22 | Project health checks | Complete | | Core protocol, main (store, probe, scheduler, alerts, auto-diagnosis, IPC) and renderer (Health page, project tab, dialogs) built test-first; `health.e2e.ts` passes (1 of 1, 43 s). AC4 (an agent builds a passing endpoint from the setup prompt alone) not yet tried with a real agent |
+| E22 | Project monitoring | Complete | | Core protocol, main (store, probe, scheduler, alerts, auto-diagnosis, IPC) and renderer (Monitoring page, project tab, dialogs, Build with AI) built test-first; `health.e2e.ts` passes (1 of 1, 43 s). AC4 (an agent builds a passing endpoint from the setup prompt alone) not yet tried with a real agent |
 
 Status values: Not started, In progress, Blocked, Complete.
 

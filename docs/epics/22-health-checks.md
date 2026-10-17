@@ -1,4 +1,4 @@
-# E22 Project health checks
+# E22 Project monitoring
 
 Milestone: standalone (Ship). Depends on: none.
 
@@ -37,6 +37,10 @@ rules, so the user's AI can build a compatible endpoint into any stack.
 - [x] T10 The project's Health tab, the menu entry with its badge, and the Help article.
 - [x] T11 e2e: add a target against a local endpoint, see it healthy, make it fail and see the
   error and the inbox entry, rotate the key and see Key rejected.
+- [x] T12 Build with AI: a dialog that builds the setup prompt in the renderer from a project,
+  environment, server, sign-in and path before any target exists, sends it to the project's agent
+  by name or copies it, and hands over to adding a target. Offered in the toolbar, on first use, and
+  in a target's details while it does not answer yet.
 
 ## Acceptance criteria
 
@@ -55,6 +59,9 @@ rules, so the user's AI can build a compatible endpoint into any stack.
   `agentmate` object per failing check for error detail and one at the top for the protocol id.
 - A pass with a failing check reads as warn, and a pass on a 5xx reads as fail, so an endpoint
   cannot hide a problem by mistake.
+- The feature is called Monitoring in the app (menu, page, project tab, route `/monitoring`). The
+  endpoint and the protocol keep the name health check, the standard term an agent or developer
+  knows, and code identifiers keep `health`.
 - Warn is degraded, not down: it shows on the page but opens no incident.
 - A target's sign-in type and Basic username are fixed once it is made, since changing either
   needs a new secret. Delete and add the target again to switch.

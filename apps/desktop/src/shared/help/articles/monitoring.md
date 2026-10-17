@@ -1,33 +1,41 @@
 ---
-title: Health checks
+title: Monitoring
 category: Ship
 order: 20
-summary: Health checks watch your projects' apps and sites on every environment and server. Each one calls a private, key-protected endpoint in your app on its own schedule, shows which services work and which fail with their errors, and hands a failure to AI to diagnose and fix.
-keywords: health, healthcheck, health check, status, uptime, monitor, monitoring, incident, outage, down, service, endpoint, environment, server, interval, schedule, bearer, basic auth, key, token, rotate, sha-256, diagnose, fix with ai, setup prompt, health+json, agentmate health protocol
-route: /health
+summary: Monitoring watches your projects' apps and sites on every environment and server. It calls a private, key-protected health endpoint in your app on its own schedule, shows which services work and which fail with their errors, and hands a failure to AI to diagnose and fix. Build with AI gives Claude Code a prompt to build that endpoint.
+keywords: monitoring, monitor, build with ai, claude, prompt, health, healthcheck, health check, status, uptime, monitor, monitoring, incident, outage, down, service, endpoint, environment, server, interval, schedule, bearer, basic auth, key, token, rotate, sha-256, diagnose, fix with ai, setup prompt, health+json, agentmate health protocol
+route: /monitoring
 ---
 
-Health checks tell you whether the apps and sites behind your projects are working right now. Each project can have any number of targets, one for each environment and server it runs on (for example Production on web-1 and web-2, and Staging on one server). AgentMate calls each target's healthcheck endpoint on the schedule you choose and shows every service the app reports (database, cache, queues, mail, external APIs and so on), whether it works, and the error of any that does not.
+Monitoring tells you whether the apps and sites behind your projects are working right now. Each project can have any number of targets, one for each environment and server it runs on (for example Production on web-1 and web-2, and Staging on one server). AgentMate calls each target's health check endpoint on the schedule you choose and shows every service the app reports (database, cache, queues, mail, external APIs and so on), whether it works, and the error of any that does not.
 
 ## Where to find it
 
-Click **Health** in the menu, in the Ship group. The menu badge counts the targets that are down right now. Each project also has a **Health** tab that shows only its own targets.
+Click **Monitoring** in the menu, in the Ship group. The menu badge counts the targets that are down right now. Each project also has a **Monitoring** tab that shows only its own targets.
 
 ## How it works
 
-Your app answers health checks itself, through one small endpoint that follows the AgentMate Health Protocol. The protocol builds on the standard `application/health+json` format, so the report lists each check with a status of `pass`, `warn` or `fail`, and a failing check carries its error message, error code, details, stack trace and a hint about what usually fixes it.
+Your app answers the checks itself, through one small endpoint that follows the AgentMate Health Protocol. The protocol builds on the standard `application/health+json` format, so the report lists each check with a status of `pass`, `warn` or `fail`, and a failing check carries its error message, error code, details, stack trace and a hint about what usually fixes it.
 
 The endpoint is private. It only answers a request that carries the target's key (a Bearer key) or its username and password (HTTP Basic). Anyone else gets an empty `401`, without even a hint of which checks exist. Your server never stores the key itself: it stores the key's SHA-256 hash and compares hashes in constant time, so a leaked config file does not leak the key.
 
-## Connect a project
+## Build the endpoint with AI
 
-1. Click **Add target**. Choose the project, the environment (from the project's Environments tab), name the server, and enter the endpoint's URL, such as `https://api.example.com/_agentmate/health`.
+Your app needs the endpoint before AgentMate can watch it, and your AI agent can write it for you. Click **Build with AI** (in the toolbar, on the first-use screen, or in a target's details while it does not answer yet).
+
+1. Pick the project, and if you like the environment and the server. Choose **Bearer key** or **HTTP Basic** and the path (`/_agentmate/health` by default).
+2. The prompt on the right updates as you go. It carries the whole AgentMate Health Protocol: the request, the report format, the security rules and an example. It asks the agent to read the project, check every service it really uses (database, cache, queues, storage, mail, external APIs), and add tests.
+3. Click **Send to Claude Code** (the button names your project's agent) to start it in the project's workspace with the prompt, or **Copy prompt** to use it anywhere else. The **Protocol** tab has the protocol on its own, for a developer or another AI.
+
+The prompt never contains a key. It only names the server variables, and the key is made when you add the target.
+
+## Add a target
+
+1. Click **Add target** (or **Add target** at the bottom of Build with AI). Choose the project, the environment (from the project's Environments tab), name the server, and enter the endpoint's URL, such as `https://api.example.com/_agentmate/health`.
 2. Choose how often to check it, from every 30 seconds to once a day, or enter your own interval (at least 15 seconds). Each target has its own interval and you can change it at any time.
 3. Choose **Bearer key** (recommended) or **HTTP Basic**. AgentMate generates the key or password and shows it once, together with its SHA-256 hash and the name of the variable your server reads the hash from. Copy them now, because the key is never shown again. AgentMate keeps it encrypted in your Vault.
-4. Click **Connect the project** (right after the key, or later from the target's details) and copy the setup prompt, or click **Send to agent** to paste it into an agent tab for the project. The prompt carries the whole protocol and asks your AI to add the endpoint, check every service the project really uses, and follow the security rules. It never contains the key.
-5. Set the hash variable on your server, deploy, and click **Test connection**.
-
-You can also copy the protocol on its own from the same dialog and give it to any AI or developer.
+4. If the endpoint is not built yet, click **Build the endpoint with AI** right after the key. That prompt is made for this target (its address and sign-in), and it has **Test connection**.
+5. Set the hash variable on your server, deploy, and click **Check now** or **Test connection**.
 
 ## Reading a target
 

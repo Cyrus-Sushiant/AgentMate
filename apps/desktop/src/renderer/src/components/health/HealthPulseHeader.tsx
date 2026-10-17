@@ -51,7 +51,7 @@ export function HealthPulseHeader({
   const watched = summary.total - summary.paused;
   return (
     <section
-      aria-label="Health overview"
+      aria-label="Monitoring overview"
       aria-busy={loading}
       className={cn(GLASS_CARD, 'grid gap-4 p-4 md:grid-cols-[auto_minmax(0,1fr)] md:items-center')}
     >
