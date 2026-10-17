@@ -507,3 +507,119 @@ describe('ToolsPage target project', () => {
     });
   });
 });
+
+describe('ToolsPage Dev Setup tab', () => {
+  const WIN = { os: 'win32', arch: 'x64', packageManagers: ['winget'] };
+  const found = (version: string) => ({ state: 'found', version, path: null, onPath: true });
+  const absent = { state: 'absent' };
+
+  /**
+   * `known` is what main already remembers. A detect adds to it, so a later peek sees the answer,
+   * which is how the real cache behaves.
+   */
+  function devSetupBridge(known: Record<string, unknown> = {}) {
+    const remembered: Record<string, unknown> = { ...known };
+    return {
+      'settings.get': { devSetupStacks: ['essentials'] },
+      'devSetup.environment': WIN,
+      'devSetup.detect': async (id: string) => {
+        remembered[id] ??= absent;
+        return remembered[id];
+      },
+      'devSetup.peek': async (ids: string[]) =>
+        Object.fromEntries(ids.map((id) => [id, remembered[id]])),
+    };
+  }
+
+  function devSetupTab(): HTMLElement {
+    return within(categoryTabs()).getByRole('button', { name: /^Dev Setup/ });
+  }
+
+  it('lists Dev Setup in the navigation, in a group of its own apart from the tool categories', async () => {
+    renderPage(devSetupBridge());
+    await screen.findByText(ROUTER.name);
+
+    expect(devSetupTab()).toBeTruthy();
+    expect(within(categoryTabs()).getByRole('heading', { name: 'Setup' })).toBeTruthy();
+    expect(within(categoryTabs()).getByRole('heading', { name: 'Categories' })).toBeTruthy();
+  });
+
+  it('opens the checklist in place of the tool grid', async () => {
+    const { user } = renderPage(devSetupBridge());
+    await screen.findByText(ROUTER.name);
+
+    await user.click(devSetupTab());
+
+    expect(await screen.findByRole('heading', { name: 'What do you build?' })).toBeTruthy();
+    expect(devSetupTab()).toHaveAttribute('aria-current', 'true');
+    // The tool cards, and the controls that only act on them, are gone.
+    expect(screen.queryByText(ROUTER.name)).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Check all for updates' })).toBeNull();
+    expect(screen.queryByRole('searchbox', { name: 'Filter tools' })).toBeNull();
+  });
+
+  it('opens straight to the checklist from a link', async () => {
+    renderPage(devSetupBridge(), '/tools?tab=dev-setup');
+
+    expect(await screen.findByRole('heading', { name: 'What do you build?' })).toBeTruthy();
+    expect(devSetupTab()).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('goes back to the tools when a category is chosen again', async () => {
+    const { user } = renderPage(devSetupBridge(), '/tools?tab=dev-setup');
+    await screen.findByRole('heading', { name: 'What do you build?' });
+
+    await user.click(within(categoryTabs()).getByRole('button', { name: /^All/ }));
+
+    expect(await screen.findByText(ROUTER.name)).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'What do you build?' })).toBeNull();
+    expect(screen.getByRole('combobox')).toBeTruthy();
+  });
+
+  it('leaves the other categories as they were', async () => {
+    const { user } = renderPage(devSetupBridge());
+    await screen.findByText(ROUTER.name);
+
+    await user.click(within(categoryTabs()).getByRole('button', { name: /^Security/ }));
+
+    expect(within(categoryTabs()).getByRole('button', { name: /^Security/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(devSetupTab()).not.toHaveAttribute('aria-current');
+  });
+
+  it('shows how many required tools are still missing, from what is already known', async () => {
+    renderPage(devSetupBridge({ git: found('2.55.0') }));
+    await screen.findByText(ROUTER.name);
+
+    // node, npm and gh: git is there, and the rest are known to be absent.
+    await waitFor(() => expect(devSetupTab()).toHaveTextContent('3 to install'));
+  });
+
+  it('shows a tick, not a number, once everything is in place', async () => {
+    renderPage(
+      devSetupBridge({
+        git: found('2.55.0'),
+        node: found('22.12.0'),
+        npm: found('10.9.0'),
+        gh: found('2.62.0'),
+      }),
+    );
+    await screen.findByText(ROUTER.name);
+
+    await waitFor(() => expect(devSetupTab()).toHaveTextContent('All set'));
+  });
+
+  it('shows no number before anything is known', async () => {
+    renderPage({
+      ...devSetupBridge(),
+      'devSetup.detect': () => new Promise(() => undefined),
+      'devSetup.peek': async () => ({}),
+    });
+    await screen.findByText(ROUTER.name);
+
+    expect(devSetupTab()).not.toHaveTextContent(/to install|All set/);
+  });
+});

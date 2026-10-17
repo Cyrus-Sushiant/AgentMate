@@ -24,6 +24,8 @@ import { registerBackupHandlers } from './ipc/backup';
 import { registerBlueprintHandlers } from './ipc/blueprints';
 import { registerBrowserHandlers } from './ipc/browser';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
+import { disposeDevSetup } from './devSetup/runtime';
+import { registerDevSetupHandlers } from './ipc/devSetup';
 import { registerDockerHandlers } from './ipc/docker';
 import { registerEnvironmentHandlers } from './ipc/environments';
 import { registerExplorerHandlers } from './ipc/explorer';
@@ -99,6 +101,7 @@ import {
 } from './resourceActivity/runtime';
 import { startScheduledTaskRunner, stopScheduledTaskRunner } from './scheduledTasks/scheduler';
 import { cancelAllSecurityScans, sweepOrphanScanContainers } from './security/scanRunner';
+import { refreshShellPath } from './shellPath';
 import { configureSpellChecker, registerSpellcheckHandlers } from './spellcheck';
 import {
   getSplash,
@@ -326,6 +329,7 @@ function registerAllIpcHandlers(): void {
   // containers of whatever else is on this machine alone.
   if (!isE2E) sweepOrphanScanContainers();
   registerToolHandlers();
+  registerDevSetupHandlers();
   registerAndroidHandlers();
   registerDockerHandlers();
   registerResourceActivityHandlers();
@@ -377,6 +381,10 @@ app.whenReady().then(async () => {
     revealAfterSplash = true;
   }
   setSplashStatus('Loading settings...');
+
+  // Not awaited: a Mac app opened from Finder has none of the shell's PATH, so this starts reading
+  // it right away, and CLI detection waits for the same read instead of starting another.
+  void refreshShellPath();
 
   // Ahead of every other startup step, so the first update check, widget
   // refresh, or usage poll already goes the configured way. The splash has to be
@@ -498,6 +506,8 @@ app.on('before-quit', (event) => {
     return;
   }
   cancelAllSecurityScans();
+  // An install the person started from Dev Setup would otherwise keep running with no window.
+  disposeDevSetup();
   // Not awaited: emulators are left running by default, and a half-booted one must never be
   // able to hold the shutdown open.
   void store

@@ -91,6 +91,7 @@ export const WP_ROUTES = {
   deployHistory: '/deploy/history',
   auditList: '/audit/list',
   connectionRevoke: '/connection/revoke',
+  connectorUpdate: '/connector/update',
   rescueStatus: '/rescue/status',
   rescueRollback: '/rescue/rollback',
 } as const;
@@ -112,6 +113,7 @@ export const WP_WRITE_ROUTES: readonly WpRoute[] = [
   WP_ROUTES.deployFinalize,
   WP_ROUTES.deployRollback,
   WP_ROUTES.deployAbort,
+  WP_ROUTES.connectorUpdate,
   WP_ROUTES.rescueRollback,
 ];
 
@@ -225,6 +227,12 @@ export interface WpSiteInfo {
   filesystemMethod: string;
   /** AGENTMATE_CONNECTOR_READ_ONLY in wp-config.php. */
   readOnlyByConstant: boolean;
+  /**
+   * The connector can replace itself when a write connection asks (`/connector/update`): its folder
+   * is a real folder PHP may rename. Absent from connectors that predate the route, so read it as
+   * false when missing. File changes being switched off is reported by the fields above.
+   */
+  selfUpdate?: boolean;
   sodium: 'native' | 'compat';
   limits: WpLimits;
   guard: { installed: boolean; rescueUrl: string | null };
@@ -334,6 +342,8 @@ export type WpAuditEvent =
   | 'deployDone'
   | 'deployRolledBack'
   | 'deployAborted'
+  | 'connectorUpdated'
+  | 'connectorRolledBack'
   | 'settingsChanged';
 
 export type WpErrorCode =
@@ -361,6 +371,8 @@ export type WpErrorCode =
   | 'pairingInvalid'
   | 'pairingExpired'
   | 'protocolMismatch'
+  /** A connector update the site will not take; `details.reason` is a WpUpdateRefusal. */
+  | 'updateRefused'
   | 'internal';
 
 export interface WpErrorBody {
@@ -493,6 +505,51 @@ export interface WpRescueStatusResponse {
   last: WpDeployRecord | null;
 }
 
+/** What a connector update may hold, checked by both sides. The shipped plugin is well under it. */
+export const WP_UPDATE_MAX_FILES = 400;
+export const WP_UPDATE_MAX_FILE_BYTES = 2 * 1024 * 1024;
+export const WP_UPDATE_MAX_TOTAL_BYTES = 8 * 1024 * 1024;
+/** The only file types a connector update may carry (the plugin zip's text files). */
+export const WP_UPDATE_FILE_PATTERN = /\.(php|txt|md|css|js|json|xml|html)$/i;
+
+/**
+ * One file of the new connector, relative to the plugin folder (`src/Plugin.php`). The request
+ * carries one blob per file, in this order, holding that file's bytes.
+ */
+export interface WpConnectorUpdateFile {
+  path: string;
+  size: number;
+  /** Lowercase hex. */
+  sha256: string;
+}
+
+export interface WpConnectorUpdateRequest {
+  /** The version being installed; it must match the plugin header in the files. */
+  version: string;
+  files: WpConnectorUpdateFile[];
+}
+
+/** Why a site refused an update, in `details.reason` of an `updateRefused` error. */
+export type WpUpdateRefusal =
+  /** The files are older than what runs on the site. */
+  | 'downgrade'
+  /** The files are not a connector this plugin can install (missing parts, bad header, bad path). */
+  | 'badPackage'
+  /** The new version needs a newer PHP or WordPress than the site has. */
+  | 'requirements'
+  /** The plugin folder is a symlink, or PHP may not rename it. */
+  | 'notReplaceable';
+
+export interface WpConnectorUpdateResponse {
+  /** `rolledBack`: the new files made the site fail its health check, so the old ones are back. */
+  state: 'updated' | 'rolledBack';
+  fromVersion: string;
+  /** The version that was asked for, whether or not it stayed. */
+  version: string;
+  files: number;
+  checks: WpHealthCheck[];
+}
+
 /** Route to request and response body. The request body is the frame's `b`. */
 export interface WpRouteMap {
   '/hello': { request: Record<string, never>; response: WpHelloResponse };
@@ -520,6 +577,7 @@ export interface WpRouteMap {
     response: { entries: WpAuditEntry[] };
   };
   '/connection/revoke': { request: Record<string, never>; response: { revoked: true } };
+  '/connector/update': { request: WpConnectorUpdateRequest; response: WpConnectorUpdateResponse };
   '/rescue/status': { request: Record<string, never>; response: WpRescueStatusResponse };
   '/rescue/rollback': { request: { deployId: string }; response: WpDeployStateResponse };
 }

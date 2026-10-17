@@ -6,6 +6,8 @@ import type {
   DeployWordPressDeployResult,
   DeployWordPressDisconnectInput,
   DeployWordPressItemsInput,
+  DeployWordPressLinkProjectInput,
+  DeployWordPressLinkProjectResult,
   DeployWordPressLocalChanges,
   DeployWordPressPlan,
   DeployWordPressPlanInput,
@@ -19,6 +21,7 @@ import type {
   DeployWordPressSettingsInput,
   DeployWordPressSite,
   DeployWordPressSiteInfo,
+  DeployWordPressUpdateConnectorResult,
   Project,
   WpAuditEntry,
   WpDeployRecord,
@@ -69,6 +72,10 @@ export function createDeployWordPress(subscribe: Subscribe) {
       ipcRenderer.invoke(IPC.deployWordPress.createProject, input),
     setProjectItems: (input: DeployWordPressItemsInput): Promise<Project> =>
       ipcRenderer.invoke(IPC.deployWordPress.setProjectItems, input),
+    linkProject: (
+      input: DeployWordPressLinkProjectInput,
+    ): Promise<DeployWordPressLinkProjectResult> =>
+      ipcRenderer.invoke(IPC.deployWordPress.linkProject, input),
     unlinkProject: (projectId: string): Promise<Project> =>
       ipcRenderer.invoke(IPC.deployWordPress.unlinkProject, projectId),
     localChanges: (projectId: string): Promise<DeployWordPressLocalChanges> =>
@@ -78,6 +85,12 @@ export function createDeployWordPress(subscribe: Subscribe) {
     /** Asks where to save the bundled plugin zip; `saved: false` when that was cancelled. */
     saveConnectorZip: (): Promise<DeployWordPressSaveZipResult> =>
       ipcRenderer.invoke(IPC.deployWordPress.saveConnectorZip),
+    /**
+     * Replaces the connector on the site with the version bundled in this app. Only for a site
+     * whose connector reports `selfUpdate`; the site puts the old files back if it stops working.
+     */
+    updateConnector: (siteId: string): Promise<DeployWordPressUpdateConnectorResult> =>
+      ipcRenderer.invoke(IPC.deployWordPress.updateConnector, siteId),
     onProgress: (callback: (event: DeployWordPressProgressEvent) => void): (() => void) =>
       subscribe(IPC.deployWordPress.onProgress, callback),
   };

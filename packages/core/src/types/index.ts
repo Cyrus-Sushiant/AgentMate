@@ -723,6 +723,11 @@ export interface AppSettings {
   idleResourceMinutes: number;
   /** Send a system notification when a container or emulator first goes idle. */
   idleResourceNotify: boolean;
+  /**
+   * The stacks shown in Agent Tools > Dev Setup, as `DevStackId`s. Essentials is always first and
+   * always present; the rest are the ones the user switched on.
+   */
+  devSetupStacks: string[];
 }
 
 export type AgentType = 'claude-code' | 'gemini' | 'opencode' | 'codex' | 'cursor' | 'generic';

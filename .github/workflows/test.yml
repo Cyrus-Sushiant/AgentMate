@@ -2,6 +2,10 @@ name: Tests
 
 # Unit, integration, mobile and end-to-end tests. Called by CI on every push and pull request,
 # and by CD before anything is built for a release, so a broken test cannot ship.
+#
+# CI runs everything on our self-hosted Linux runner. CD runs on GitHub's hosted runners only
+# (github-hosted: true), which is also the one place the end-to-end tests run on Windows and
+# macOS, since we have no self-hosted runner for either.
 
 on:
   workflow_call:
@@ -10,12 +14,20 @@ on:
         description: Run the Electron end-to-end matrix
         type: boolean
         default: true
+      github-hosted:
+        description: Run on GitHub's hosted runners instead of the self-hosted Linux runner
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       e2e:
         description: Run the Electron end-to-end matrix
         type: boolean
         default: true
+      github-hosted:
+        description: Run on GitHub's hosted runners instead of the self-hosted Linux runner
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,7 +35,7 @@ permissions:
 jobs:
   unit:
     name: Unit and integration
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -85,7 +97,7 @@ jobs:
   # security sniffs, and the zip build with its version check.
   wordpress-connector:
     name: WordPress connector
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -119,7 +131,7 @@ jobs:
     name: WordPress sync on real WordPress
     if: ${{ inputs.e2e }}
     needs: wordpress-connector
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -150,7 +162,7 @@ jobs:
   # (real Docker, test servers) are not part of this job; they run in the [e2e] job instead.
   server-core:
     name: Server core
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 30
     env:
       DOTNET_NOLOGO: "1"
@@ -162,6 +174,9 @@ jobs:
       # The feature band, not an exact patch, so release builds pick up the newest runtime fixes.
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true
@@ -210,7 +225,7 @@ jobs:
   server-core-system:
     name: Server core on test servers
     if: ${{ inputs.e2e }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 60
     env:
       DOTNET_NOLOGO: "1"
@@ -221,6 +236,9 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true
@@ -295,7 +313,7 @@ jobs:
 
   mobile:
     name: Mobile
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-hosted && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -329,15 +347,17 @@ jobs:
           if-no-files-found: ignore
           path: apps/mobile/coverage
 
+  # On the self-hosted runner this is Linux only. Windows and macOS run only when CD calls this on
+  # GitHub's hosted runners.
   e2e:
-    name: E2E (${{ matrix.os }})
+    name: E2E (${{ matrix.target.name }})
     if: ${{ inputs.e2e }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        target: ${{ fromJSON(inputs.github-hosted && '[{"name":"ubuntu-latest","runner":"ubuntu-latest"},{"name":"windows-latest","runner":"windows-latest"},{"name":"macos-latest","runner":"macos-latest"}]' || '[{"name":"linux","runner":["self-hosted","Linux","X64"]}]') }}
     env:
       # One cache location on every OS, so the Electron zip can be restored between runs.
       electron_config_cache: ${{ github.workspace }}/.cache/electron
@@ -348,11 +368,15 @@ jobs:
       - name: Display and Electron libraries (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
+          # The self-hosted runner keeps what it installed, so only reach for apt when needed.
+          packages="xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6"
+          if ! dpkg -s $packages > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y $packages
+          fi
           # Ubuntu blocks the unprivileged user namespaces Chromium's sandbox needs, which makes
           # Electron refuse to start. The fixture can fall back to --no-sandbox if this fails.
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -402,6 +426,9 @@ jobs:
       # The Deploy spec builds and starts the server core's DevHost, so it runs on every OS.
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true
@@ -425,7 +452,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-${{ matrix.os }}
+          name: e2e-${{ matrix.target.name }}
           retention-days: 14
           if-no-files-found: ignore
           path: |

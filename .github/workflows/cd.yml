@@ -243,12 +243,24 @@ jobs:
           done
           exit 1
 
+      # The app is ad-hoc signed (see electron-builder.yml). An arm64 app whose
+      # signature is missing or broken won't launch at all, and the in-app
+      # updater installs straight from this zip, so check the app inside it.
+      - name: Verify macOS app signature
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          for zip in apps/desktop/release/*-mac.zip; do
+            dir=$(mktemp -d)
+            ditto -x -k "$zip" "$dir"
+            codesign --verify --deep --strict --verbose=2 "$dir"/*.app
+          done
+
       # electron-builder writes one `latest-mac.yml` per invocation. The two
       # macOS runners each package a single arch, so both would produce a
       # same-named file that clobbers the other once artifacts are merged in
       # the release job below, so rename each to keep them apart. The release
-      # job then picks one as the canonical `latest-mac.yml` for
-      # electron-updater; see the comment there for the tradeoff.
+      # job merges them back into one `latest-mac.yml`.
       - name: Disambiguate macOS update manifest by arch
         if: startsWith(matrix.os, 'macos')
         shell: bash
@@ -398,6 +410,13 @@ jobs:
     needs: [build, build-android, build-server-core]
     runs-on: ubuntu-latest
     steps:
+      # Only for scripts/merge-mac-manifest.mjs. It runs first because checkout
+      # cleans the workspace.
+      - name: Checkout release scripts
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+
       - name: Determine release tag
         id: tag
         run: |
@@ -434,22 +453,12 @@ jobs:
           name: wordpress-connector
           path: dist-release
 
-      # electron-updater's macOS auto-updater needs a single `latest-mac.yml`,
-      # but the two mac runners each produced an arch-specific one (see the
-      # "Disambiguate" step in the build job). Apple Silicon is what new Macs
-      # ship with, so it wins when both are present; Intel Mac users can still
-      # grab the x64 dmg/zip from the release page manually, they just won't
-      # get an in-app update prompt. A real fix would merge the `files:`
-      # entries of both manifests into one instead of picking a winner.
-      - name: Resolve macOS update manifest
-        shell: bash
-        run: |
-          if [ -f dist-release/latest-mac-arm64.yml ]; then
-            cp dist-release/latest-mac-arm64.yml dist-release/latest-mac.yml
-          elif [ -f dist-release/latest-mac-x64.yml ]; then
-            cp dist-release/latest-mac-x64.yml dist-release/latest-mac.yml
-          fi
-          rm -f dist-release/latest-mac-arm64.yml dist-release/latest-mac-x64.yml
+      # electron-updater reads a single `latest-mac.yml`, but the two mac
+      # runners each produced an arch-specific one (see the "Disambiguate" step
+      # in the build job). Merge their `files:` lists so the updater on each
+      # Mac can pick the zip for its own arch.
+      - name: Merge macOS update manifests
+        run: node scripts/merge-mac-manifest.mjs dist-release
 
       - name: Create/update GitHub Release
         uses: softprops/action-gh-release@v3

@@ -27,8 +27,10 @@ final class SiteInfoItemsTest extends TestCase
         $this->assertSame(array(
             'siteName', 'homeUrl', 'siteUrl', 'wpVersion', 'phpVersion', 'pluginVersion', 'protocol', 'multisite',
             'activeTheme', 'https', 'serverTime', 'fileModsDisabled', 'fileEditDisabled', 'filesystemMethod',
-            'readOnlyByConstant', 'sodium', 'limits', 'guard', 'loopback', 'connection', 'pendingDeploy',
+            'readOnlyByConstant', 'selfUpdate', 'sodium', 'limits', 'guard', 'loopback', 'connection', 'pendingDeploy',
         ), array_keys($data));
+        // The fake site has no connector folder to replace.
+        $this->assertFalse($data['selfUpdate']);
         $this->assertSame(PHP_VERSION, $data['phpVersion']);
         $this->assertSame('1.0.0', $data['pluginVersion']);
         $this->assertSame(1, $data['protocol']);

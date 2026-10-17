@@ -51,25 +51,61 @@ export function normalizePingUrls(value: unknown): string[] {
   return urls.slice(0, MAX_PING_URLS);
 }
 
-/** `-6` forces the ping command onto IPv6; without it the OS picks IPv4 for literal IPv4 addresses and most hostnames. */
-export function pingArgs(host: string, ipVersion: PingIpVersion, isWin: boolean): string[] {
-  const family = ipVersion === 'ipv6' ? ['-6'] : [];
-  return isWin
-    ? [...family, '-n', '1', '-w', '1500', host]
-    : [...family, '-c', '1', '-W', '2', host];
+export interface PingCommand {
+  file: string;
+  args: string[];
+}
+
+/**
+ * Each platform's ping spells the reply timeout differently: Windows `-w` is
+ * milliseconds, Linux `-W` is seconds and macOS `-W` is milliseconds, so the
+ * Linux flags would give a Mac 2 ms to answer and every sample would fail.
+ * macOS also has no `-6` and pings IPv6 through `ping6`, which has no reply
+ * timeout flag (the exec timeout covers it). Without a family flag the OS picks
+ * IPv4 for literal IPv4 addresses and most hostnames.
+ */
+export function pingCommand(
+  host: string,
+  ipVersion: PingIpVersion,
+  platform: NodeJS.Platform,
+): PingCommand {
+  const ipv6 = ipVersion === 'ipv6';
+  if (platform === 'win32') {
+    return {
+      file: 'ping',
+      args: [...(ipv6 ? ['-6'] : []), '-n', '1', '-w', '1500', host],
+    };
+  }
+  if (platform === 'darwin') {
+    // Absolute paths, since an app opened from Finder may not have /sbin on PATH.
+    return ipv6
+      ? { file: '/sbin/ping6', args: ['-c', '1', host] }
+      : { file: '/sbin/ping', args: ['-c', '1', '-W', '2000', host] };
+  }
+  return {
+    file: 'ping',
+    args: [...(ipv6 ? ['-6'] : []), '-c', '1', '-W', '2', host],
+  };
+}
+
+/** Round trip in ms from one ping reply, or null when no reply came back. */
+export function parsePingLatency(stdout: string, platform: NodeJS.Platform): number | null {
+  const match =
+    platform === 'win32' ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
+  return match ? Math.round(Number(match[1])) : null;
 }
 
 export async function pingHost(
   host: string,
   ipVersion: PingIpVersion = 'ipv4',
+  platform: NodeJS.Platform = process.platform,
 ): Promise<PingResult> {
-  const isWin = process.platform === 'win32';
-  const args = pingArgs(host, ipVersion, isWin);
+  const { file, args } = pingCommand(host, ipVersion, platform);
   try {
-    const { stdout } = await execFileAsync('ping', args, { timeout: 3000 });
-    const match = isWin ? stdout.match(/time[=<](\d+)ms/i) : stdout.match(/time=([\d.]+)\s*ms/i);
-    if (!match) return { host, latencyMs: null, alive: false };
-    return { host, latencyMs: Math.round(Number(match[1])), alive: true };
+    const { stdout } = await execFileAsync(file, args, { timeout: 3000 });
+    const latencyMs = parsePingLatency(stdout, platform);
+    if (latencyMs == null) return { host, latencyMs: null, alive: false };
+    return { host, latencyMs, alive: true };
   } catch {
     return { host, latencyMs: null, alive: false };
   }

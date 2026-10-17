@@ -60,9 +60,9 @@ const port: WpProjectsPort = {
     projects.set(project.id, project);
     return project;
   },
-  setLink: async (id, link) => {
+  setLink: async (id, link, changes) => {
     const current = projects.get(id) as Project;
-    const next = { ...current, wordpress: link };
+    const next = { ...current, ...changes, wordpress: link };
     if (!link) delete next.wordpress;
     projects.set(id, next);
     return next;
@@ -800,6 +800,78 @@ describe('project items and links', () => {
     expect(error.message).toContain('wp-content/plugins/tools is not linked');
     const one = await service.planPull({ projectId: project.id, items: [THEME] });
     expect(one.changes).toEqual([]);
+  });
+});
+
+describe('linkProject', () => {
+  function plainProject(overrides: Partial<Project> = {}): Project {
+    const folderPath = folder();
+    mkdirSync(folderPath, { recursive: true });
+    const project = {
+      id: randomUUID(),
+      name: 'Plain',
+      folderPath,
+      prompt: 'Use tabs.',
+      websiteUrl: '',
+      ...overrides,
+    } as Project;
+    projects.set(project.id, project);
+    return project;
+  }
+
+  const link = (project: Project, items: WpItemRef[]) =>
+    service.linkProject({ operationId: op(), projectId: project.id, siteId, items });
+
+  it('pulls items into empty folders and adds the site to the prompt', async () => {
+    const plain = plainProject();
+    mkdirSync(join(plain.folderPath, 'wp-content', 'plugins', 'tools'), { recursive: true });
+    const { project, notPulled } = await link(plain, [THEME, TOOLS]);
+    expect(notPulled).toEqual([]);
+    expect(local(project, 'wp-content/themes/shop/inc/setup.php')).toBe('<?php // setup');
+    expect(local(project, 'wp-content/plugins/tools/tools.php')).toBe('<?php // tools');
+    expect(project.wordpress?.items.map(wpItemKey)).toEqual(['theme:shop', 'plugin:tools']);
+    expect(project.prompt.startsWith('Use tabs.\n\nThis project mirrors part of')).toBe(true);
+    expect(project.prompt).toContain('wp-content/plugins/tools/');
+    expect(project.websiteUrl).toBe(fake.siteUrl);
+    expect((await service.planPull({ projectId: project.id })).changes).toEqual([]);
+    expect(await service.localChanges(project.id)).toMatchObject({ added: 0, modified: 0 });
+  });
+
+  it('links a folder that already holds an item without touching it', async () => {
+    const plain = plainProject({ websiteUrl: 'https://mine.example' });
+    write(plain, 'wp-content/themes/shop/style.css', '/* Theme Name: Shop */');
+    write(plain, 'wp-content/themes/shop/functions.php', '<?php // mine');
+    const { project, notPulled } = await link(plain, [THEME]);
+    expect(notPulled).toEqual([THEME]);
+    expect(local(project, 'wp-content/themes/shop/functions.php')).toBe('<?php // mine');
+    expect(local(project, 'wp-content/themes/shop/index.php')).toBeNull();
+    expect(project.websiteUrl).toBe('https://mine.example');
+
+    // The first pull brings in what is missing and asks about what differs.
+    const plan = await service.planPull({ projectId: project.id });
+    expect(plan.conflicts.map((change) => change.path)).toEqual(['functions.php']);
+    expect(
+      plan.changes.filter((change) => change.action === 'download').map((change) => change.path),
+    ).toEqual(['inc/setup.php', 'index.php']);
+  });
+
+  it('refuses a linked project and items the site does not have', async () => {
+    const linked = await createShop([THEME]);
+    expect(wordPressErrorCode(await failure(link(linked, [TOOLS])))).toBe('badRequest');
+
+    const plain = plainProject();
+    const error = await failure(link(plain, [{ kind: 'plugin', slug: 'nope' }]));
+    expect(wordPressErrorCode(error)).toBe('itemUnknown');
+    expect(projects.get(plain.id)?.wordpress).toBeUndefined();
+    expect(await bases.read(plain.id)).toBeNull();
+  });
+
+  it('takes the site out of the prompt again on unlink', async () => {
+    const { project } = await link(plainProject(), [THEME]);
+    const unlinked = await service.unlinkProject(project.id);
+    expect(unlinked.prompt).toBe('Use tabs.');
+    expect(unlinked.wordpress).toBeUndefined();
+    expect(local(unlinked, 'wp-content/themes/shop/style.css')).toBe('/* Theme Name: Shop */');
   });
 });
 

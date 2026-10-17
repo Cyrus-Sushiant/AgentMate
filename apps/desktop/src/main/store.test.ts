@@ -387,6 +387,50 @@ describe('settings migrations', () => {
     });
   });
 
+  describe('dev setup stacks', () => {
+    it('starts with Essentials alone', async () => {
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).devSetupStacks).toEqual(['essentials']);
+    });
+
+    it('gives a profile that predates the setting the same default', async () => {
+      userData.writeData('settings.json', { theme: 'dark' });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).devSetupStacks).toEqual(['essentials']);
+    });
+
+    it('keeps the stacks a user picked, in catalog order, with Essentials first', async () => {
+      userData.writeData('settings.json', { devSetupStacks: ['docker', 'flutter'] });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).devSetupStacks).toEqual([
+        'essentials',
+        'flutter',
+        'docker',
+      ]);
+    });
+
+    it('drops unknown and repeated stacks from a hand-edited settings file', async () => {
+      userData.writeData('settings.json', { devSetupStacks: ['dotnet', 'bogus', 'dotnet', 7] });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).devSetupStacks).toEqual(['essentials', 'dotnet']);
+    });
+
+    it.each([
+      ['a string', 'docker'],
+      ['null', null],
+      ['an object', { docker: true }],
+    ])('falls back to Essentials for %s', async (_name, value) => {
+      userData.writeData('settings.json', { devSetupStacks: value });
+      const { store } = await loadStore();
+
+      expect((await store.getSettings()).devSetupStacks).toEqual(['essentials']);
+    });
+  });
+
   describe('dashboard charts added after the first release', () => {
     const ORIGINAL = ['cpu', 'memory', 'disk', 'gpu', 'network', 'pings', 'github'];
 

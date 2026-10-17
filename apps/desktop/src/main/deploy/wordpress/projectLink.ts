@@ -22,8 +22,20 @@ export interface WpProjectsPort {
   get(projectId: string): Promise<Project | null>;
   /** projects.ts createProjectRecord: the only way a project is made with a link. */
   create(input: CreateProjectInput): Promise<Project>;
-  /** projects.ts setProjectWordPressLink; undefined removes the link. */
-  setLink(projectId: string, link: ProjectWordPressLink | undefined): Promise<Project>;
+  /**
+   * projects.ts setProjectWordPressLink; undefined removes the link. `changes` updates the prompt
+   * and website along with it, for a project that turns into a WordPress project or back.
+   */
+  setLink(
+    projectId: string,
+    link: ProjectWordPressLink | undefined,
+    changes?: WpProjectLinkChanges,
+  ): Promise<Project>;
+}
+
+export interface WpProjectLinkChanges {
+  prompt?: string;
+  websiteUrl?: string;
 }
 
 export interface WpLinkedProject {
@@ -76,12 +88,12 @@ export function newWpLink(
   };
 }
 
-/** Each item's folder (or file) in the project must be missing or an empty folder. */
-export async function assertItemFoldersEmpty(
+/** The items whose folder (or file) is already in the project and is not an empty folder. */
+export async function itemsWithFiles(
   projectRoot: string,
   items: readonly WpItemRef[],
-): Promise<void> {
-  const taken: string[] = [];
+): Promise<WpItemRef[]> {
+  const taken: WpItemRef[] = [];
   for (const item of items) {
     const kind = await itemRootKind(projectRoot, item);
     if (kind === null) continue;
@@ -89,8 +101,17 @@ export async function assertItemFoldersEmpty(
       const entries = await readdir(join(projectRoot, wpItemRoot(item)));
       if (entries.length === 0) continue;
     }
-    taken.push(wpItemRoot(item));
+    taken.push(item);
   }
+  return taken;
+}
+
+/** Each item's folder (or file) in the project must be missing or an empty folder. */
+export async function assertItemFoldersEmpty(
+  projectRoot: string,
+  items: readonly WpItemRef[],
+): Promise<void> {
+  const taken = (await itemsWithFiles(projectRoot, items)).map(wpItemRoot);
   if (taken.length > 0) {
     throw wordPressError(
       'folderNotEmpty',

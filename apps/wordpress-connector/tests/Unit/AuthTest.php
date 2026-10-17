@@ -140,7 +140,7 @@ final class AuthTest extends TestCase
     public function testReadOnlyScopeIsRefusedOnWriteRoutes(): void
     {
         $connection = $this->connect('read');
-        foreach (array('/deploy/begin', '/deploy/upload', '/deploy/commit', '/deploy/verify', '/deploy/finalize', '/deploy/rollback', '/deploy/abort', '/rescue/rollback') as $route) {
+        foreach (array('/deploy/begin', '/deploy/upload', '/deploy/commit', '/deploy/verify', '/deploy/finalize', '/deploy/rollback', '/deploy/abort', '/connector/update', '/rescue/rollback') as $route) {
             $this->assertError('readOnly', $this->call($route, array('deployId' => 'x'), array('connectionId' => $connection)), 403);
         }
     }

@@ -36,6 +36,7 @@ export * from './deploy/wordpress/projectLink.js';
 export * from './deploy/wordpress/prompt.js';
 export * from './deploy/wordpress/protocol.js';
 export * from './deploy/wordpress/syncPlan.js';
+export * from './devSetup/index.js';
 export * from './env/dotenv.js';
 export * from './git/commitMessage.js';
 export * from './git/lineHunks.js';

@@ -120,9 +120,12 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     /** @var \AgentMate\Connector\Files\AtomicWriter|null a writer tests swap in (Windows rename) */
     protected $writer = null;
 
+    /** @var callable|null how the connector update moves folders; tests swap in one that fails */
+    protected $rename = null;
+
     protected function dispatcher(): Dispatcher
     {
-        $handlers = Handlers::all($this->storage, $this->env, $this->writer);
+        $handlers = Handlers::all($this->storage, $this->env, $this->writer, $this->rename);
         $logged = &$this->logged;
         return new Dispatcher($this->storage, $this->env, $this->siteKeys, $handlers, function (\Throwable $error) use (&$logged) {
             $logged[] = $error;

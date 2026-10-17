@@ -1185,6 +1185,23 @@ final class DeployService
         }
     }
 
+    /**
+     * Runs $work while no deploy is open and no other deploy call is running, and keeps new ones
+     * out until it returns. The connector update uses it: it changes the files every deploy relies on.
+     *
+     * @return mixed
+     */
+    public function whileIdle(callable $work)
+    {
+        return $this->locked(function () use ($work) {
+            $holder = $this->holder();
+            if ($holder !== null) {
+                throw new ApiError('busy', 'A deploy is still open on this site. Finish or cancel it first.', array('deployId' => $holder['id']));
+            }
+            return $work();
+        });
+    }
+
     /** Like locked(), but quietly does nothing when another call holds the mutex. */
     private function tryLocked(callable $work): bool
     {

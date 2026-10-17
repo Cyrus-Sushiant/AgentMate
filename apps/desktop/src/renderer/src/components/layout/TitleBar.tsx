@@ -139,7 +139,8 @@ export function TitleBar(): React.JSX.Element {
       <div className="flex items-center gap-3">
         {isMac && <MacTrafficLightsSpace />}
         <div className="flex items-center gap-2">
-          <img src={isDark ? appIconDark : appIconLight} alt="" className="h-6 w-6" />
+          {/* macOS apps don't put an icon beside the traffic lights. */}
+          {!isMac && <img src={isDark ? appIconDark : appIconLight} alt="" className="h-6 w-6" />}
           <span className="text-sm font-semibold tracking-tight text-foreground">AgentMate</span>
         </div>
       </div>

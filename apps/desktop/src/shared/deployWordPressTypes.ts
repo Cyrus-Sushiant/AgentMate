@@ -181,6 +181,23 @@ export interface DeployWordPressItemsInput {
   items: WpItemRef[];
 }
 
+/** Makes an existing project, not yet linked to any site, a WordPress project. */
+export interface DeployWordPressLinkProjectInput {
+  operationId: string;
+  projectId: string;
+  siteId: string;
+  items: WpItemRef[];
+}
+
+export interface DeployWordPressLinkProjectResult {
+  project: Project;
+  /**
+   * Items whose folders already held files. They are linked but not pulled, so nothing in them
+   * is overwritten; a pull compares them with the site file by file.
+   */
+  notPulled: WpItemRef[];
+}
+
 export interface DeployWordPressRollbackInput {
   operationId: string;
   siteId: string;
@@ -256,6 +273,22 @@ export interface DeployWordPressProgressEvent {
 }
 
 export type DeployWordPressSaveZipResult = { saved: false } | { saved: true; path: string };
+
+/** What updating the connector on a site from this app did. */
+export interface DeployWordPressUpdateConnectorResult {
+  /**
+   * `updated`: the site runs the bundled version now. `rolledBack`: the site failed its health
+   * check with it, so the old files are back. `current`: the site already had this version or a
+   * newer one, and nothing was sent.
+   */
+  outcome: 'updated' | 'rolledBack' | 'current';
+  /** The version the site ran before the update. */
+  fromVersion: string;
+  /** The version that comes with this app. */
+  version: string;
+  /** The site's health checks after the swap; empty when nothing was sent. */
+  checks: WpHealthCheck[];
+}
 
 /** Re-exported so renderer code can import everything WordPress from one place. */
 export type { Project, WpAuditEntry, WpDeployRecord, WpItem, WpItemRef };

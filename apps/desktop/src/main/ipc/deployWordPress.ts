@@ -17,6 +17,8 @@ import type {
   DeployWordPressDisconnectInput,
   DeployWordPressHttpAuth,
   DeployWordPressItemsInput,
+  DeployWordPressLinkProjectInput,
+  DeployWordPressLinkProjectResult,
   DeployWordPressLocalChanges,
   DeployWordPressPlan,
   DeployWordPressPlanInput,
@@ -29,6 +31,7 @@ import type {
   DeployWordPressSettingsInput,
   DeployWordPressSite,
   DeployWordPressSiteInfo,
+  DeployWordPressUpdateConnectorResult,
   Project,
   WpAuditEntry,
   WpDeployRecord,
@@ -65,10 +68,12 @@ export interface DeployWordPressApi {
   cancel(operationId: string): Promise<void>;
   createProject(input: DeployWordPressCreateProjectInput): Promise<Project>;
   setProjectItems(input: DeployWordPressItemsInput): Promise<Project>;
+  linkProject(input: DeployWordPressLinkProjectInput): Promise<DeployWordPressLinkProjectResult>;
   unlinkProject(projectId: string): Promise<Project>;
   localChanges(projectId: string): Promise<DeployWordPressLocalChanges>;
   remoteFile(input: DeployWordPressRemoteFileInput): Promise<DeployWordPressRemoteFile>;
   saveConnectorZip(): Promise<DeployWordPressSaveZipResult>;
+  updateConnector(siteId: string): Promise<DeployWordPressUpdateConnectorResult>;
 }
 
 export interface DeployWordPressHandlerDeps {
@@ -405,6 +410,16 @@ function itemsInput(value: unknown): DeployWordPressItemsInput {
   };
 }
 
+function linkProjectInput(value: unknown): DeployWordPressLinkProjectInput {
+  const input = object(value, 'the project link');
+  return {
+    operationId: operationId(input.operationId),
+    projectId: projectId(input.projectId),
+    siteId: siteId(input.siteId),
+    items: items(input.items),
+  };
+}
+
 function remoteFileInput(value: unknown): DeployWordPressRemoteFileInput {
   const input = object(value, 'a site file');
   const path = input.path;
@@ -491,10 +506,14 @@ export function registerDeployWordPressHandlers({
   handle(IPC.deployWordPress.setProjectItems, async (input) =>
     service.setProjectItems(itemsInput(input)),
   );
+  handle(IPC.deployWordPress.linkProject, async (input) =>
+    service.linkProject(linkProjectInput(input)),
+  );
   handle(IPC.deployWordPress.unlinkProject, async (id) => service.unlinkProject(projectId(id)));
   handle(IPC.deployWordPress.localChanges, async (id) => service.localChanges(projectId(id)));
   handle(IPC.deployWordPress.remoteFile, async (input) =>
     service.remoteFile(remoteFileInput(input)),
   );
   handle(IPC.deployWordPress.saveConnectorZip, () => service.saveConnectorZip());
+  handle(IPC.deployWordPress.updateConnector, async (id) => service.updateConnector(siteId(id)));
 }

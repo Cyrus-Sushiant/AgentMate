@@ -25,19 +25,19 @@ describe('pickMacZip', () => {
     '/v1.2.3/AgentMate-1.2.3-mac.zip',
   ];
 
-  it('gives Apple Silicon the arm64 zip', () => {
+  it('gives an arm64 build the arm64 zip', () => {
     expect(pickMacZip(both, true)).toBe('/v1.2.3/AgentMate-1.2.3-arm64-mac.zip');
   });
 
-  it('gives Intel the x64 zip', () => {
+  it('gives an Intel build the x64 zip, even under Rosetta', () => {
     expect(pickMacZip(both, false)).toBe('/v1.2.3/AgentMate-1.2.3-mac.zip');
   });
 
-  it('never gives Intel an arm64 build, even when it is the only zip', () => {
+  it('never gives an Intel build an arm64 zip, even when it is the only one', () => {
     expect(pickMacZip(['/AgentMate-1.2.3-arm64-mac.zip'], false)).toBeNull();
   });
 
-  it('lets Apple Silicon fall back to the Intel zip under Rosetta', () => {
+  it('lets an arm64 build fall back to the Intel zip under Rosetta', () => {
     expect(pickMacZip(['/AgentMate-1.2.3-mac.zip'], true)).toBe('/AgentMate-1.2.3-mac.zip');
   });
 
@@ -100,24 +100,29 @@ describe.skipIf(!hasShell())('INSTALL_SCRIPT', () => {
     });
   }
 
-  it('waits for the app to exit, then swaps in the new bundle and cleans up', async () => {
-    const { target, staging, staged, script } = setup();
-    const app = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 400)'], { stdio: 'ignore' });
-    let appExitedAt = 0;
-    app.on('exit', () => {
-      appExitedAt = Date.now();
-    });
-    const log = join(root, 'install.log');
+  // Git Bash's `kill -0` can't reliably see native Windows PIDs, so the wait is only
+  // meaningful where sh and the app share a process table.
+  it.skipIf(process.platform === 'win32')(
+    'waits for the app to exit, then swaps in the new bundle and cleans up',
+    async () => {
+      const { target, staging, staged, script } = setup();
+      const app = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 400)'], { stdio: 'ignore' });
+      let appExitedAt = 0;
+      app.on('exit', () => {
+        appExitedAt = Date.now();
+      });
+      const log = join(root, 'install.log');
 
-    const code = await runScript([script, String(app.pid), target, staged, staging, '0', log]);
+      const code = await runScript([script, String(app.pid), target, staged, staging, '0', log]);
 
-    expect(code).toBe(0);
-    // The swap must not finish before the app has exited.
-    expect(appExitedAt).toBeGreaterThan(0);
-    expect(readFileSync(join(target, 'version'), 'utf8')).toBe('new');
-    expect(existsSync(staging)).toBe(false);
-    expect(readFileSync(log, 'utf8')).toContain('installed');
-  });
+      expect(code).toBe(0);
+      // The swap must not finish before the app has exited.
+      expect(appExitedAt).toBeGreaterThan(0);
+      expect(readFileSync(join(target, 'version'), 'utf8')).toBe('new');
+      expect(existsSync(staging)).toBe(false);
+      expect(readFileSync(log, 'utf8')).toContain('installed');
+    },
+  );
 
   it('puts the old bundle back when the new one cannot be moved in', async () => {
     const { target, staging, script } = setup();

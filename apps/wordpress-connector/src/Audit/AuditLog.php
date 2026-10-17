@@ -25,6 +25,8 @@ final class AuditLog
         'deployDone',
         'deployRolledBack',
         'deployAborted',
+        'connectorUpdated',
+        'connectorRolledBack',
         'settingsChanged',
     );
 

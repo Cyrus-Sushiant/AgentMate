@@ -53,6 +53,7 @@ final class Protocol
         'deployHistory' => '/deploy/history',
         'auditList' => '/audit/list',
         'connectionRevoke' => '/connection/revoke',
+        'connectorUpdate' => '/connector/update',
         'rescueStatus' => '/rescue/status',
         'rescueRollback' => '/rescue/rollback',
     );
@@ -66,8 +67,15 @@ final class Protocol
         '/deploy/finalize',
         '/deploy/rollback',
         '/deploy/abort',
+        '/connector/update',
         '/rescue/rollback',
     );
+
+    /** What a connector update may hold; mirrors WP_UPDATE_* in protocol.ts. */
+    const UPDATE_MAX_FILES = 400;
+    const UPDATE_MAX_FILE_BYTES = 2097152;
+    const UPDATE_MAX_TOTAL_BYTES = 8388608;
+    const UPDATE_FILE_PATTERN = '/\.(php|txt|md|css|js|json|xml|html)$/iD';
 
     /**
      * The HTTP status sent with each error code. The contract does not fix these; clients should
@@ -99,6 +107,7 @@ final class Protocol
         'pairingInvalid' => 401,
         'pairingExpired' => 410,
         'protocolMismatch' => 400,
+        'updateRefused' => 422,
         'internal' => 500,
     );
 

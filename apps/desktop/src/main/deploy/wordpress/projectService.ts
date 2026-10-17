@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import {
   buildWpProjectPrompt,
+  normalizeProjectWordPressLink,
   type Project,
   planWpDeploy,
   planWpPull,
@@ -17,6 +18,8 @@ import {
   wpItemKey,
   wpItemRoot,
   wpKeyTransportSecurity,
+  withoutWpProjectPrompt,
+  withWpProjectPrompt,
   wpMirrorPath,
 } from '@agentmat/core';
 import type {
@@ -25,6 +28,8 @@ import type {
   DeployWordPressItemsInput,
   DeployWordPressLeftOut,
   DeployWordPressLeftOutReason,
+  DeployWordPressLinkProjectInput,
+  DeployWordPressLinkProjectResult,
   DeployWordPressLocalChanges,
   DeployWordPressPlan,
   DeployWordPressPlanInput,
@@ -42,6 +47,7 @@ import { deniedReason, type WpHashCache, walkLocalItem } from './localManifest';
 import { WpLocalWriter } from './localWriter';
 import {
   assertItemFoldersEmpty,
+  itemsWithFiles,
   newWpLink,
   requireLinkedProject,
   selectItems,
@@ -746,15 +752,105 @@ export class WordPressProjectService extends WordPressService {
     }
   }
 
+  /**
+   * Makes an existing project a WordPress project. Items whose folders are missing or empty are
+   * pulled in now; one whose folder already holds files is linked without a pull, so nothing in
+   * it is overwritten, and the next pull shows each file that differs from the site as a
+   * conflict. The site's facts go into the project's prompt after what the user wrote.
+   */
+  async linkProject(
+    input: DeployWordPressLinkProjectInput,
+  ): Promise<DeployWordPressLinkProjectResult> {
+    const project = await this.projectDeps.projects.get(input.projectId);
+    if (!project) throw wordPressError('projectNotLinked', 'That project no longer exists.');
+    if (normalizeProjectWordPressLink(project.wordpress)) {
+      throw wordPressError('badRequest', 'This project is already linked to a WordPress site.');
+    }
+    const site = await this.requireSite(input.siteId);
+    return this.runOperation(input.operationId, site.id, project.id, 'items', (signal, report) =>
+      this.withSite(site.id, async (client) => {
+        const folder = await stat(project.folderPath).catch(() => null);
+        if (!folder?.isDirectory()) {
+          throw wordPressError('badRequest', "This project's folder is missing.");
+        }
+        // Whatever an earlier link left behind belongs to another sync.
+        await this.deps.bases.remove(project.id);
+        report('manifest', 0, input.items.length);
+        const gathered = await this.gather(client, site, project, input.items, signal);
+        const missing = gathered.items.filter((state) => !state.onSite);
+        if (missing.length > 0) {
+          throw wordPressError(
+            'itemUnknown',
+            `The site has no ${missing.map((state) => wpItemRoot(state.item)).join(', ')}.`,
+          );
+        }
+        const notPulled = await itemsWithFiles(project.folderPath, input.items);
+        const kept = new Set(notPulled.map(wpItemKey));
+        const items = gathered.items
+          .filter((state) => !kept.has(wpItemKey(state.item)))
+          .map((state) => ({ ...state, base: {} }));
+        const writer = new WpLocalWriter(project.folderPath);
+        try {
+          const pulled = await this.applyPull(
+            client,
+            site,
+            {
+              plan: { changes: planWpPull(items).changes } as DeployWordPressPlan,
+              items,
+              projectRoot: project.folderPath,
+              limits: gathered.info.limits,
+            },
+            {},
+            signal,
+            report,
+            writer,
+          );
+          await this.writeBase(project.id, site, pulled.bases, isFileMap(items), input.items);
+          const siteItems = input.items
+            .map((item) => gathered.siteItems.find((entry) => wpItemKey(entry) === wpItemKey(item)))
+            .filter((item): item is WpItem => item !== undefined);
+          const updated = await this.projectDeps.projects.setLink(
+            project.id,
+            newWpLink(site.id, input.items, this.now()),
+            {
+              prompt: withWpProjectPrompt(
+                project.prompt ?? '',
+                buildWpProjectPrompt(gathered.info, siteItems),
+              ),
+              ...(project.websiteUrl ? {} : { websiteUrl: site.siteUrl }),
+            },
+          );
+          this.dropPlans(project.id);
+          report('done', 1, 1);
+          return { project: updated, notPulled };
+        } catch (error) {
+          await writer.removeCreated();
+          await this.deps.bases.remove(project.id);
+          throw error;
+        }
+      }),
+    );
+  }
+
   async unlinkProject(projectId: string): Promise<Project> {
-    const { link } = await requireLinkedProject(this.projectDeps.projects, projectId);
+    const { project: current, link } = await requireLinkedProject(
+      this.projectDeps.projects,
+      projectId,
+    );
     if (this.siteBusy(link.siteId)) {
       throw wordPressError(
         'operationBusy',
         'A pull or deploy for this site is still running. Wait for it to finish first.',
       );
     }
-    const project = await this.projectDeps.projects.setLink(projectId, undefined);
+    // The site's facts in the prompt would only mislead agents once the link is gone.
+    const prompt = current.prompt ?? '';
+    const withoutSite = withoutWpProjectPrompt(prompt);
+    const project = await this.projectDeps.projects.setLink(
+      projectId,
+      undefined,
+      withoutSite === prompt ? undefined : { prompt: withoutSite },
+    );
     await this.deps.bases.remove(projectId);
     this.dropPlans(projectId);
     return project;

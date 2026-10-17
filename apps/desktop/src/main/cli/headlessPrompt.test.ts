@@ -52,8 +52,8 @@ vi.mock('../packageManagers/execUtils', () => ({
 }));
 /** Commands the next PATH refresh makes findable, like a CLI installed after the app started. */
 const appearsAfterPathRefresh = new Set<string>();
-vi.mock('../windowsPath', () => ({
-  refreshWindowsPath: vi.fn(async () => {
+vi.mock('../shellPath', () => ({
+  refreshShellPath: vi.fn(async () => {
     for (const command of appearsAfterPathRefresh) installed.add(command);
   }),
 }));
@@ -174,18 +174,23 @@ describe('runHeadlessCliPrompt uses the user CLI settings', () => {
 describe('runHeadlessCliPrompt finds a CLI the startup PATH missed', () => {
   const realPlatform = process.platform;
 
-  it('reads PATH again on Windows before calling the chosen CLI missing', async () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    try {
-      installed.clear();
-      appearsAfterPathRefresh.add('claude');
-      const started = await run({ preferredCliId: 'claude-code', strictCli: true });
-      expect(started.command).toBe('claude');
-    } finally {
-      appearsAfterPathRefresh.clear();
-      Object.defineProperty(process, 'platform', { value: realPlatform });
-    }
-  });
+  // A Mac opened from Finder starts with no shell PATH at all, which is the case that hid Claude
+  // Code there; Windows misses whatever was installed after the app started.
+  it.each(['win32', 'darwin'])(
+    'reads PATH again on %s before calling the chosen CLI missing',
+    async (platform) => {
+      Object.defineProperty(process, 'platform', { value: platform });
+      try {
+        installed.clear();
+        appearsAfterPathRefresh.add('claude');
+        const started = await run({ preferredCliId: 'claude-code', strictCli: true });
+        expect(started.command).toBe('claude');
+      } finally {
+        appearsAfterPathRefresh.clear();
+        Object.defineProperty(process, 'platform', { value: realPlatform });
+      }
+    },
+  );
 
   it('says how to fix it when the CLI really is missing', async () => {
     installed.clear();

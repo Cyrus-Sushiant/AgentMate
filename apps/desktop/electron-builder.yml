@@ -86,6 +86,13 @@ nsis:
 
 mac:
   icon: build/icon.png
+  # There is no Apple Developer ID, so sign ad-hoc ("-"). Left unsigned, the arm64 build
+  # won't open on Apple Silicon at all ("AgentMate is damaged"), because arm64 code must
+  # carry a valid signature; the x64 build only got away with it by running under Rosetta.
+  # Hardened runtime and notarization both need a real identity, so they are off.
+  identity: '-'
+  hardenedRuntime: false
+  notarize: false
   # Required for Prompt Builder's voice input: macOS crashes the app on mic
   # access unless this usage string is present in Info.plist.
   extendInfo:

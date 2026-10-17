@@ -53,6 +53,7 @@ import {
   normalizeDesktopPetCardView,
   normalizeDesktopPetId,
   normalizeDesktopPetName,
+  normalizeDevSetupStacks,
   normalizeGrammarSettings,
   normalizeHelpEmbeddingModels,
   normalizeIdleResourceMinutes,
@@ -241,6 +242,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   androidCapturePath: null,
   idleResourceMinutes: DEFAULT_IDLE_RESOURCE_MINUTES,
   idleResourceNotify: true,
+  devSetupStacks: ['essentials'],
 };
 
 /**
@@ -299,6 +301,7 @@ function withSettingsMigrations(settings: AppSettings): AppSettings {
     androidStopEmulatorsOnQuit: settings.androidStopEmulatorsOnQuit === true,
     idleResourceMinutes: normalizeIdleResourceMinutes(settings.idleResourceMinutes),
     idleResourceNotify: settings.idleResourceNotify !== false,
+    devSetupStacks: normalizeDevSetupStacks(settings.devSetupStacks),
     cliArgs: normalizeCliArgs(settings.cliArgs),
     cliLaunchDefaults: normalizeCliLaunchDefaults(settings.cliLaunchDefaults),
     commitMessage: normalizeCommitMessageSettings(settings.commitMessage),

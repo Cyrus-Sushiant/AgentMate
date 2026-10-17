@@ -10,6 +10,7 @@ namespace AgentMate\Connector\Info;
 use AgentMate\Connector\Env\Environment;
 use AgentMate\Connector\Protocol;
 use AgentMate\Connector\Storage\Storage;
+use AgentMate\Connector\Update\ConnectorUpdater;
 
 final class SiteInfo
 {
@@ -58,6 +59,7 @@ final class SiteInfo
             'fileEditDisabled' => $env->constantOn('DISALLOW_FILE_EDIT'),
             'filesystemMethod' => $env->filesystemMethod(),
             'readOnlyByConstant' => $env->constantOn('AGENTMATE_CONNECTOR_READ_ONLY'),
+            'selfUpdate' => ConnectorUpdater::replaceable($env),
             'sodium' => $env->sodiumMode(),
             'limits' => Limits::forEnvironment($env),
             'guard' => array('installed' => is_file($guard), 'rescueUrl' => $env->rescueUrl()),

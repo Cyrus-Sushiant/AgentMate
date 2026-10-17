@@ -53,6 +53,13 @@ export const queryKeys = {
   securityHistory: (projectId: string) => ['security', projectId, 'history'] as const,
   securityConfig: (projectId: string) => ['security', projectId, 'config'] as const,
   toolsStatus: ['tools-status'] as const,
+  /** Agent Tools > Dev Setup: the machine (OS, package managers), then one probe per item. */
+  devSetupEnvironment: ['dev-setup', 'environment'] as const,
+  /** Prefix of every devSetupItem key, so one invalidate re-checks the whole checklist. */
+  devSetupItems: ['dev-setup', 'item'] as const,
+  devSetupItem: (id: string) => ['dev-setup', 'item', id] as const,
+  /** What the nav badge reads: remembered results only, never a probe. */
+  devSetupPeek: ['dev-setup', 'peek'] as const,
   templates: ['prompt-templates'] as const,
   settings: ['settings'] as const,
   petCustomImages: ['pet-custom-images'] as const,

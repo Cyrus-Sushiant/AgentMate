@@ -34,12 +34,12 @@ export function appBundleFor(execPath: string): string | null {
   return bundle.endsWith('.app') ? bundle : null;
 }
 
-/** Picks the release zip that runs on this Mac, the way electron-updater's MacUpdater does. */
-export function pickMacZip(names: string[], armMac: boolean): string | null {
+/** Picks the release zip with the same arch as the running build. */
+export function pickMacZip(names: string[], armBuild: boolean): string | null {
   const zips = names.filter((name) => name.toLowerCase().endsWith('.zip'));
   const isArm = (name: string): boolean => name.includes('arm64');
-  // Apple Silicon prefers its own build and can fall back to Intel under Rosetta.
-  if (armMac) return zips.find(isArm) ?? zips.find((name) => !isArm(name)) ?? null;
+  // An arm64 build is on Apple Silicon, which can fall back to Intel under Rosetta.
+  if (armBuild) return zips.find(isArm) ?? zips.find((name) => !isArm(name)) ?? null;
   return zips.find((name) => !isArm(name)) ?? null;
 }
 

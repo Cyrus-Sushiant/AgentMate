@@ -116,6 +116,8 @@ export function ProxySettings({
     setDraft(settings.proxy);
     setTestResult(null);
     setDirty(false);
+    // The page tracks the card's dirty flag too, and keeps showing the save bar until told.
+    onDirtyChange?.(false);
   }, [resetToken]);
 
   const statusQuery = useQuery({

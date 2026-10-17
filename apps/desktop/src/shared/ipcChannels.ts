@@ -550,6 +550,17 @@ export const IPC = {
     snapshot: 'resourceActivity:snapshot',
     stop: 'resourceActivity:stop',
   },
+  /** Agent Tools > Dev Setup: what developer tools are installed and how to get the rest. */
+  devSetup: {
+    environment: 'devSetup:environment',
+    detect: 'devSetup:detect',
+    peek: 'devSetup:peek',
+    install: 'devSetup:install',
+    cancel: 'devSetup:cancel',
+    jobState: 'devSetup:jobState',
+    /** Main to renderer: one step of an install run, as it happens. */
+    onEvent: 'devSetup:onEvent',
+  },
   /** The Android page: the SDK behind it, AVDs, emulators and adb devices. */
   android: {
     sdk: 'android:sdk',
@@ -971,10 +982,13 @@ export const IPC = {
     cancel: 'deployWordPress:cancel',
     createProject: 'deployWordPress:createProject',
     setProjectItems: 'deployWordPress:setProjectItems',
+    linkProject: 'deployWordPress:linkProject',
     unlinkProject: 'deployWordPress:unlinkProject',
     localChanges: 'deployWordPress:localChanges',
     remoteFile: 'deployWordPress:remoteFile',
     saveConnectorZip: 'deployWordPress:saveConnectorZip',
+    /** Replaces the plugin on a site with the version bundled in this app. */
+    updateConnector: 'deployWordPress:updateConnector',
     /** main -> the main window: the steps of a pull, deploy, rollback or new project. */
     onProgress: 'deployWordPress:onProgress',
   },

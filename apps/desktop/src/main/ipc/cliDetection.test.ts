@@ -1,5 +1,5 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import type { CliUpdateCheckResult, InstalledCli } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '../../shared/ipcChannels';
@@ -18,7 +18,8 @@ import {
  * missing CLI being remembered only briefly so one installed since shows up.
  *
  * The probe looks for real executables on PATH, so a fake one is put on a temp PATH rather than
- * mocking the child process layer.
+ * mocking the child process layer. Reading the login shell's PATH is stood in for, since the real
+ * one would put whatever this machine has installed back on PATH.
  */
 
 useTempUserData();
@@ -26,6 +27,12 @@ expectChannelsCovered(IPC.cli);
 
 const fetchMock = vi.fn();
 let binDir = '';
+/** A folder only the user's login shell has on PATH, like ~/.local/bin for a Mac app from Finder. */
+let loginShellDir: string | null = null;
+const { refreshShellPath } = vi.hoisted(() => ({
+  refreshShellPath: vi.fn<(options?: { force?: boolean }) => Promise<void>>(),
+}));
+vi.mock('../shellPath', () => ({ refreshShellPath }));
 
 async function register(): Promise<void> {
   await loadIpc(
@@ -35,15 +42,15 @@ async function register(): Promise<void> {
 }
 
 /** A `claude` on PATH that answers --version, the way CLI detection expects. */
-function writeFakeClaude(version = '9.9.9'): void {
+function writeFakeClaude(version = '9.9.9', dir = binDir): void {
   if (process.platform === 'win32') {
     writeFileSync(
-      join(binDir, 'claude.cmd'),
+      join(dir, 'claude.cmd'),
       ['@echo off', `echo ${version} (Claude Code)`, ''].join('\r\n'),
     );
     return;
   }
-  const script = join(binDir, 'claude');
+  const script = join(dir, 'claude');
   writeFileSync(script, ['#!/bin/sh', `echo "${version} (Claude Code)"`, ''].join('\n'));
   chmodSync(script, 0o755);
 }
@@ -59,6 +66,12 @@ beforeEach(async () => {
   // Only the fake binaries are on PATH, so a CLI really installed on this machine cannot make
   // the result depend on who is running the tests.
   vi.stubEnv(key, binDir);
+  loginShellDir = null;
+  refreshShellPath.mockReset();
+  refreshShellPath.mockImplementation(async () => {
+    if (!loginShellDir) return;
+    process.env[key] = [process.env[key], loginShellDir].filter(Boolean).join(delimiter);
+  });
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   await register();
@@ -95,6 +108,21 @@ describe('detecting installed CLIs', () => {
     const found = claude(await invoke<InstalledCli[]>(IPC.cli.detectAll, true));
 
     expect(found?.version).toContain('9.9.9');
+  });
+
+  it('finds a CLI only the login shell has on PATH, the way a Mac app opened from Finder starts', async () => {
+    // launchd gives a Finder-launched app /usr/bin:/bin:/usr/sbin:/sbin, and Claude Code's
+    // installer puts it in ~/.local/bin through .zshrc. Searching the app's own PATH alone showed
+    // it as not installed in the CLI Manager and the workspace while every terminal ran it.
+    loginShellDir = join(tempDir('agentmate-login-shell-'), '.local', 'bin');
+    mkdirSync(loginShellDir, { recursive: true });
+    writeFakeClaude('9.9.9', loginShellDir);
+
+    const found = claude(await invoke<InstalledCli[]>(IPC.cli.detectAll, true));
+
+    expect(refreshShellPath).toHaveBeenCalledWith({ force: true });
+    expect(found?.installed).toBe(true);
+    expect(found?.executablePath?.toLowerCase()).toContain(loginShellDir.toLowerCase());
   });
 
   it('reports one that is nowhere on PATH as missing', async () => {

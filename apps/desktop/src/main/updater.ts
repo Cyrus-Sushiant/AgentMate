@@ -305,8 +305,13 @@ function wireEvents(): void {
   });
 }
 
-function isArmMac(): boolean {
-  return process.arch === 'arm64' || app.runningUnderARM64Translation === true;
+/**
+ * Updates keep the arch of the build that is running, not the hardware's: an Intel build
+ * under Rosetta on Apple Silicon stays Intel, so an update never swaps in a build the user
+ * hasn't already seen launch on this Mac.
+ */
+function isArmBuild(): boolean {
+  return process.arch === 'arm64';
 }
 
 async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
@@ -322,12 +327,12 @@ async function resolveAsset(info: UpdateInfo): Promise<ResolvedAsset> {
     if (process.platform === 'darwin') {
       const picked = pickMacZip(
         files.map((file) => file.url.pathname),
-        isArmMac(),
+        isArmBuild(),
       );
       match = files.find((file) => file.url.pathname === picked);
       if (!match) {
         throw new DownloadFatalError(
-          `This release has no update for ${isArmMac() ? 'Apple Silicon' : 'Intel'} Macs. Download it from the releases page instead.`,
+          `This release has no ${isArmBuild() ? 'Apple Silicon' : 'Intel'} build to update to. Download it from the releases page instead.`,
         );
       }
     } else {

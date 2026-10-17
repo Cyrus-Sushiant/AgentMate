@@ -8,7 +8,9 @@ import {
   isPingIpVersion,
   normalizePingUrlInterval,
   normalizePingUrls,
-  pingArgs,
+  parsePingLatency,
+  pingCommand,
+  pingHost,
   probeAll,
 } from './pingProbe';
 
@@ -93,16 +95,93 @@ describe('probeAll interval', () => {
   });
 });
 
-describe('pingArgs', () => {
+describe('pingCommand', () => {
   it('leaves the ping command on its default family for ipv4', () => {
-    expect(pingArgs('1.1.1.1', 'ipv4', true)).toEqual(['-n', '1', '-w', '1500', '1.1.1.1']);
-    expect(pingArgs('1.1.1.1', 'ipv4', false)).toEqual(['-c', '1', '-W', '2', '1.1.1.1']);
+    expect(pingCommand('1.1.1.1', 'ipv4', 'win32')).toEqual({
+      file: 'ping',
+      args: ['-n', '1', '-w', '1500', '1.1.1.1'],
+    });
+    expect(pingCommand('1.1.1.1', 'ipv4', 'linux')).toEqual({
+      file: 'ping',
+      args: ['-c', '1', '-W', '2', '1.1.1.1'],
+    });
   });
 
-  it('forces IPv6 with -6 on both Windows and POSIX ping', () => {
+  it('forces IPv6 with -6 on Windows and Linux ping', () => {
     const host = '2606:4700:4700::1111';
-    expect(pingArgs(host, 'ipv6', true)).toEqual(['-6', '-n', '1', '-w', '1500', host]);
-    expect(pingArgs(host, 'ipv6', false)).toEqual(['-6', '-c', '1', '-W', '2', host]);
+    expect(pingCommand(host, 'ipv6', 'win32').args).toEqual(['-6', '-n', '1', '-w', '1500', host]);
+    expect(pingCommand(host, 'ipv6', 'linux').args).toEqual(['-6', '-c', '1', '-W', '2', host]);
+  });
+
+  // macOS -W is milliseconds, not seconds. The Linux flags gave it 2 ms to
+  // answer, so the network card and status bar always showed no connection.
+  it('gives macOS ping a two second reply wait in milliseconds', () => {
+    expect(pingCommand('1.1.1.1', 'ipv4', 'darwin')).toEqual({
+      file: '/sbin/ping',
+      args: ['-c', '1', '-W', '2000', '1.1.1.1'],
+    });
+  });
+
+  it('never hands macOS a reply wait under one second', () => {
+    const { args } = pingCommand('1.1.1.1', 'ipv4', 'darwin');
+    const wait = args.indexOf('-W');
+    if (wait >= 0) expect(Number(args[wait + 1])).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('pings IPv6 on macOS through ping6, which has no -6 flag', () => {
+    const host = '2606:4700:4700::1111';
+    expect(pingCommand(host, 'ipv6', 'darwin')).toEqual({
+      file: '/sbin/ping6',
+      args: ['-c', '1', host],
+    });
+  });
+});
+
+describe('parsePingLatency', () => {
+  it('reads a macOS ping reply', () => {
+    const stdout = [
+      'PING 1.1.1.1 (1.1.1.1): 56 data bytes',
+      '64 bytes from 1.1.1.1: icmp_seq=0 ttl=57 time=14.623 ms',
+      '',
+      '--- 1.1.1.1 ping statistics ---',
+      '1 packets transmitted, 1 packets received, 0.0% packet loss',
+      'round-trip min/avg/max/stddev = 14.623/14.623/14.623/0.000 ms',
+    ].join('\n');
+    expect(parsePingLatency(stdout, 'darwin')).toBe(15);
+  });
+
+  it('reads a macOS ping6 reply', () => {
+    const stdout = [
+      'PING6(56=40+8+8 bytes) 2a02:1:2::5 --> 2606:4700:4700::1111',
+      '16 bytes from 2606:4700:4700::1111, icmp_seq=0 hlim=58 time=21.402 ms',
+    ].join('\n');
+    expect(parsePingLatency(stdout, 'darwin')).toBe(21);
+  });
+
+  it('reads Linux and Windows replies', () => {
+    expect(parsePingLatency('64 bytes from 1.1.1.1: icmp_seq=1 ttl=57 time=9.87 ms', 'linux')).toBe(
+      10,
+    );
+    expect(parsePingLatency('Reply from 1.1.1.1: bytes=32 time=12ms TTL=57', 'win32')).toBe(12);
+    expect(parsePingLatency('Reply from 127.0.0.1: bytes=32 time<1ms TTL=128', 'win32')).toBe(1);
+  });
+
+  it('treats a macOS timeout as no reply', () => {
+    const stdout = [
+      'PING 1.1.1.1 (1.1.1.1): 56 data bytes',
+      '',
+      '--- 1.1.1.1 ping statistics ---',
+      '1 packets transmitted, 0 packets received, 100.0% packet loss',
+    ].join('\n');
+    expect(parsePingLatency(stdout, 'darwin')).toBeNull();
+  });
+});
+
+describe('pingHost on this machine', () => {
+  it('gets a reply from loopback', async () => {
+    const result = await pingHost('127.0.0.1');
+    expect(result).toMatchObject({ host: '127.0.0.1', alive: true });
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 });
 

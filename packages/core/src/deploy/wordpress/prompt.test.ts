@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWpProjectPrompt } from './prompt.js';
+import { buildWpProjectPrompt, withoutWpProjectPrompt, withWpProjectPrompt } from './prompt.js';
 import type { WpItem, WpSiteInfo } from './protocol.js';
 
 /** The standing prompt of a new WordPress project: facts about the site, plain text only. */
@@ -114,5 +114,42 @@ describe('buildWpProjectPrompt', () => {
     );
     expect(prompt).toContain('"WordPress site"');
     expect(prompt).toContain('Its active theme is unknown.');
+  });
+});
+
+describe('withWpProjectPrompt and withoutWpProjectPrompt', () => {
+  const shop = buildWpProjectPrompt(info(), [item({ kind: 'theme', slug: 'shop' })]);
+  const blog = buildWpProjectPrompt(info({ siteName: 'Blog' }), [
+    item({ kind: 'plugin', slug: 'tools' }),
+  ]);
+
+  it('uses the block alone for a project without a prompt', () => {
+    expect(withWpProjectPrompt('', shop)).toBe(shop);
+    expect(withWpProjectPrompt('  \n', shop)).toBe(shop);
+  });
+
+  it("puts the block after the user's own prompt", () => {
+    expect(withWpProjectPrompt('Use tabs.', shop)).toBe(`Use tabs.\n\n${shop}`);
+  });
+
+  it('swaps the block from an earlier link for the new one', () => {
+    const linked = withWpProjectPrompt('Use tabs.', shop);
+    expect(withWpProjectPrompt(linked, blog)).toBe(`Use tabs.\n\n${blog}`);
+    expect(withWpProjectPrompt(`${shop}\n\nKeep it short.`, blog)).toBe(
+      `Keep it short.\n\n${blog}`,
+    );
+  });
+
+  it("takes the block out and keeps the user's words around it", () => {
+    expect(withoutWpProjectPrompt(shop)).toBe('');
+    expect(withoutWpProjectPrompt(`Use tabs.\n\n${shop}\n\nKeep it short.`)).toBe(
+      'Use tabs.\n\nKeep it short.',
+    );
+    expect(withoutWpProjectPrompt('Use tabs.')).toBe('Use tabs.');
+  });
+
+  it('leaves a block the user edited alone', () => {
+    const edited = shop.replace('untrusted data', 'data');
+    expect(withoutWpProjectPrompt(edited)).toBe(edited);
   });
 });

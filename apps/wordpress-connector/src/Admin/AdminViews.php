@@ -365,6 +365,8 @@ JS;
             'deployDone' => __('Deploy done', 'agentmate-connector'),
             'deployRolledBack' => __('Deploy rolled back', 'agentmate-connector'),
             'deployAborted' => __('Deploy aborted', 'agentmate-connector'),
+            'connectorUpdated' => __('Connector updated', 'agentmate-connector'),
+            'connectorRolledBack' => __('Connector update undone', 'agentmate-connector'),
             'settingsChanged' => __('Settings changed', 'agentmate-connector'),
         );
         ?>

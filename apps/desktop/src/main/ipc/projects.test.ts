@@ -228,6 +228,20 @@ describe('the WordPress link', () => {
       projectsModule.setProjectWordPressLink(project.id, { ...link, items: [] }),
     ).rejects.toThrow('not valid');
   });
+
+  it('changes the prompt and website with the link when asked to', async () => {
+    const project = await create();
+    const linked = await projectsModule.setProjectWordPressLink(project.id, link, {
+      prompt: 'Site facts.',
+      websiteUrl: 'https://shop.example/',
+    });
+    expect(linked).toMatchObject({ prompt: 'Site facts.', websiteUrl: 'https://shop.example/' });
+    const unlinked = await projectsModule.setProjectWordPressLink(project.id, undefined, {
+      prompt: '',
+    });
+    expect(unlinked).toMatchObject({ prompt: '', websiteUrl: 'https://shop.example/' });
+    expect(unlinked.wordpress).toBeUndefined();
+  });
 });
 
 describe('project icons', () => {

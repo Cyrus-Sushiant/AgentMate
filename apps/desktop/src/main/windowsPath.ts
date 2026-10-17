@@ -66,3 +66,51 @@ async function readRegistryPath(): Promise<void> {
   });
   if (added.length > 0) process.env[key] = [...current, ...added].join(delimiter);
 }
+
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const USER_ENV = 'HKCU\\Environment';
+const MACHINE_ENV = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment';
+
+function regQueryValue(hive: string, name: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(
+      'reg.exe',
+      ['query', hive, '/v', name],
+      { windowsHide: true, timeout: 5000 },
+      (error, stdout) => {
+        if (error) {
+          resolve(null);
+          return;
+        }
+        const match = new RegExp(`\\b${name}\\s+REG_(?:EXPAND_)?SZ\\s+(.*)`, 'i').exec(stdout);
+        const value = match?.[1]?.trim().replace(/%([^%]+)%/g, (whole, variable: string) => {
+          const key = Object.keys(process.env).find(
+            (k) => k.toUpperCase() === variable.toUpperCase(),
+          );
+          return key ? (process.env[key] ?? whole) : whole;
+        });
+        resolve(value || null);
+      },
+    );
+  });
+}
+
+/**
+ * Reads variables an installer has just set (JAVA_HOME, ANDROID_HOME, DOTNET_ROOT...) back from
+ * the registry into this process, the way `refreshWindowsPath` does for PATH. A variable the app
+ * already has is left alone, so nothing a person set for this session is replaced, and the user's
+ * value wins over the machine's as it does for a new terminal.
+ */
+export async function refreshWindowsEnvVars(names: readonly string[]): Promise<void> {
+  if (process.platform !== 'win32') return;
+  for (const name of names) {
+    // These names go onto a command line, so only something shaped like a variable gets that far.
+    if (!ENV_NAME.test(name)) continue;
+    const existing = Object.keys(process.env).find(
+      (key) => key.toUpperCase() === name.toUpperCase(),
+    );
+    if (existing && process.env[existing]) continue;
+    const value = (await regQueryValue(USER_ENV, name)) ?? (await regQueryValue(MACHINE_ENV, name));
+    if (value) process.env[name] = value;
+  }
+}

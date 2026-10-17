@@ -19,7 +19,8 @@ import { IPC } from '../../shared/ipcChannels';
 import { mapWithConcurrency } from '../packageManagers/execUtils';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { killProcessTree } from '../security/exec';
-import { pathKey, refreshWindowsPath } from '../windowsPath';
+import { refreshShellPath } from '../shellPath';
+import { pathKey } from '../windowsPath';
 
 /**
  * Some CLIs take a long time to answer `--version` (Cline and Cursor's agent run past ten seconds,
@@ -156,7 +157,8 @@ export function detectAllClis(force: boolean): Promise<InstalledCli[]> {
   const sweep = previous
     .catch(() => [])
     .then(async () => {
-      await refreshWindowsPath({ force: true });
+      // On a Mac opened from Finder this is what puts ~/.local/bin, Homebrew and nvm on PATH.
+      await refreshShellPath({ force: true });
       return mapWithConcurrency(CLI_REGISTRY, PROBE_CONCURRENCY, detectCli);
     })
     .then((value) => {

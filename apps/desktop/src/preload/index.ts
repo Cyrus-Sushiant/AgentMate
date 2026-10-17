@@ -22,6 +22,10 @@ import type {
   DesktopPromptBuildWidgetInstance,
   DesktopWidgetInstance,
   DetectedClaudeHook,
+  DevDetection,
+  DevJobEvent,
+  DevJobState,
+  DevSetupEnvironment,
   DuplicatePolicy,
   GenericMapping,
   GitChangeEntry,
@@ -966,6 +970,22 @@ const resourceActivity = {
     ipcRenderer.invoke(IPC.resourceActivity.snapshot, options),
   stop: (refs: ResourceRef[], options?: { onlyIfIdle?: boolean }): Promise<ResourceStopOutcome> =>
     ipcRenderer.invoke(IPC.resourceActivity.stop, refs, options),
+};
+
+const devSetup = {
+  environment: (options?: { force?: boolean }): Promise<DevSetupEnvironment> =>
+    ipcRenderer.invoke(IPC.devSetup.environment, options),
+  detect: (id: string, options?: { force?: boolean }): Promise<DevDetection> =>
+    ipcRenderer.invoke(IPC.devSetup.detect, id, options),
+  peek: (ids: string[]): Promise<Record<string, DevDetection | undefined>> =>
+    ipcRenderer.invoke(IPC.devSetup.peek, ids),
+  install: (request: { ids: string[]; consented?: boolean }): Promise<DevJobState> =>
+    ipcRenderer.invoke(IPC.devSetup.install, request),
+  /** With an id, takes that waiting step out of the queue; without, stops the whole run. */
+  cancel: (id?: string): Promise<void> => ipcRenderer.invoke(IPC.devSetup.cancel, id),
+  jobState: (): Promise<DevJobState> => ipcRenderer.invoke(IPC.devSetup.jobState),
+  onEvent: (callback: (event: DevJobEvent) => void): (() => void) =>
+    subscribe(IPC.devSetup.onEvent, callback),
 };
 
 const android = {
@@ -2569,6 +2589,7 @@ const agentmatApi = {
   mcp,
   security,
   tools,
+  devSetup,
   android,
   docker,
   resourceActivity,

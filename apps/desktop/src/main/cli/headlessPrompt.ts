@@ -10,8 +10,8 @@ import {
   supportsPromptImages,
 } from '@agentmat/core';
 import { runCli } from '../packageManagers/execUtils';
+import { refreshShellPath } from '../shellPath';
 import { store } from '../store';
-import { refreshWindowsPath } from '../windowsPath';
 
 /** Agent CLIs answer through a model round-trip, so they need far longer than a git call. */
 const HEADLESS_TIMEOUT_MS = 180000;
@@ -193,10 +193,10 @@ async function resolveHeadlessCli(
 async function isOnPath(cli: CliDefinition): Promise<boolean> {
   if (await probeVersion(cli)) return true;
   // The app keeps the PATH it started with, so a CLI installed (or moved to a new folder by an
-  // update) since then isn't found even though every new terminal finds it. Read PATH back from
-  // the registry once and look again before calling it missing.
-  if (process.platform !== 'win32') return false;
-  await refreshWindowsPath();
+  // update) since then isn't found even though every new terminal finds it, and a Mac app opened
+  // from Finder never had the shell's PATH at all. Read PATH back (the registry on Windows, the
+  // login shell elsewhere) once and look again before calling it missing.
+  await refreshShellPath();
   return probeVersion(cli);
 }
 

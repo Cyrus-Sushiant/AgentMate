@@ -16,6 +16,7 @@ import { IPC } from '../../shared/ipcChannels';
 import { probeAll } from '../network/pingProbe';
 import { store } from '../store';
 import { sampleGpus } from '../system/gpuStats';
+import { sampleMemory } from '../system/memoryStats';
 import { asArray, runPowerShellJson } from '../system/processTree';
 
 const execFileAsync = promisify(execFile);
@@ -85,16 +86,6 @@ function sampleCpuCorePercentsFromOs(): number[] {
 async function sampleCpu(): Promise<CpuSample> {
   const cpuCorePercents = sampleCpuCorePercentsFromOs();
   return { cpuPercent: averagePercents(cpuCorePercents), cpuCorePercents };
-}
-
-function sampleMemory(): Pick<SystemStatsSample, 'memPercent' | 'memUsedBytes' | 'memTotalBytes'> {
-  const memTotalBytes = os.totalmem();
-  const memUsedBytes = memTotalBytes - os.freemem();
-  return {
-    memPercent: (memUsedBytes / memTotalBytes) * 100,
-    memUsedBytes,
-    memTotalBytes,
-  };
 }
 
 interface DiskIoSnapshot {
@@ -944,12 +935,13 @@ export function registerSystemStatsHandlers(): void {
 
   ipcMain.handle(IPC.system.sample, async (): Promise<SystemStatsSample> => {
     const settings = await store.getSettings();
-    const [net, pings, disks, gpus, cpu] = await Promise.all([
+    const [net, pings, disks, gpus, cpu, memory] = await Promise.all([
       sampleNetworkRates(),
       probeAll(settings),
       sampleDisksCached(),
       sampleGpusCached(),
       sampleCpu(),
+      sampleMemory(),
     ]);
     return {
       timestamp: Date.now(),
@@ -957,7 +949,7 @@ export function registerSystemStatsHandlers(): void {
       cpuCoreCount: cpu.cpuCorePercents.length,
       cpuPercent: cpu.cpuPercent,
       cpuCorePercents: cpu.cpuCorePercents,
-      ...sampleMemory(),
+      ...memory,
       disks,
       gpus,
       ...net,

@@ -125,16 +125,25 @@ export async function createProjectRecord(input: CreateProjectInput): Promise<Pr
   return project;
 }
 
-/** Sets or removes a project's WordPress link (deployWordPress channels only). */
+/**
+ * Sets or removes a project's WordPress link (deployWordPress channels only), with the prompt and
+ * website that go with it when a project becomes a WordPress project or stops being one.
+ */
 export async function setProjectWordPressLink(
   projectId: string,
   link: ProjectWordPressLink | undefined,
+  changes: { prompt?: string; websiteUrl?: string } = {},
 ): Promise<Project> {
   const wordpress = link === undefined ? undefined : normalizeProjectWordPressLink(link);
   if (link !== undefined && !wordpress) throw new Error('That WordPress link is not valid.');
   return mutateProject(projectId, (current) => {
     const { wordpress: _old, ...rest } = current;
-    return wordpress ? { ...rest, wordpress } : rest;
+    const next = {
+      ...rest,
+      ...(changes.prompt === undefined ? {} : { prompt: changes.prompt }),
+      ...(changes.websiteUrl === undefined ? {} : { websiteUrl: changes.websiteUrl }),
+    };
+    return wordpress ? { ...next, wordpress } : next;
   });
 }
 

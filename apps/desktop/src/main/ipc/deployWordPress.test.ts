@@ -40,6 +40,7 @@ function harness(trusted = true) {
     cancel: fn(),
     createProject: fn(),
     setProjectItems: fn(),
+    linkProject: fn(),
     unlinkProject: fn(),
     localChanges: fn(),
     remoteFile: fn(),
@@ -359,6 +360,17 @@ describe('registerDeployWordPressHandlers', () => {
         items: [THEME],
       }),
     ).rejects.toThrow('not a connected WordPress site');
+
+    const link = { operationId: OPERATION, projectId: PROJECT, siteId: SITE, items: [THEME] };
+    await call(IPC.deployWordPress.linkProject, { ...link, extra: true });
+    expect(service.linkProject).toHaveBeenCalledWith(link);
+    for (const bad of [
+      { ...link, siteId: undefined },
+      { ...link, items: [] },
+      { ...link, projectId: 42 },
+    ]) {
+      await expect(call(IPC.deployWordPress.linkProject, bad)).rejects.toThrow();
+    }
   });
 
   it('reads remote file requests and refuses paths the policy refuses', async () => {
