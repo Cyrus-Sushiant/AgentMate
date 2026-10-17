@@ -3,6 +3,7 @@ import type {
   DeployWordPressProgressEvent,
   DeployWordPressSettingsInput,
   DeployWordPressSite,
+  DeployWordPressUpdateConnectorResult,
 } from '@shared/deployWordPressTypes';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
@@ -151,6 +152,48 @@ export function useSaveConnectorZip(): { save: () => Promise<void>; saving: bool
     }
   }, []);
   return { save, saving };
+}
+
+export interface ConnectorUpdate {
+  update: () => Promise<void>;
+  updating: boolean;
+  /** What the last update did; null until one has finished, and again while the next runs. */
+  result: DeployWordPressUpdateConnectorResult | null;
+  /** Why the last update could not be made, in words. */
+  problem: string | null;
+}
+
+/**
+ * Replaces the connector on a site with the version bundled in this app. The state lives here, not
+ * in the version row, because the row goes away once the site is up to date and the outcome must
+ * stay on screen.
+ */
+export function useUpdateConnector(siteId: string): ConnectorUpdate {
+  const queryClient = useQueryClient();
+  const [updating, setUpdating] = useState(false);
+  const [result, setResult] = useState<DeployWordPressUpdateConnectorResult | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  // The panel is reused for the next site; its outcome is not that site's.
+  useEffect(() => {
+    setResult(null);
+    setProblem(null);
+  }, [siteId]);
+  const update = useCallback(async () => {
+    setUpdating(true);
+    setResult(null);
+    setProblem(null);
+    try {
+      setResult(await window.agentmat.deployWordPress.updateConnector(siteId));
+    } catch (error) {
+      setProblem(wpProblem(error));
+    } finally {
+      setUpdating(false);
+      // The site answers for itself again, whether or not the update worked.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.deployWordPressSite(siteId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.deployWordPressSites });
+    }
+  }, [siteId, queryClient]);
+  return { update, updating, result, problem };
 }
 
 /** A fresh id for a long call, so its progress events can be told apart. */

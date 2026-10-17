@@ -9,9 +9,11 @@ import {
   getCliDefinition,
   supportsPromptImages,
 } from '@agentmat/core';
+import { resolveExecutable } from '../installMethod';
 import { runCli } from '../packageManagers/execUtils';
 import { refreshShellPath } from '../shellPath';
 import { store } from '../store';
+import { withToolPath } from '../toolPaths';
 
 /** Agent CLIs answer through a model round-trip, so they need far longer than a git call. */
 const HEADLESS_TIMEOUT_MS = 180000;
@@ -102,7 +104,7 @@ function execPrompt(
   requestId: string | undefined,
   stdinPayload: string | null,
   timeoutMs: number,
-  extraEnv: Record<string, string> = {},
+  env: NodeJS.ProcessEnv,
 ): Promise<ExecOutcome> {
   return new Promise((resolve) => {
     const options = {
@@ -112,10 +114,7 @@ function execPrompt(
       // have already reported back. The timer below takes the whole tree down instead.
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
-      // Cline's CLI self-updates on every invocation by spawning a detached background
-      // installer; on Windows that can flash open a visible console mid-run. This is a
-      // no-op env var for every other CLI we shell out to.
-      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1', ...extraEnv },
+      env,
     };
     // npm-installed CLIs are .cmd shims on Windows, which Node refuses to spawn directly;
     // cmd.exe gets an argv array (not `shell: true`), so args never get re-parsed as a
@@ -191,6 +190,9 @@ async function resolveHeadlessCli(
 }
 
 async function isOnPath(cli: CliDefinition): Promise<boolean> {
+  // A native installer's folder (~/.local/bin and friends) is often on no PATH the app can see,
+  // but the run itself gets those folders through withToolPath, so finding the file is enough.
+  if (await resolveExecutable([cli.versionCommand.command, ...cli.executableNames])) return true;
   if (await probeVersion(cli)) return true;
   // The app keeps the PATH it started with, so a CLI installed (or moved to a new folder by an
   // update) since then isn't found even though every new terminal finds it, and a Mac app opened
@@ -350,6 +352,19 @@ export async function runHeadlessCliPrompt(
   const fullPrompt = imageInput.promptPrefix + prompt;
 
   const timeoutMs = options.timeoutMs ?? HEADLESS_TIMEOUT_MS;
+  // Cline's CLI self-updates on every invocation by spawning a detached background installer;
+  // on Windows that can flash open a visible console mid-run. This is a no-op env var for every
+  // other CLI we shell out to. The extra tool folders let a CLI that a native installer put in
+  // ~/.local/bin (or pip in a Scripts folder) run even though the app's own PATH lacks them.
+  const env = await withToolPath({
+    ...process.env,
+    CLINE_NO_AUTO_UPDATE: '1',
+    ...imageInput.env,
+  });
+  // Working out those folders can mean starting Python, and the user may cancel meanwhile.
+  if (options.requestId && cancelledBeforeStart.delete(options.requestId)) {
+    return { ...cancelledResult, cliName: cli.name };
+  }
   const outcome =
     cli.promptInputMode === 'stdin'
       ? await execPrompt(
@@ -359,7 +374,7 @@ export async function runHeadlessCliPrompt(
           options.requestId,
           fullPrompt,
           timeoutMs,
-          imageInput.env,
+          env,
         )
       : await execPrompt(
           cli.promptCommand.command,
@@ -371,7 +386,7 @@ export async function runHeadlessCliPrompt(
           options.requestId,
           null,
           timeoutMs,
-          imageInput.env,
+          env,
         );
 
   // A cancel that lost the race with completion would otherwise sit in the set forever.

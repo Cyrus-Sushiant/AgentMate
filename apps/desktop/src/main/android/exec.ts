@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { isLicensePrompt, parseSdkManagerProgress, type SdkManagerProgress } from '@agentmat/core';
 import { type AndroidTool, AndroidToolMissingError, type ResolvedAndroidSdk } from './sdk';
@@ -165,6 +165,8 @@ export function runSdkManager(
 }
 
 export interface SdkManagerStreamHandlers {
+  /** The running process, for a caller that needs to stop it part way through. */
+  onSpawn?(child: ChildProcess): void;
   onLine?(line: string): void;
   onProgress?(progress: SdkManagerProgress): void;
   /** Answer for a licence question, written to stdin. Returning nothing leaves it unanswered. */
@@ -195,6 +197,7 @@ export function runSdkManagerStreaming(
       windowsVerbatimArguments: verbatim,
       env: toolEnv(sdk),
     });
+    handlers.onSpawn?.(child);
 
     let buffer = '';
     const consume = (chunk: Buffer): void => {

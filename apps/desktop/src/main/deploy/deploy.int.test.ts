@@ -168,7 +168,7 @@ async function freshInstall(image: TestServerImage, login: Login, options = {}) 
   return { server, service, pool, events, result, health };
 }
 
-/** Ubuntu and Rocky on every `[e2e]` push; the nightly matrix adds Debian. */
+/** Ubuntu and Rocky on every CI run; the nightly matrix adds Debian. */
 const INSTALL_IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04', 'rocky-9']);
 
 describe.skipIf(!enabled)('installing the server core on real servers', () => {

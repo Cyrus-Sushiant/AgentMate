@@ -19,6 +19,7 @@ const service = vi.hoisted(() => ({
   peek: vi.fn(),
   install: vi.fn(),
   cancel: vi.fn(),
+  addToPath: vi.fn(),
   jobState: vi.fn(),
 }));
 
@@ -38,6 +39,7 @@ beforeEach(async () => {
   service.peek.mockReset();
   service.install.mockReset();
   service.cancel.mockReset();
+  service.addToPath.mockReset();
   service.jobState.mockReset();
   await loadIpc(
     () => import('./devSetup'),
@@ -222,6 +224,39 @@ describe('devSetup:cancel', () => {
   ])('refuses %s', async (_label, id) => {
     await expect(invoke(IPC.devSetup.cancel, id)).rejects.toThrow('Unknown dev setup item.');
     expect(service.cancel).not.toHaveBeenCalled();
+  });
+});
+
+describe('devSetup:addToPath', () => {
+  it('puts the item named on the PATH and hands back what happened', async () => {
+    service.addToPath.mockResolvedValue({ changed: true, where: 'your user PATH' });
+
+    await expect(invoke(IPC.devSetup.addToPath, 'flutter')).resolves.toEqual({
+      changed: true,
+      where: 'your user PATH',
+    });
+    expect(service.addToPath).toHaveBeenCalledWith('flutter');
+  });
+
+  it('lets a refusal from the service come through as the error it is', async () => {
+    service.addToPath.mockRejectedValue(new Error('That folder cannot go on the PATH.'));
+
+    await expect(invoke(IPC.devSetup.addToPath, 'flutter')).rejects.toThrow(
+      'That folder cannot go on the PATH.',
+    );
+  });
+
+  it.each([
+    ['an id that is not in the catalog', 'C:\\Windows\\System32'],
+    ['an inherited object key', 'constructor'],
+    ['an empty string', ''],
+    ['a number', 42],
+    ['an object', { id: 'flutter' }],
+    ['a list', ['flutter']],
+    ['nothing', undefined],
+  ])('refuses %s', async (_label, id) => {
+    await expect(invoke(IPC.devSetup.addToPath, id)).rejects.toThrow('Unknown dev setup item.');
+    expect(service.addToPath).not.toHaveBeenCalled();
   });
 });
 

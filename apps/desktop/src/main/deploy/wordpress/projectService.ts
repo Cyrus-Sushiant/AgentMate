@@ -15,11 +15,11 @@ import {
   type WpPlannedChange,
   type WpSiteInfo,
   type WpSkippedEntry,
+  withoutWpProjectPrompt,
+  withWpProjectPrompt,
   wpItemKey,
   wpItemRoot,
   wpKeyTransportSecurity,
-  withoutWpProjectPrompt,
-  withWpProjectPrompt,
   wpMirrorPath,
 } from '@agentmat/core';
 import type {

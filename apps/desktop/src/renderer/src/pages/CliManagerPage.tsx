@@ -33,11 +33,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { SimpleTooltip } from '@/components/ui/tooltip';
 import { openCliInTerminal } from '@/lib/openCli';
+import { openCommandTerminal } from '@/lib/openCommandTerminal';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { useCliStore } from '@/stores/cliStore';
 import { usePageHeader } from '@/stores/pageHeaderStore';
-import { useTerminalStore } from '@/stores/terminalStore';
 
 interface PendingUpdate {
   cli: CliDefinition;
@@ -50,7 +50,6 @@ export default function CliManagerPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const defaultCliId = useCliStore((s) => s.defaultCliId);
   const setDefaultCliId = useCliStore((s) => s.setDefaultCliId);
-  const openSession = useTerminalStore((s) => s.openSession);
   const [showAll, setShowAll] = useState(false);
   const [checkingCliId, setCheckingCliId] = useState<string | null>(null);
   const [checkingAll, setCheckingAll] = useState(false);
@@ -83,8 +82,7 @@ export default function CliManagerPage(): React.JSX.Element {
       toast.error(`No install command available for ${cliName} on this OS.`);
       return;
     }
-    openSession({ title: `Install ${cliName}`, initialInput: command });
-    toast.info(`Press Enter in the terminal to install ${cliName}.`);
+    await openCommandTerminal({ command, name: cliName, verb: 'install' });
   }
 
   async function handleCheckForUpdate(
@@ -118,11 +116,11 @@ export default function CliManagerPage(): React.JSX.Element {
     }
   }
 
-  function handleConfirmUpdate(): void {
+  async function handleConfirmUpdate(): Promise<void> {
     if (!pendingUpdate) return;
-    openSession({ title: `Update ${pendingUpdate.cli.name}`, initialInput: pendingUpdate.command });
-    toast.info(`Press Enter in the terminal to update ${pendingUpdate.cli.name}.`);
+    const { cli, command } = pendingUpdate;
     dismissPendingUpdate();
+    await openCommandTerminal({ command, name: cli.name, verb: 'update' });
   }
 
   function dismissPendingUpdate(): void {
@@ -367,7 +365,7 @@ export default function CliManagerPage(): React.JSX.Element {
             <Button variant="soft" onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmUpdate}>Update</Button>
+            <Button onClick={() => void handleConfirmUpdate()}>Update</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -38,7 +38,7 @@ export interface ReleaseSource {
 
 export type Downloader = (url: string, destination: string) => Promise<void>;
 
-const REPOSITORY = 'Cyrus-Sushiant/AgentMate';
+const REPOSITORY = 'SmartClouds/AgentMate';
 const VERSION = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const RIDS: ReadonlySet<string> = new Set<ReleaseRid>(['linux-x64', 'linux-arm64']);

@@ -551,7 +551,8 @@ describe('DashboardPage updates card', () => {
           latestVersion: '2.0.0',
           updateAvailable: true,
         }),
-        'cli.getUpdateCommand': async () => 'npm install -g @anthropic-ai/claude-code',
+        'cli.getUpdateCommand': async () => 'claude update',
+        'cli.checkCommandPrerequisite': async () => null,
       }),
     );
 
@@ -565,9 +566,42 @@ describe('DashboardPage updates card', () => {
       const session = useTerminalStore
         .getState()
         .sessions.find((one) => one.title === 'Update Claude Code CLI');
-      expect(session?.initialInput).toBe('npm install -g @anthropic-ai/claude-code');
+      expect(session?.initialInput).toBe('claude update');
     });
     expect(toast.info).toHaveBeenCalledWith(
+      'Press Enter in the terminal to update Claude Code CLI.',
+    );
+  });
+
+  it('says what is missing instead of opening an update terminal that would fail', async () => {
+    const { user } = renderPage(
+      withStats({
+        'cli.detectAll': [installedCli],
+        'tools.detectAll': [],
+        'cli.checkForUpdate': async () => ({
+          cliId: 'claude-code',
+          supported: true,
+          currentVersion: '1.2.3',
+          latestVersion: '2.0.0',
+          updateAvailable: true,
+        }),
+        // A copy installed with npm updates with npm, which this machine no longer has.
+        'cli.getUpdateCommand': async () => 'npm install -g @anthropic-ai/claude-code@latest',
+        'cli.checkCommandPrerequisite': { name: 'Node.js', url: 'https://nodejs.org/en/download' },
+      }),
+    );
+
+    expect(await screen.findByText('1 update', {}, { timeout: 5_000 })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Update/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Claude Code CLI needs Node.js, which isn't installed.",
+        expect.anything(),
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
+    expect(toast.info).not.toHaveBeenCalledWith(
       'Press Enter in the terminal to update Claude Code CLI.',
     );
   });

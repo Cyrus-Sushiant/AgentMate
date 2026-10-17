@@ -33,6 +33,9 @@ import type { RunHooks, RunResult } from './runners/packageManagerRunner';
 /** What `install` throws when an agreement has not been accepted yet. */
 export const CONSENT_REQUIRED = 'consent-required';
 
+/** What `install` throws while a cancel is still stopping the run. Written for the page to show. */
+export const CANCEL_IN_PROGRESS = 'The install is still stopping. Try again in a moment.';
+
 export interface InstallStep {
   item: DevItem;
   mode: Extract<InstallMode, { mode: 'in-app' }>;
@@ -74,26 +77,79 @@ function isInstalled(item: DevItem, detection: DevDetection): boolean {
   return detection.state === 'found' && meetsMinimum(detection.version, item.minVersion);
 }
 
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Runs a stop that may already have nothing left to stop. */
+function quietly(stop: () => void): void {
+  try {
+    stop();
+  } catch {
+    // Already stopped or closed, which is the state a cancel is after anyway.
+  }
+}
+
 export function createDevSetupInstaller(deps: InstallerDeps): DevSetupInstaller {
   let state = EMPTY_JOB_STATE;
   const queue: DevItemId[] = [];
   let loop: Promise<void> | null = null;
   let cancelRequested = false;
   let currentToken: CancelToken | null = null;
+  /** How the step that is running stops itself, when it is not just a process. */
+  let currentAbort: (() => void) | null = null;
 
   function dispatch(event: DevJobEvent): void {
     state = applyJobEvent(state, event);
     deps.emit(event);
   }
 
+  /**
+   * Ends a step that was cancelled. It still gets a fresh look first: an install that was already
+   * under way may have finished, and then the row should say so instead of staying as it was.
+   */
+  async function finishCancelled(
+    jobId: string,
+    item: DevItem,
+    ran: RunResult | null,
+  ): Promise<void> {
+    let installed = false;
+    try {
+      if (ran) await deps.afterInstall();
+      installed = isInstalled(item, await deps.detect(item.id, { force: true }));
+    } catch {
+      // The look is a courtesy, and failing to take it must not turn a cancel into an error.
+    }
+    if (installed) {
+      dispatch({
+        type: 'finished',
+        jobId,
+        itemId: item.id,
+        result: 'installed',
+        restartAdvised: ran?.restartAdvised === true,
+      });
+    } else {
+      dispatch({ type: 'finished', jobId, itemId: item.id, result: 'cancelled' });
+    }
+  }
+
   async function runStep(jobId: string, id: DevItemId, failed: Set<DevItemId>): Promise<void> {
     const item = getDevItem(id);
     if (!item) return;
+    // Running it again is a retry, so an earlier failure must not hold back what needs it.
+    failed.delete(id);
     const environment = await deps.environment();
 
     const before = await deps.detect(id, { force: true });
     if (isInstalled(item, before)) {
       dispatch({ type: 'finished', jobId, itemId: id, result: 'installed' });
+      return;
+    }
+
+    // A cancel during the two looks above found no token to stop. Nothing below waits before the
+    // run starts, so after this check the token exists by the time anything can cancel.
+    if (cancelRequested) {
+      await finishCancelled(jobId, item, null);
       return;
     }
 
@@ -131,22 +187,23 @@ export function createDevSetupInstaller(deps: InstallerDeps): DevSetupInstaller 
         { item, mode },
         {
           token,
+          onCancel: (abort) => {
+            currentAbort = abort;
+            // A cancel that came before the step could say how to stop it must still stop it.
+            if (token.cancelled || cancelRequested) quietly(abort);
+          },
           onProgress: (update) => dispatch({ type: 'progress', jobId, itemId: id, ...update }),
           onLine: (line) => dispatch({ type: 'log', jobId, itemId: id, line }),
         },
       );
     } catch (error) {
-      result = {
-        ok: false,
-        code: null,
-        cancelled: false,
-        message: error instanceof Error ? error.message : String(error),
-      };
+      result = { ok: false, code: null, cancelled: false, message: messageOf(error) };
     }
     currentToken = null;
+    currentAbort = null;
 
     if (result.cancelled || cancelRequested) {
-      dispatch({ type: 'finished', jobId, itemId: id, result: 'cancelled' });
+      await finishCancelled(jobId, item, result);
       return;
     }
 
@@ -185,24 +242,51 @@ export function createDevSetupInstaller(deps: InstallerDeps): DevSetupInstaller 
 
   async function processQueue(jobId: string): Promise<void> {
     const failed = new Set<DevItemId>();
-    while (queue.length > 0) {
-      const id = queue.shift();
-      if (id === undefined) break;
-      if (cancelRequested) {
-        dispatch({ type: 'finished', jobId, itemId: id, result: 'cancelled' });
-        continue;
+    try {
+      while (queue.length > 0) {
+        const id = queue.shift();
+        if (id === undefined) break;
+        if (cancelRequested) {
+          dispatch({ type: 'finished', jobId, itemId: id, result: 'cancelled' });
+          continue;
+        }
+        try {
+          await runStep(jobId, id, failed);
+        } catch (error) {
+          // A failed install is handled in runStep. This is something around it throwing, such as
+          // a look at the machine, and it fails that step without stopping the rest.
+          failed.add(id);
+          dispatch({
+            type: 'finished',
+            jobId,
+            itemId: id,
+            result: 'failed',
+            message: messageOf(error),
+          });
+        }
       }
-      await runStep(jobId, id, failed);
+      dispatch({ type: 'done', jobId, cancelled: cancelRequested });
+    } finally {
+      // Whatever ended the loop, the next request must find an installer that is free and not
+      // still cancelling.
+      cancelRequested = false;
+      currentToken = null;
+      currentAbort = null;
+      queue.length = 0;
+      loop = null;
     }
-    dispatch({ type: 'done', jobId, cancelled: cancelRequested });
-    cancelRequested = false;
-    loop = null;
   }
 
   function cancelAll(): void {
     if (!loop) return;
     cancelRequested = true;
     if (currentToken) deps.cancelRun(currentToken);
+    if (currentAbort) quietly(currentAbort);
+  }
+
+  /** A request made now would be added to the queue and then dropped by the cancel in progress. */
+  function refuseWhileStopping(): void {
+    if (cancelRequested) throw new Error(CANCEL_IN_PROGRESS);
   }
 
   return {
@@ -211,6 +295,7 @@ export function createDevSetupInstaller(deps: InstallerDeps): DevSetupInstaller 
       // stops here, whoever sent it.
       if (!Array.isArray(ids) || !ids.every(isDevItemId))
         throw new Error('Unknown dev setup item.');
+      refuseWhileStopping();
 
       const [environment, savedStacks] = await Promise.all([deps.environment(), deps.stacks()]);
       // The request may name a tool from a stack that is switched off, so its stack is included.
@@ -229,6 +314,8 @@ export function createDevSetupInstaller(deps: InstallerDeps): DevSetupInstaller 
       // Steps already queued or running count as not needing work, so they are never planned twice.
       const steps = buildInstallPlan(ids, checklist.entries, environment.os).steps;
       if (steps.length === 0) return state;
+      // The cancel may have come while the checks above ran.
+      refuseWhileStopping();
 
       if (collectConsents(steps).length > 0 && consented !== true) {
         throw new Error(CONSENT_REQUIRED);

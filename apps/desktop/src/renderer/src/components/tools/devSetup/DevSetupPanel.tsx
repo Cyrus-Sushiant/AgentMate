@@ -1,9 +1,17 @@
-import { type ChecklistRow, DEV_STACKS, getDevItem } from '@agentmat/core';
+import { type ChecklistRow, DEV_STACKS, getDevItem, overallFraction } from '@agentmat/core';
+import { useEffect, useRef, useState } from 'react';
 import { GLASS_CARD, LoadFailure, Notice } from '@/components/pageKit';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { describeRow, type RowAction, type RowView } from './devSetupView';
+import {
+  describeInstallAll,
+  describeRow,
+  describeRun,
+  type RowAction,
+  type RowView,
+} from './devSetupView';
+import { InstallLogDrawer } from './InstallLogDrawer';
 import { SetupSummary } from './SetupSummary';
 import { StackChecklist } from './StackChecklist';
 import { StackChips } from './StackChips';
@@ -44,38 +52,100 @@ function ChecklistSkeleton(): React.JSX.Element {
  */
 export function DevSetupPanel(): React.JSX.Element {
   const devSetup = useDevSetup();
-  const { checklist, environment } = devSetup;
+  const { checklist, environment, job, plan } = devSetup;
+  const [logFor, setLogFor] = useState<string | null>(null);
 
   const nameOf = (id: string): string =>
     checklist?.rows.find((row) => row.item.id === id)?.name ?? getDevItem(id)?.name ?? id;
 
   const viewOf = (row: ChecklistRow): RowView =>
-    describeRow(row, {
-      os: environment?.os ?? 'win32',
-      // Installs are handed to a terminal for now; the app runs them itself once they can be.
-      inAppInstall: false,
-      nameOf,
-    });
+    describeRow(row, { os: environment?.os ?? 'win32', inAppInstall: true, nameOf });
+
+  // A failure opens the log by itself, since the reason on the row is rarely the whole story. It
+  // does so once per failure, so closing the log is not undone by the next update.
+  const failedIds = Object.entries(job.items)
+    .filter(([, one]) => one.status === 'failed')
+    .map(([id]) => id);
+  const failedKey = failedIds.join(',');
+  const alreadyShown = useRef(new Set<string>());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: failedKey stands for failedIds
+  useEffect(() => {
+    for (const id of [...alreadyShown.current]) {
+      if (!failedIds.includes(id)) alreadyShown.current.delete(id);
+    }
+    const fresh = failedIds.filter((id) => !alreadyShown.current.has(id));
+    for (const id of fresh) alreadyShown.current.add(id);
+    const latest = fresh.at(-1);
+    if (latest) setLogFor(latest);
+  }, [failedKey]);
+
+  // What a screen reader is told. Only results, once each: progress updates many times a second
+  // and would talk over everything else, and the row and the summary already show it.
+  const [announcement, setAnnouncement] = useState('');
+  const told = useRef<{
+    jobId: string | null;
+    done: number;
+    failed: Set<string>;
+    cancelled: boolean;
+  }>({
+    jobId: null,
+    done: 0,
+    failed: new Set(),
+    cancelled: false,
+  });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: failedKey stands for failedIds
+  useEffect(() => {
+    const memory = told.current;
+    if (memory.jobId !== job.jobId) {
+      told.current = { jobId: job.jobId, done: 0, failed: new Set(), cancelled: false };
+    }
+    const spoken = told.current;
+    const messages: string[] = [];
+    for (const id of job.completed.slice(spoken.done)) messages.push(`${nameOf(id)} installed.`);
+    spoken.done = job.completed.length;
+    for (const id of failedIds) {
+      if (spoken.failed.has(id)) continue;
+      spoken.failed.add(id);
+      messages.push(`${nameOf(id)} could not be installed.`);
+    }
+    if (job.cancelled && !spoken.cancelled) {
+      spoken.cancelled = true;
+      messages.push('Install cancelled.');
+    }
+    if (messages.length > 0) setAnnouncement(messages.join(' '));
+  }, [job.jobId, job.completed, job.cancelled, failedKey]);
 
   function handleAction(row: ChecklistRow, view: RowView, action: RowAction): void {
+    const id = row.item.id;
     switch (action.kind) {
+      case 'install':
+      case 'update':
+        void devSetup.install([id]);
+        break;
       case 'terminal-install':
         if (view.terminalCommand) {
-          devSetup.openInTerminal({
-            id: row.item.id,
-            name: row.name,
-            command: view.terminalCommand,
-          });
+          devSetup.openInTerminal({ id, name: row.name, command: view.terminalCommand });
         }
         break;
       case 'open-link':
         if (action.url) void window.agentmat.shell.openExternal(action.url);
         break;
       case 'retry':
-      case 'recheck':
-        devSetup.recheck(row.item.id);
+        // A failed install is run again; a check that failed is simply checked again.
+        if (row.state.kind === 'failed') void devSetup.install([id]);
+        else devSetup.recheck(id);
         break;
-      default:
+      case 'recheck':
+        devSetup.recheck(id);
+        break;
+      case 'cancel':
+        devSetup.cancel();
+        break;
+      case 'unqueue':
+        devSetup.cancel(id);
+        break;
+      case 'add-to-path':
+        void devSetup.addToPath({ id, name: row.name });
         break;
     }
   }
@@ -83,6 +153,7 @@ export function DevSetupPanel(): React.JSX.Element {
   const wingetMissing =
     environment?.os === 'win32' && !environment.packageManagers.includes('winget');
   const noLinuxManager = environment?.os === 'linux' && environment.packageManagers.length === 0;
+  const installAll = plan ? describeInstallAll(plan) : undefined;
 
   return (
     <div className="@container/devsetup flex flex-col gap-2">
@@ -94,7 +165,31 @@ export function DevSetupPanel(): React.JSX.Element {
         <ChecklistSkeleton />
       ) : (
         <>
-          <SetupSummary summary={checklist.summary} onRecheckAll={devSetup.recheckAll} />
+          <div role="status" aria-label="Install updates" aria-live="polite" className="sr-only">
+            {announcement}
+          </div>
+          <SetupSummary
+            summary={checklist.summary}
+            onRecheckAll={devSetup.recheckAll}
+            installAll={
+              installAll && {
+                label: installAll.label,
+                disabled: installAll.disabled,
+                hint: installAll.hint,
+                note: installAll.note,
+                onClick: () => void devSetup.installAll(),
+              }
+            }
+            run={
+              job.running
+                ? {
+                    ...describeRun(job, nameOf),
+                    fraction: overallFraction(job),
+                    onCancel: () => devSetup.cancel(),
+                  }
+                : undefined
+            }
+          />
 
           {wingetMissing && (
             <Notice
@@ -119,6 +214,26 @@ export function DevSetupPanel(): React.JSX.Element {
               download page instead.
             </Notice>
           )}
+          {job.completed.length > 0 && (
+            <Notice tone="neutral">
+              Terminals that are already open will not see the new tools. Open a new one.
+            </Notice>
+          )}
+          {job.restartAdvised && (
+            <Notice tone="warning">
+              Restart your computer to finish setting up what you just installed.
+            </Notice>
+          )}
+
+          {logFor && (
+            <InstallLogDrawer
+              logs={job.logs}
+              nameOf={nameOf}
+              selected={logFor}
+              onSelect={setLogFor}
+              onClose={() => setLogFor(null)}
+            />
+          )}
 
           {checklist.groups.map((group) => (
             <StackChecklist
@@ -140,6 +255,7 @@ export function DevSetupPanel(): React.JSX.Element {
                   void devSetup.copyCommand({ name: row.name, command: view.terminalCommand });
                 }
               }}
+              onShowLog={(row) => setLogFor(row.item.id)}
             />
           ))}
         </>

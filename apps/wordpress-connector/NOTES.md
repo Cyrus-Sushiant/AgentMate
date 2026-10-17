@@ -125,6 +125,36 @@ runs every shared vector.
   activation), else by walking up. It answers only the rescue routes and nothing when the plugin
   is inactive.
 
+## Connector update
+
+- `/connector/update` (write scope, so the dispatcher already applies `AGENTMATE_CONNECTOR_READ_ONLY`,
+  `DISALLOW_FILE_MODS` and the direct filesystem check). `Update\ConnectorUpdater` is the whole
+  thing; `Routes\UpdateHandlers` is the route. The request is `{version, files: [{path, size,
+  sha256}]}` with one blob per file, so the plugin never needs ZipArchive and the update can't
+  carry anything but plain files.
+- Order: validate everything in memory (shape, paths through `PathPolicy`, an extension allow-list,
+  sizes, sha256, required files, the main file's header and constant against `version`, no
+  downgrade, `Requires PHP` and `Requires at least`, PHP syntax). Then, holding the deploy mutex
+  and with no deploy open (`DeployService::whileIdle`): sweep leftovers, build
+  `.agentmate-connector-new-<hex>` beside the plugin (a dot folder: `get_plugins()` skips it),
+  copy `rescue-config.php` across, preload every class of the running version (so the rest of the
+  request never mixes old and new code), take a health baseline, swap with two renames
+  (`-old-<hex>` holds the previous folder), invalidate opcache for every PHP path, health check
+  again. `DeployService::health` false means the swap is undone (`rolledBack`), otherwise the old
+  folder is deleted. A health check that could not run (loopback blocked) is not a failure.
+- Failure leaves things as they were: a refused first rename removes the staged folder; a refused
+  second rename moves the old folder back. Only when that also fails are both folders left, named
+  in the error, for the site owner.
+- The new code's `Activator::maybeUpgrade()` runs in the loopback `ajaxPing` (admin-ajax counts as
+  admin), so the schema and the guard template are brought up to date during the health check. A
+  rollback leaves a newer guard until the old code's next admin request rewrites it.
+- `selfUpdate` in `/site/info` is `ConnectorUpdater::replaceable`: the connector's folder is a real
+  folder (not a symlink, a valid slug) and PHP may write it and the plugins folder. Connectors
+  older than this route don't send it, which is how the app knows to ask for one manual upload.
+- Tests: `ConnectorUpdateTest` (fake environment, injectable rename), and the smoke script's
+  "Connector update from the app" (a broken release is rolled back on real WordPress, then a
+  good one lands and a deploy still works).
+
 ## Smoke fixture
 
 `tests/smoke/fixture.mjs` exports `startWordPressFixture({ port, multisite }) -> { url, port, name,

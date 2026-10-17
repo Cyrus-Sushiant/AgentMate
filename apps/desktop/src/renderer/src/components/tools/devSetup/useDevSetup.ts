@@ -27,6 +27,8 @@ import { useTerminalStore } from '@/stores/terminalStore';
 const POLL_MS = 5_000;
 /** After this long the row stops waiting and goes back to offering the install. */
 const GIVE_UP_MS = 10 * 60_000;
+/** What main refuses with when a step carries an agreement the request did not accept. */
+const CONSENT_REQUIRED = 'consent-required';
 
 export interface TerminalHandoff {
   id: DevItemId;
@@ -55,6 +57,8 @@ export interface UseDevSetup {
   recheckAll: () => void;
   openInTerminal: (handoff: TerminalHandoff) => void;
   copyCommand: (handoff: Pick<TerminalHandoff, 'name' | 'command'>) => Promise<void>;
+  /** Puts a tool that is installed but off PATH onto the user PATH. Says how it went; never throws. */
+  addToPath: (target: { id: DevItemId; name: string }) => Promise<void>;
 }
 
 function messageOf(error: unknown): string {
@@ -138,7 +142,8 @@ export function useDevSetup(): UseDevSetup {
     const probe = probes[index];
     if (!probe) return;
     if (probe.data) detections[item.id] = probe.data;
-    else if (probe.isError) detections[item.id] = { state: 'error', message: messageOf(probe.error) };
+    else if (probe.isError)
+      detections[item.id] = { state: 'error', message: messageOf(probe.error) };
   });
 
   // What the installer is doing wins over a row that was only handed to the terminal.
@@ -149,9 +154,10 @@ export function useDevSetup(): UseDevSetup {
   const checklist = environment
     ? buildChecklist({ stacks, environment, detections, jobs })
     : undefined;
-  const plan = checklist && environment
-    ? buildInstallPlan(missingItemIds(checklist.entries), checklist.entries, environment.os)
-    : undefined;
+  const plan =
+    checklist && environment
+      ? buildInstallPlan(missingItemIds(checklist.entries), checklist.entries, environment.os)
+      : undefined;
 
   // Main has already looked again at an item that finished, so this page does too, straight away.
   const looked = useRef(new Set<string>());
@@ -203,28 +209,61 @@ export function useDevSetup(): UseDevSetup {
     return () => window.clearInterval(timer);
   }, [waitingCount]);
 
+  function acceptAgreements(consents: ReturnType<typeof collectConsents>): Promise<boolean> {
+    // The person agrees to these by pressing the button, so they are named before it runs.
+    return confirmDialog({
+      title: 'Accept the agreements?',
+      description:
+        'Installing these means you accept their terms. You can read them at the addresses below.',
+      items: consents.map((consent) => ({ name: consent.title, detail: consent.url })),
+      confirmLabel: 'Accept and install',
+    });
+  }
+
+  /** The agreements the install would carry once every item has been looked at again. */
+  async function consentsAfterRecheck(ids: readonly DevItemId[]) {
+    if (!environment) return [];
+    await queryClient.refetchQueries({ queryKey: queryKeys.devSetupItems });
+    const fresh: Record<DevItemId, DevDetection | undefined> = {};
+    for (const item of items) {
+      fresh[item.id] = queryClient.getQueryData<DevDetection>(queryKeys.devSetupItem(item.id));
+    }
+    const rebuilt = buildChecklist({ stacks, environment, detections: fresh, jobs });
+    return collectConsents(buildInstallPlan(ids, rebuilt.entries, environment.os).steps);
+  }
+
+  async function startInstall(ids: readonly DevItemId[], consented: boolean): Promise<void> {
+    try {
+      await window.agentmat.devSetup.install({ ids: [...ids], consented });
+    } catch (error) {
+      if (plainMessage(error) !== CONSENT_REQUIRED) {
+        toast.error(`Could not start the install. ${plainMessage(error)}`);
+        return;
+      }
+      // Main sees an agreement this page did not, because the machine changed since the last
+      // check. Look again and ask with what the fresh list says. If it still shows none, or the
+      // agreement was already accepted, there is nothing to ask, so say so without the code.
+      const consents = consented ? [] : await consentsAfterRecheck(ids);
+      if (consents.length === 0) {
+        toast.error('Could not start the install. Refresh the list and try again.');
+        return;
+      }
+      if (await acceptAgreements(consents)) await startInstall(ids, true);
+    }
+  }
+
   async function install(ids: readonly DevItemId[]): Promise<void> {
     const steps =
       checklist && environment
         ? buildInstallPlan(ids, checklist.entries, environment.os).steps
         : [];
     const consents = collectConsents(steps);
-    if (consents.length > 0) {
-      // The person agrees to these by pressing the button, so they are named before it runs.
-      const accepted = await confirmDialog({
-        title: 'Accept the agreements?',
-        description:
-          'Installing these means you accept their terms. You can read them at the addresses below.',
-        items: consents.map((consent) => ({ name: consent.title, detail: consent.url })),
-        confirmLabel: 'Accept and install',
-      });
-      if (!accepted) return;
-    }
-    try {
-      await window.agentmat.devSetup.install({ ids: [...ids], consented: consents.length > 0 });
-    } catch (error) {
-      toast.error(`Could not start the install. ${plainMessage(error)}`);
-    }
+    if (consents.length > 0 && !(await acceptAgreements(consents))) return;
+    await startInstall(ids, consents.length > 0);
+  }
+
+  function recheck(id: DevItemId): void {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.devSetupItem(id) });
   }
 
   return {
@@ -251,9 +290,7 @@ export function useDevSetup(): UseDevSetup {
     cancel: (id) => {
       void window.agentmat.devSetup.cancel(id);
     },
-    recheck: (id) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.devSetupItem(id) });
-    },
+    recheck,
     recheckAll: () => {
       // The machine too: a package manager may have been installed since the page opened.
       void queryClient.invalidateQueries({ queryKey: queryKeys.devSetupEnvironment });
@@ -271,6 +308,19 @@ export function useDevSetup(): UseDevSetup {
         toast.success(`Copied the command for ${name}.`);
       } catch {
         toast.error('Could not copy. Select the command and copy it by hand.');
+      }
+    },
+    addToPath: async ({ id, name }) => {
+      try {
+        const { changed, where } = await window.agentmat.devSetup.addToPath(id);
+        if (changed) toast.success(`Added ${name} to ${where}. Open a new terminal to use it.`);
+        else toast.info(`${name} is already on your PATH.`);
+        // The row drops its warning once the fresh check finds the tool on the PATH.
+        recheck(id);
+      } catch (error) {
+        toast.error(`Could not add ${name} to your PATH. ${plainMessage(error)}`);
+        // Main looked at the tool just before refusing, so the row may still show the old state.
+        recheck(id);
       }
     },
   };

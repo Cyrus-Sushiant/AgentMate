@@ -44,6 +44,8 @@ export interface DevJobState {
   logs: Record<DevItemId, string[]>;
   current: DevItemId | null;
   restartAdvised: boolean;
+  /** The last run ended because it was cancelled. Unset while a run is going. */
+  cancelled?: boolean;
 }
 
 export const EMPTY_JOB_STATE: DevJobState = {
@@ -143,7 +145,7 @@ export function applyJobEvent(state: DevJobState, event: DevJobEvent): DevJobSta
       const items = Object.fromEntries(
         Object.entries(state.items).filter(([, job]) => job.status === 'failed'),
       );
-      return { ...state, running: false, current: null, items };
+      return { ...state, running: false, current: null, items, cancelled: event.cancelled };
     }
   }
 }
@@ -152,8 +154,16 @@ function applyPlan(state: DevJobState, event: Extract<DevJobEvent, { type: 'plan
   // More steps for the run that is going: add the new ones and leave the rest as they are.
   if (state.running && state.jobId === event.jobId) {
     const items = { ...state.items };
-    for (const id of event.steps) items[id] ??= { status: 'queued' };
-    return { ...state, items, order: [...new Set([...state.order, ...event.steps])] };
+    const logs = { ...state.logs };
+    for (const id of event.steps) {
+      const status = items[id]?.status;
+      // Already waiting or running is left alone, so planning it twice cannot queue it twice.
+      if (status === 'queued' || status === 'installing') continue;
+      // A failure being retried is a new attempt: it queues now and starts a fresh log.
+      if (status === 'failed') delete logs[id];
+      items[id] = { status: 'queued' };
+    }
+    return { ...state, items, logs, order: [...new Set([...state.order, ...event.steps])] };
   }
 
   // A new run. Failures from the last one stay until their item is planned again.

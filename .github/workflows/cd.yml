@@ -10,8 +10,11 @@ name: CD
 #   - Manual "Run workflow" dispatch also works; supply the tag to release as.
 #
 # Unit, integration and mobile tests always run first. The end-to-end matrix is
-# opt-in, same as in CI: tag [e2e] in the commit the release tag points at, or
-# tick the box on a manual run.
+# opt-in here: tag [e2e] in the commit the release tag points at, or tick the
+# box on a manual run.
+#
+# Everything here runs on GitHub's hosted runners, the tests included. CI has
+# the self-hosted Linux runner to itself.
 
 on:
   push:
@@ -38,13 +41,14 @@ jobs:
   # Everything CI runs, before a single installer is built. A release is the one place where a
   # failing test must never be shipped past.
   #
-  # The E2E matrix is slow (three OSes) and gated the same way as in CI, since a release usually
-  # tags a commit that already went through CI: put [e2e] in the message of the commit the tag
-  # points at, or tick the e2e box on a manual run.
+  # The E2E matrix is slow (three OSes) and opt-in, since a release usually tags a commit that
+  # already passed CI's Linux end-to-end run: put [e2e] in the message of the commit the tag points
+  # at, or tick the e2e box on a manual run. It is the only place Windows and macOS e2e run.
   tests:
     name: Tests
     uses: ./.github/workflows/test.yml
     with:
+      github-hosted: true
       e2e: ${{ (github.event_name == 'push' && contains(github.event.head_commit.message, '[e2e]')) || (github.event_name == 'workflow_dispatch' && inputs.e2e) }}
 
   # The server core the Deploy section installs over SSH: self-contained single-file builds for

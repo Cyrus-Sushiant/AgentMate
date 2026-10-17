@@ -1,5 +1,6 @@
+import { WP_CONNECTOR_VERSION } from '@agentmat/core';
 import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../../../test/renderer/renderWithProviders';
 import { SiteOverviewPanel } from './SiteOverviewPanel';
 import { NOW_SECONDS, wpSite, wpSiteInfo } from './testing/fixtures';
@@ -9,9 +10,9 @@ import { NOW_SECONDS, wpSite, wpSiteInfo } from './testing/fixtures';
  * whether deploys can write files and what stops them when they can't.
  */
 
-function renderPanel(info: unknown, site = wpSite()) {
+function renderPanel(info: unknown, site = wpSite(), bridge: Record<string, unknown> = {}) {
   return renderWithProviders(<SiteOverviewPanel site={site} />, {
-    bridge: { 'deployWordPress.siteInfo': info },
+    bridge: { 'deployWordPress.siteInfo': info, ...bridge },
   });
 }
 
@@ -74,6 +75,131 @@ describe('SiteOverviewPanel', () => {
 
     expect(await screen.findByText(/comes with this app\. This one still works/)).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Update to/ })).toBeNull();
+    // An old connector has no update route; the one manual upload is said to be the last.
+    expect(screen.getByText(/future updates can be done from here/)).toBeTruthy();
+  });
+
+  it('does not promise in-app updates to a connector that cannot replace its folder', async () => {
+    renderPanel(async () => wpSiteInfo({ pluginVersion: '0.9.5', selfUpdate: false }));
+
+    expect(await screen.findByText(/can't replace its own folder here/)).toBeTruthy();
+    expect(screen.queryByText(/future updates can be done from here/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Update to/ })).toBeNull();
+  });
+
+  describe('updating the connector from here', () => {
+    const updatable = () => wpSiteInfo({ pluginVersion: '0.9.5', selfUpdate: true });
+    const done = (patch = {}) => ({
+      outcome: 'updated' as const,
+      fromVersion: '0.9.5',
+      version: WP_CONNECTOR_VERSION,
+      checks: [{ name: 'home' as const, status: 200, ok: true, detail: 'HTTP 200' }],
+      ...patch,
+    });
+
+    it('offers a primary update button, with the download as the fallback', async () => {
+      renderPanel(async () => updatable());
+
+      expect(
+        await screen.findByRole('button', { name: `Update to ${WP_CONNECTOR_VERSION}` }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole('button', { name: `Download version ${WP_CONNECTOR_VERSION}` }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/future updates can be done from here/)).toBeNull();
+    });
+
+    it('updates the site, shows the outcome and reads the site again', async () => {
+      const update = vi.fn(async () => done());
+      const info = vi
+        .fn()
+        .mockResolvedValueOnce(updatable())
+        .mockResolvedValue(wpSiteInfo({ pluginVersion: WP_CONNECTOR_VERSION, selfUpdate: true }));
+      const { user } = renderPanel(info, wpSite(), { 'deployWordPress.updateConnector': update });
+
+      await user.click(await screen.findByRole('button', { name: /^Update to/ }));
+
+      expect(update).toHaveBeenCalledWith(wpSite().id);
+      expect(await screen.findByText(/is now version/)).toBeTruthy();
+      expect(screen.getByText(/passed its health check/)).toBeTruthy();
+      // The button is gone once the site reports the new version; the outcome stays.
+      await vi.waitFor(() => expect(info.mock.calls.length).toBeGreaterThan(1));
+      expect(screen.queryByRole('button', { name: /^Update to/ })).toBeNull();
+      expect(screen.getByText(/is now version/)).toBeTruthy();
+    });
+
+    it('holds the button while the update runs', async () => {
+      let finish: (value: ReturnType<typeof done>) => void = () => undefined;
+      const update = vi.fn(
+        () =>
+          new Promise<ReturnType<typeof done>>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const { user } = renderPanel(async () => updatable(), wpSite(), {
+        'deployWordPress.updateConnector': update,
+      });
+
+      await user.click(await screen.findByRole('button', { name: /^Update to/ }));
+
+      const busy = await screen.findByRole('button', { name: 'Updating' });
+      expect((busy as HTMLButtonElement).disabled).toBe(true);
+      finish(done());
+      expect(await screen.findByText(/is now version/)).toBeTruthy();
+    });
+
+    it('warns when the site undid the update on its own', async () => {
+      const update = vi.fn(async () =>
+        done({
+          outcome: 'rolledBack',
+          checks: [{ name: 'home', status: 500, ok: false, detail: 'HTTP 500' }],
+        }),
+      );
+      const { user } = renderPanel(async () => updatable(), wpSite(), {
+        'deployWordPress.updateConnector': update,
+      });
+
+      await user.click(await screen.findByRole('button', { name: /^Update to/ }));
+
+      const notice = await screen.findByRole('alert');
+      expect(notice.textContent).toContain('failed its health check');
+      expect(notice.textContent).toContain('put version 0.9.5 back');
+      expect(notice.textContent).toContain('home (HTTP 500)');
+      expect(screen.getByRole('button', { name: /^Update to/ })).toBeTruthy();
+    });
+
+    it('says in words why an update could not be made', async () => {
+      const update = vi.fn(async () => {
+        throw new Error(
+          "Error invoking remote method 'deployWordPress:updateConnector': Error: [wp:updateRefused] The newer connector needs a newer PHP or WordPress than this site has, so it was not installed. Nothing was changed.",
+        );
+      });
+      const { user } = renderPanel(async () => updatable(), wpSite(), {
+        'deployWordPress.updateConnector': update,
+      });
+
+      await user.click(await screen.findByRole('button', { name: /^Update to/ }));
+
+      expect(await screen.findByText(/needs a newer PHP or WordPress/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: /^Update to/ })).toBeTruthy();
+    });
+
+    it('asks for a write key when the connection is read-only', async () => {
+      renderPanel(async () => updatable(), wpSite({ scope: 'read' }));
+
+      expect(await screen.findByText(/This connection is read-only/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /^Update to/ })).toBeNull();
+    });
+
+    it('sends the user to wp-admin when file changes are switched off', async () => {
+      renderPanel(async () =>
+        wpSiteInfo({ pluginVersion: '0.9.5', selfUpdate: true, fileModsDisabled: true }),
+      );
+
+      expect(await screen.findByText(/File changes are switched off on this site/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /^Update to/ })).toBeNull();
+    });
   });
 
   it('shows a deploy that waits for its confirmation', async () => {

@@ -37,6 +37,9 @@ the computer.
 - [x] T11 Packaging: the plugin zip in the installers and the GitHub Release; CI jobs for the
   plugin (PHP 7.4 to 8.4) and the integration test.
 - [x] T12 Docs.
+- [x] T13 Connector update from the app: `/connector/update` (write scope) swaps the plugin's own
+  folder with the files of the zip the app ships, health checks the site and undoes the swap by
+  itself on a regression; `selfUpdate` in `/site/info`; an Update button in the site overview.
 
 ## Acceptance criteria
 
@@ -66,6 +69,12 @@ the computer.
 - Recovery when deployed code fatals every request: the client asks `/rescue/status` first (the
   guard answers it before themes and plugins load) and rolls back through `/rescue/rollback`, so
   the result is "rolled back, fatal error" rather than an error page.
+- The connector can update itself. A write connection sends the files of the plugin zip the app
+  ships (no download from the site, no ZipArchive), and the plugin builds the new folder beside
+  the old one, parses it, swaps with two renames and health checks the site, putting the old
+  folder back on a regression. This gives a write key no new power: it can already deploy PHP
+  into any active plugin or theme. The first update of a connector that predates the route still
+  needs one manual upload; `selfUpdate` is how the app tells the two apart.
 - A clone (staging copy, database restore) shares `wp_options`, so the plugin renews its site key
   and revokes every connection when the `home` address changes, and the desktop only merges a
   reconnect with an existing site when both the key and the REST origin match.

@@ -497,6 +497,291 @@ describe('cancelling', () => {
 
     expect(w.installer.jobState().completed).toEqual(['gh']);
   });
+
+  /** Holds a step in the gap before its install starts: its own look at the machine. */
+  function holdBeforeInstall(w: ReturnType<typeof world>, where: 'environment' | 'detect') {
+    const entered = deferred();
+    const release = deferred();
+    if (where === 'detect') {
+      const real = w.deps.detect;
+      w.deps.detect = vi.fn(async (id: string, options?: { force?: boolean }) => {
+        if (options?.force) {
+          entered.resolve();
+          await release.promise;
+        }
+        return real(id, options);
+      });
+    } else {
+      // The first call is install() planning, the second is the step getting ready to run.
+      let calls = 0;
+      w.deps.environment = async () => {
+        calls += 1;
+        if (calls === 2) {
+          entered.resolve();
+          await release.promise;
+        }
+        return WIN;
+      };
+    }
+    return { entered: entered.promise, release: release.resolve };
+  }
+
+  it.each(['detect', 'environment'] as const)(
+    'skips a step cancelled while it was still checking the machine (%s)',
+    async (where) => {
+      const w = world();
+      const hold = holdBeforeInstall(w, where);
+      await w.installer.install({ ids: ['gh'] });
+      await hold.entered;
+
+      w.installer.cancel();
+      hold.release();
+      await w.installer.whenIdle();
+
+      expect(w.runs).toEqual([]);
+      expect(finished(w.events)).toEqual([
+        expect.objectContaining({ itemId: 'gh', result: 'cancelled' }),
+      ]);
+      expect(w.events.at(-1)).toMatchObject({ type: 'done', cancelled: true });
+      expect(w.installer.jobState()).toMatchObject({ running: false, items: {} });
+    },
+  );
+
+  it('looks at the machine again before calling a step cancelled', async () => {
+    const w = world();
+    const hold = holdBeforeInstall(w, 'detect');
+    await w.installer.install({ ids: ['gh'] });
+    await hold.entered;
+
+    w.installer.cancel();
+    hold.release();
+    await w.installer.whenIdle();
+
+    const forced = vi.mocked(w.deps.detect).mock.calls.filter(([id, o]) => id === 'gh' && o?.force);
+    expect(forced).toHaveLength(2);
+  });
+
+  it('reports a step as installed when the cancel came too late to matter', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async () => {
+          w.installed.set('git', '2.55.0');
+          return gate.promise;
+        },
+      },
+    });
+    await w.installer.install({ ids: ['git', 'gh'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    w.installer.cancel();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+
+    expect(finished(w.events).map((event) => [event.itemId, event.result])).toEqual([
+      ['git', 'installed'],
+      ['gh', 'cancelled'],
+    ]);
+    expect(w.calls).toContain('afterInstall');
+    expect(w.installer.jobState().completed).toEqual(['git']);
+  });
+
+  it('refuses a new install while the cancel is still stopping the run', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({ behavior: { git: () => gate.promise } });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    w.installer.cancel();
+
+    await expect(w.installer.install({ ids: ['gh'] })).rejects.toThrow(
+      'The install is still stopping. Try again in a moment.',
+    );
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+    expect(w.runs.map((run) => run.id)).toEqual(['git']);
+    expect(finished(w.events).some((event) => event.itemId === 'gh')).toBe(false);
+  });
+
+  it('refuses an install whose checks were overtaken by a cancel', async () => {
+    const gate = deferred<RunResult>();
+    const entered = deferred();
+    const release = deferred();
+    const w = world({ behavior: { git: () => gate.promise } });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+    w.deps.environment = async () => {
+      entered.resolve();
+      await release.promise;
+      return WIN;
+    };
+
+    const second = w.installer.install({ ids: ['gh'] });
+    const refused = expect(second).rejects.toThrow('The install is still stopping.');
+    await entered.promise;
+    w.installer.cancel();
+    release.resolve();
+    await refused;
+
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+    expect(w.runs.map((run) => run.id)).toEqual(['git']);
+  });
+
+  it('accepts an install again once the cancelled run has ended', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({ behavior: { git: () => gate.promise } });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+    w.installer.cancel();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+
+    await w.installer.install({ ids: ['gh'] });
+    await w.installer.whenIdle();
+
+    expect(w.installer.jobState().completed).toEqual(['gh']);
+  });
+});
+
+describe('retrying inside a run that is still going', () => {
+  const FAIL: RunResult = { ok: false, code: 1, cancelled: false, message: 'No.' };
+
+  /** git fails once, then works (or not); gh holds the run open so retries land while it goes. */
+  async function failedGitWhileGhRuns({ retryWorks = true } = {}) {
+    const hold = deferred<RunResult>();
+    let gitAttempts = 0;
+    const w = world({
+      behavior: {
+        git: async (step) => {
+          gitAttempts += 1;
+          if (gitAttempts === 1 || !retryWorks) return FAIL;
+          w.installed.set(step.item.id, '2.55.0');
+          return OK;
+        },
+        gh: () => hold.promise,
+      },
+    });
+    await w.installer.install({ ids: ['flutter', 'gh'] });
+    await vi.waitFor(() => expect(w.runs.map((run) => run.id)).toEqual(['git', 'gh']));
+    const finish = async () => {
+      w.installed.set('gh', '2.62.0');
+      hold.resolve(OK);
+      await w.installer.whenIdle();
+    };
+    return { w, finish };
+  }
+
+  it('runs the dependent step after the step it needs is retried and works', async () => {
+    const { w, finish } = await failedGitWhileGhRuns();
+
+    await w.installer.install({ ids: ['git'] });
+    await w.installer.install({ ids: ['flutter'] });
+    await finish();
+
+    expect(w.runs.map((run) => run.id)).toEqual(['git', 'gh', 'git', 'flutter']);
+    expect(finished(w.events).filter((event) => event.itemId === 'flutter')).toEqual([
+      expect.objectContaining({ result: 'cancelled' }),
+      expect.objectContaining({ result: 'installed' }),
+    ]);
+    expect(w.installer.jobState().completed).toEqual(['gh', 'git', 'flutter']);
+  });
+
+  it('still skips the dependent step when the retry fails again', async () => {
+    const { w, finish } = await failedGitWhileGhRuns({ retryWorks: false });
+
+    await w.installer.install({ ids: ['git'] });
+    await w.installer.install({ ids: ['flutter'] });
+    await finish();
+
+    expect(w.runs.map((run) => run.id)).toEqual(['git', 'gh', 'git']);
+    expect(w.installer.jobState().items.git).toMatchObject({ status: 'failed' });
+    expect(w.installer.jobState().items.flutter).toBeUndefined();
+  });
+
+  it('shows the retried step as waiting straight away, and queues it only once', async () => {
+    const { w, finish } = await failedGitWhileGhRuns();
+    expect(w.installer.jobState().items.git).toMatchObject({ status: 'failed' });
+
+    await w.installer.install({ ids: ['git'] });
+    expect(w.installer.jobState().items.git).toEqual({ status: 'queued' });
+    await w.installer.install({ ids: ['git'] });
+    await finish();
+
+    expect(w.runs.map((run) => run.id)).toEqual(['git', 'gh', 'git']);
+    expect(w.events.filter((event) => event.type === 'plan')).toHaveLength(2);
+  });
+
+  it('does not queue a step twice when two requests for it cross', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({ behavior: { git: () => gate.promise } });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    await Promise.all([w.installer.install({ ids: ['gh'] }), w.installer.install({ ids: ['gh'] })]);
+    w.installed.set('git', '2.55.0');
+    gate.resolve(OK);
+    await w.installer.whenIdle();
+
+    expect(w.runs.map((run) => run.id)).toEqual(['git', 'gh']);
+    expect(w.installer.jobState().completed).toEqual(['git', 'gh']);
+    expect(w.events.filter((event) => event.type === 'plan')).toHaveLength(2);
+  });
+});
+
+describe('when something unexpected throws', () => {
+  it('fails the step and carries on, leaving the installer usable', async () => {
+    let throwOnce = true;
+    const w = world({
+      afterInstall: async () => {
+        if (!throwOnce) return;
+        throwOnce = false;
+        throw new Error('registry unreadable');
+      },
+    });
+
+    await w.installer.install({ ids: ['gh'] });
+    await w.installer.whenIdle();
+
+    expect(finished(w.events)).toEqual([
+      expect.objectContaining({
+        itemId: 'gh',
+        result: 'failed',
+        message: 'registry unreadable',
+      }),
+    ]);
+    expect(w.events.at(-1)).toMatchObject({ type: 'done' });
+    expect(w.installer.jobState().running).toBe(false);
+
+    await w.installer.install({ ids: ['git'] });
+    await w.installer.whenIdle();
+
+    expect(w.installer.jobState().completed).toEqual(['git']);
+  });
+
+  it('does not stay cancelled or busy when the run ends in an error of its own', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({ behavior: { git: () => gate.promise } });
+    const emit = w.deps.emit;
+    let failOnce = true;
+    w.deps.emit = (event) => {
+      emit(event);
+      if (event.type === 'done' && failOnce) {
+        failOnce = false;
+        throw new Error('window gone');
+      }
+    };
+    await w.installer.install({ ids: ['git', 'gh'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+    w.installer.cancel();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await expect(w.installer.whenIdle()).rejects.toThrow('window gone');
+
+    await w.installer.install({ ids: ['gh'] });
+
+    // Polled rather than awaited, so an installer that stayed stuck fails here instead of hanging.
+    await vi.waitFor(() => expect(w.installer.jobState().completed).toEqual(['gh']));
+  });
 });
 
 describe('a second request while one is running', () => {
@@ -645,5 +930,138 @@ describe('what the page is told', () => {
     await w.installer.whenIdle();
 
     expect(w.runs.map((run) => run.id)).toEqual(['git']);
+  });
+});
+
+describe('stopping a run that is not a process', () => {
+  it('calls what the run registered to stop itself, when cancelled', async () => {
+    const abort = vi.fn();
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async (_step, hooks) => {
+          hooks.onCancel?.(abort);
+          return gate.promise;
+        },
+      },
+    });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    w.installer.cancel();
+
+    expect(abort).toHaveBeenCalledTimes(1);
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+  });
+
+  it('does not call it when nothing is cancelled', async () => {
+    const abort = vi.fn();
+    const w = world({
+      behavior: {
+        gh: async (step, hooks) => {
+          hooks.onCancel?.(abort);
+          w.installed.set(step.item.id, '2.62.0');
+          return OK;
+        },
+      },
+    });
+
+    await w.installer.install({ ids: ['gh'] });
+    await w.installer.whenIdle();
+
+    expect(abort).not.toHaveBeenCalled();
+  });
+
+  it('does not call the stop of a step that already finished', async () => {
+    const firstAbort = vi.fn();
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async (step, hooks) => {
+          hooks.onCancel?.(firstAbort);
+          w.installed.set(step.item.id, '2.55.0');
+          return OK;
+        },
+        node: () => gate.promise,
+      },
+    });
+    await w.installer.install({ ids: ['git', 'node'] });
+    await vi.waitFor(() => expect(w.runs.map((run) => run.id)).toEqual(['git', 'node']));
+
+    w.installer.cancel();
+
+    expect(firstAbort).not.toHaveBeenCalled();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+  });
+
+  it('calls a stop that is registered after the cancel, as soon as it is registered', async () => {
+    const abort = vi.fn();
+    const registerNow = deferred();
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async (_step, hooks) => {
+          await registerNow.promise;
+          hooks.onCancel?.(abort);
+          return gate.promise;
+        },
+      },
+    });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    w.installer.cancel();
+    expect(abort).not.toHaveBeenCalled();
+    registerNow.resolve();
+
+    await vi.waitFor(() => expect(abort).toHaveBeenCalledTimes(1));
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
+  });
+
+  it('survives a stop that throws when it is registered after the cancel', async () => {
+    const registerNow = deferred();
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async (_step, hooks) => {
+          await registerNow.promise;
+          hooks.onCancel?.(() => {
+            throw new Error('already closed');
+          });
+          return gate.promise;
+        },
+      },
+    });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+    w.installer.cancel();
+
+    registerNow.resolve();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+
+    await expect(w.installer.whenIdle()).resolves.toBeUndefined();
+  });
+
+  it('survives a stop that throws', async () => {
+    const gate = deferred<RunResult>();
+    const w = world({
+      behavior: {
+        git: async (_step, hooks) => {
+          hooks.onCancel?.(() => {
+            throw new Error('already closed');
+          });
+          return gate.promise;
+        },
+      },
+    });
+    await w.installer.install({ ids: ['git'] });
+    await vi.waitFor(() => expect(w.runs).toHaveLength(1));
+
+    expect(() => w.installer.cancel()).not.toThrow();
+    gate.resolve({ ok: false, code: null, cancelled: true });
+    await w.installer.whenIdle();
   });
 });

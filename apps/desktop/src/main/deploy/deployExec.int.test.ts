@@ -39,7 +39,7 @@ import {
 
 const enabled = systemTestsEnabled();
 
-/** Ubuntu on every `[e2e]` push; the nightly matrix runs it on each distro. */
+/** Ubuntu on every CI run; the nightly matrix runs it on each distro. */
 const IMAGES = testServerImages(DISTRO_IMAGES, ['ubuntu-24.04']);
 const REPO = fileURLToPath(new URL('../../../../../', import.meta.url));
 const ARTIFACTS = join(REPO, 'apps', 'server-core', 'artifacts', 'release');

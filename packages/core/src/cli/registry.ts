@@ -79,7 +79,10 @@ export const CliDefinitionSchema = z.object({
   promptImageFlag: z.string().optional(),
   /** Env vars for a run that attaches images, e.g. to let the CLI read from a temp folder. */
   promptImageEnv: z.record(z.string(), z.string()).optional(),
-  /** Keyed by SupportedOS; not every OS needs an entry. */
+  /**
+   * Keyed by SupportedOS; not every OS needs an entry. Each is the vendor's own recommended
+   * command for that OS. The Windows one is typed into Windows PowerShell 5.1, which has no `&&`.
+   */
   installCommand: z.record(z.string(), z.string()),
   /** Keyed by SupportedOS; falls back to installCommand when absent. */
   updateCommand: z.record(z.string(), z.string()).optional(),
@@ -108,11 +111,20 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptImageInput: 'read-tool',
     promptImageArgs: ['--allowedTools', 'Read'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['claude-code']}`,
+    // Anthropic's native installer: no Node needed, and it keeps itself up to date. The npm
+    // package still works but needs Node and a writable npm prefix, which a stock Mac lacks.
     installCommand: {
-      win32: 'npm install -g @anthropic-ai/claude-code',
-      darwin: 'npm install -g @anthropic-ai/claude-code',
-      linux: 'npm install -g @anthropic-ai/claude-code',
+      win32: 'irm https://claude.ai/install.ps1 | iex',
+      darwin: 'curl -fsSL https://claude.ai/install.sh | bash',
+      linux: 'curl -fsSL https://claude.ai/install.sh | bash',
     },
+    // Works for native and npm installs alike.
+    updateCommand: {
+      win32: 'claude update',
+      darwin: 'claude update',
+      linux: 'claude update',
+    },
+    // The npm package carries the same version stream as the native builds.
     updateCheck: { type: 'npm', package: '@anthropic-ai/claude-code' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
@@ -133,10 +145,16 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // never is.
     promptImageEnv: { GEMINI_CLI_TRUST_WORKSPACE: 'true' },
     argsExample: `-m ${CLI_MODEL_EXAMPLES['gemini-cli']}`,
+    // Google publishes no native installer, so npm (Node 20+) it is.
     installCommand: {
       win32: 'npm install -g @google/gemini-cli',
       darwin: 'npm install -g @google/gemini-cli',
       linux: 'npm install -g @google/gemini-cli',
+    },
+    updateCommand: {
+      win32: 'npm install -g @google/gemini-cli@latest',
+      darwin: 'npm install -g @google/gemini-cli@latest',
+      linux: 'npm install -g @google/gemini-cli@latest',
     },
     updateCheck: { type: 'npm', package: '@google/gemini-cli' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -156,10 +174,17 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // `--auto` is a `run` flag, so it must follow `run` in argv (see headlessPrompt write-arg order).
     promptWriteArgs: ['--auto'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['opencode']}`,
+    // There is no PowerShell installer (install.ps1 is a 404), so Windows stays on npm.
     installCommand: {
       win32: 'npm install -g opencode-ai@latest',
-      darwin: 'npm install -g opencode-ai@latest',
-      linux: 'npm install -g opencode-ai@latest',
+      darwin: 'curl -fsSL https://opencode.ai/install | bash',
+      linux: 'curl -fsSL https://opencode.ai/install | bash',
+    },
+    // `opencode upgrade` works out on its own whether it came from the script, npm or brew.
+    updateCommand: {
+      win32: 'opencode upgrade',
+      darwin: 'opencode upgrade',
+      linux: 'opencode upgrade',
     },
     updateCheck: { type: 'npm', package: 'opencode-ai' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -180,12 +205,21 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptInputMode: 'stdin',
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['openclaude']}`,
+    // @gitlawb/openclaude is deprecated ("Moved to @twigpine/openclaude"). Node 22+.
     installCommand: {
-      win32: 'npm install -g @gitlawb/openclaude@latest',
-      darwin: 'npm install -g @gitlawb/openclaude@latest',
-      linux: 'npm install -g @gitlawb/openclaude@latest',
+      win32: 'npm install -g @twigpine/openclaude@latest',
+      darwin: 'npm install -g @twigpine/openclaude@latest',
+      linux: 'npm install -g @twigpine/openclaude@latest',
     },
-    updateCheck: { type: 'npm', package: '@gitlawb/openclaude' },
+    // Both packages own the `openclaude` bin, so the old one has to go first or npm refuses to
+    // link the new one. Uninstalling a package that isn't there is a no-op. `;` rather than `&&`
+    // so the same line runs in Windows PowerShell 5.1.
+    updateCommand: {
+      win32: 'npm uninstall -g @gitlawb/openclaude; npm install -g @twigpine/openclaude@latest',
+      darwin: 'npm uninstall -g @gitlawb/openclaude; npm install -g @twigpine/openclaude@latest',
+      linux: 'npm uninstall -g @gitlawb/openclaude; npm install -g @twigpine/openclaude@latest',
+    },
+    updateCheck: { type: 'npm', package: '@twigpine/openclaude' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
   {
@@ -209,10 +243,19 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // "Not inside a trusted directory and --skip-git-repo-check was not specified."
     promptImageArgs: ['--skip-git-repo-check'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['codex-cli']}`,
+    // OpenAI's native installers. The Windows one runs in a child PowerShell as the docs give it,
+    // so the script's execution-policy bypass stays scoped to it.
     installCommand: {
-      win32: 'npm install -g @openai/codex',
-      darwin: 'npm install -g @openai/codex',
-      linux: 'npm install -g @openai/codex',
+      win32:
+        'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"',
+      darwin: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+      linux: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+    },
+    // Detects npm, Homebrew and script installs and runs the matching upgrade.
+    updateCommand: {
+      win32: 'codex update',
+      darwin: 'codex update',
+      linux: 'codex update',
     },
     updateCheck: { type: 'npm', package: '@openai/codex' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -233,11 +276,19 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptCommand: { command: 'grok', args: ['-p'] },
     promptWriteArgs: ['--permission-mode', 'acceptEdits'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['grok-cli']}`,
+    // xAI's docs only give these scripts. They also install an `agent` binary, the same name as
+    // Cursor's, which is why Cursor is always called as `cursor-agent` here.
     installCommand: {
-      win32: 'npm install -g @xai-official/grok',
-      darwin: 'npm install -g @xai-official/grok',
-      linux: 'npm install -g @xai-official/grok',
+      win32: 'irm https://x.ai/cli/install.ps1 | iex',
+      darwin: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+      linux: 'curl -fsSL https://x.ai/cli/install.sh | bash',
     },
+    updateCommand: {
+      win32: 'grok update',
+      darwin: 'grok update',
+      linux: 'grok update',
+    },
+    // Published by xAI and kept in step with x.ai/cli/stable.
     updateCheck: { type: 'npm', package: '@xai-official/grok' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },
@@ -260,7 +311,9 @@ export const CLI_REGISTRY: CliDefinition[] = [
       linux: 'curl https://cursor.com/install -fsS | bash',
     },
     // The CLI ships its own self-updater; re-running the install script would work too, but
-    // this is the documented path and avoids re-downloading the whole installer.
+    // this is the documented path and avoids re-downloading the whole installer. Cursor's docs
+    // now call the binary `agent`, but Grok installs an `agent` too (first on PATH on Windows),
+    // and the installers still create `cursor-agent`, so that is the name used everywhere here.
     updateCommand: {
       win32: 'cursor-agent update',
       darwin: 'cursor-agent update',
@@ -285,10 +338,16 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptInputMode: 'stdin',
     promptWriteArgs: ['--allow-all-tools'],
     argsExample: `--model ${CLI_MODEL_EXAMPLES['copilot-cli']}`,
+    // GitHub's install script is macOS/Linux only; on Windows the documented path is winget.
     installCommand: {
-      win32: 'npm install -g @github/copilot',
-      darwin: 'npm install -g @github/copilot',
-      linux: 'npm install -g @github/copilot',
+      win32: 'winget install GitHub.Copilot',
+      darwin: 'curl -fsSL https://gh.io/copilot-install | bash',
+      linux: 'curl -fsSL https://gh.io/copilot-install | bash',
+    },
+    updateCommand: {
+      win32: 'copilot update',
+      darwin: 'copilot update',
+      linux: 'copilot update',
     },
     updateCheck: { type: 'npm', package: '@github/copilot' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -325,10 +384,15 @@ export const CLI_REGISTRY: CliDefinition[] = [
     promptInputMode: 'stdin',
     promptWriteArgs: ['--yolo'],
     argsExample: `-m ${CLI_MODEL_EXAMPLES['qwen-cli']}`,
+    // The vendor's standalone installers, which bring their own Node. There is no self-update,
+    // so re-running the installer is the update.
     installCommand: {
-      win32: 'npm install -g @qwen-code/qwen-code',
-      darwin: 'npm install -g @qwen-code/qwen-code',
-      linux: 'npm install -g @qwen-code/qwen-code',
+      win32:
+        'irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex',
+      darwin:
+        'curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash',
+      linux:
+        'curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash',
     },
     updateCheck: { type: 'npm', package: '@qwen-code/qwen-code' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -344,15 +408,18 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'aider', args: ['--version'] },
     argsExample: `--model ${CLI_MODEL_EXAMPLES['aider']}`,
     fileMention: 'plain',
+    // Aider's one-liners install uv and let it fetch Python 3.12, so nothing has to be there
+    // first. pipx still works but needs a matching Python already installed.
     installCommand: {
-      win32: 'pipx install aider-chat',
-      darwin: 'pipx install aider-chat',
-      linux: 'pipx install aider-chat',
+      win32: 'powershell -ExecutionPolicy ByPass -c "irm https://aider.chat/install.ps1 | iex"',
+      darwin: 'curl -LsSf https://aider.chat/install.sh | sh',
+      linux: 'curl -LsSf https://aider.chat/install.sh | sh',
     },
+    // The uv install includes pip for exactly this, and pipx installs are handled too.
     updateCommand: {
-      win32: 'pipx upgrade aider-chat',
-      darwin: 'pipx upgrade aider-chat',
-      linux: 'pipx upgrade aider-chat',
+      win32: 'aider --upgrade',
+      darwin: 'aider --upgrade',
+      linux: 'aider --upgrade',
     },
     updateCheck: { type: 'pypi', package: 'aider-chat' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -362,26 +429,34 @@ export const CLI_REGISTRY: CliDefinition[] = [
     name: 'Goose',
     label: 'Goose',
     description: "Block's on-machine AI agent CLI.",
-    homepageUrl: 'https://github.com/block/goose',
+    // The project moved from block/goose to the Agentic AI Foundation.
+    homepageUrl: 'https://github.com/aaif-goose/goose',
+    docsUrl: 'https://goose-docs.ai',
     executableNames: ['goose'],
     detectCommand: { command: 'goose', args: ['--version'] },
     versionCommand: { command: 'goose', args: ['--version'] },
     promptCommand: { command: 'goose', args: ['run', '-t'] },
     fileMention: 'plain',
+    // The Windows script calls `exit 1` when something fails, which piped straight into this
+    // tab's `iex` would close the tab along with the error. A child PowerShell keeps the message.
+    // It installs to %USERPROFILE%\.local\bin without touching PATH; AgentMate looks there itself.
     installCommand: {
+      win32:
+        'powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/aaif-goose/goose/main/download_cli.ps1 | iex"',
       darwin:
-        'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+        'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
       linux:
-        'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+        'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
     },
     // `goose update` is the built-in self-updater, faster and more reliable than re-running
-    // the install script.
+    // the install script. Its docs only cover it on macOS and Linux, so Windows re-runs the
+    // installer.
     updateCommand: {
       darwin: 'goose update',
       linux: 'goose update',
     },
-    updateCheck: { type: 'github-release', package: 'block/goose' },
-    supportedOS: ['darwin', 'linux'],
+    updateCheck: { type: 'github-release', package: 'aaif-goose/goose' },
+    supportedOS: ['win32', 'darwin', 'linux'],
   },
   {
     id: 'cline-cli',
@@ -414,10 +489,20 @@ export const CLI_REGISTRY: CliDefinition[] = [
     versionCommand: { command: 'cn', args: ['--version'] },
     promptCommand: { command: 'cn', args: ['-p'] },
     argsExample: `--model ${CLI_MODEL_EXAMPLES['continue-cli']}`,
+    // The official scripts install Node through fnm when it is missing, then npm-install the CLI,
+    // so a machine without Node gets a working `cn` too.
     installCommand: {
-      win32: 'npm install -g @continuedev/cli',
-      darwin: 'npm install -g @continuedev/cli',
-      linux: 'npm install -g @continuedev/cli',
+      win32:
+        'irm https://raw.githubusercontent.com/continuedev/continue/main/extensions/cli/scripts/install.ps1 | iex',
+      darwin:
+        'curl -fsSL https://raw.githubusercontent.com/continuedev/continue/main/extensions/cli/scripts/install.sh | bash',
+      linux:
+        'curl -fsSL https://raw.githubusercontent.com/continuedev/continue/main/extensions/cli/scripts/install.sh | bash',
+    },
+    updateCommand: {
+      win32: 'npm install -g @continuedev/cli@latest',
+      darwin: 'npm install -g @continuedev/cli@latest',
+      linux: 'npm install -g @continuedev/cli@latest',
     },
     updateCheck: { type: 'npm', package: '@continuedev/cli' },
     supportedOS: ['win32', 'darwin', 'linux'],
@@ -439,14 +524,20 @@ export const CLI_REGISTRY: CliDefinition[] = [
     // No promptWriteArgs: pi has no permission popups, so its write/edit/bash tools run
     // as-is, and the project trust prompt never appears in non-interactive mode.
     argsExample: `--model ${CLI_MODEL_EXAMPLES['pi']}`,
-    // `--ignore-scripts` is what pi's own install docs recommend; it needs no lifecycle scripts.
+    // pi.dev's installers are the recommended path: they pin every dependency and can bring Node
+    // along. The Windows line is the one pi itself prints.
     installCommand: {
-      win32: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-      darwin: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
-      linux: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
+      win32: 'powershell -c "irm https://pi.dev/install.ps1 | iex"',
+      darwin: 'curl -fsSL https://pi.dev/install.sh | sh',
+      linux: 'curl -fsSL https://pi.dev/install.sh | sh',
     },
-    // No updateCommand: `pi update --self` only acts on installs it detects as globally
-    // package-managed and writable, so re-running the npm install is the reliable path.
+    // `--self` updates pi only, leaving its extensions alone. It updates both installer-managed
+    // and npm copies (the latter with pi's own `--ignore-scripts`).
+    updateCommand: {
+      win32: 'pi update --self',
+      darwin: 'pi update --self',
+      linux: 'pi update --self',
+    },
     updateCheck: { type: 'npm', package: '@earendil-works/pi-coding-agent' },
     supportedOS: ['win32', 'darwin', 'linux'],
   },

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,7 @@ import type { WpClient } from './client';
 import { WpRemoteError } from './client';
 import { cleanInfo, cleanItem, conflictMessage, WordPressService, wpMessagePath } from './service';
 import { WordPressBases, WordPressState, wordPressStateFilePort } from './state';
+import { testConnectorBundle } from './testing/connectorBundle';
 import { FakeConnector, pairingSecretOf } from './testing/fakeConnector';
 import { createFetchTransport } from './transport';
 
@@ -66,6 +67,7 @@ function make(overrides: Partial<ConstructorParameters<typeof WordPressService>[
     progress: (event) => events.push(event),
     hostname: () => 'test-laptop',
     saveConnectorZip: async () => ({ saved: true, path: '/tmp/agentmate-connector.zip' }),
+    readConnectorBundle: async () => testConnectorBundle(),
     sleep: async () => undefined,
     ...overrides,
   });
@@ -445,6 +447,276 @@ describe('rollback and operations', () => {
   });
 });
 
+describe('updateConnector', () => {
+  const updateCalls = () =>
+    fake.requests.filter((request) => request.route === WP_ROUTES.connectorUpdate);
+
+  it('sends the bundled files and confirms the new version afterwards', async () => {
+    fake.pluginVersion = '1.0.0';
+    const { service, state } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const result = await service.updateConnector(site.id);
+
+    expect(result).toMatchObject({
+      outcome: 'updated',
+      fromVersion: '1.0.0',
+      version: WP_CONNECTOR_VERSION,
+    });
+    expect(result.checks.map((check) => check.name)).toEqual(['home', 'ajaxPing']);
+    expect(fake.pluginVersion).toBe(WP_CONNECTOR_VERSION);
+    expect(fake.updates).toEqual([
+      {
+        version: WP_CONNECTOR_VERSION,
+        files: ['agentmate-connector.php', 'readme.txt', 'src/Plugin.php'],
+        state: 'updated',
+      },
+    ]);
+    expect(fake.audit[0]?.event).toBe('connectorUpdated');
+    // The version the app remembers comes from the site's own answer afterwards.
+    expect((await state.site(site.id))?.pluginVersion).toBe(WP_CONNECTOR_VERSION);
+  });
+
+  it('sends nothing when the site already has this version or a newer one', async () => {
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    expect(await service.updateConnector(site.id)).toEqual({
+      outcome: 'current',
+      fromVersion: WP_CONNECTOR_VERSION,
+      version: WP_CONNECTOR_VERSION,
+      checks: [],
+    });
+    fake.pluginVersion = '99.0.0';
+    expect((await service.updateConnector(site.id)).outcome).toBe('current');
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it('never calls the route of a connector that cannot update itself', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.selfUpdate = false;
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('connectorOutdated');
+    expect(error.message).toContain('Upload the plugin once in wp-admin');
+    expect(error.message).toContain('updates can be done from here');
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it('says why a connector that has the route cannot swap its folder', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.notReplaceable = true;
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toMatch(/can't be replaced from here/);
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it('keeps the site\x27s own sentence when its PHP or WordPress is too old', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.refuseUpdate = {
+      code: 'updateRefused',
+      message: 'AgentMate Connector 9.0.0 needs PHP 99.0 or newer, and this site runs 7.4.33.',
+      details: { reason: 'requirements' },
+    };
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toContain('needs PHP 99.0 or newer, and this site runs 7.4.33');
+  });
+
+  it('reports an update the site undid because it failed its health check', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.updateHealthFails = true;
+    const { service, state } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const result = await service.updateConnector(site.id);
+
+    expect(result.outcome).toBe('rolledBack');
+    expect(result.checks.find((check) => check.name === 'home')).toMatchObject({
+      ok: false,
+      status: 500,
+    });
+    expect(fake.pluginVersion).toBe('1.0.0');
+    expect(fake.audit[0]?.event).toBe('connectorRolledBack');
+    expect((await state.site(site.id))?.pluginVersion).toBe('1.0.0');
+  });
+
+  it('refuses before sending when the files do not fit the site', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.limits.maxRequestBytes = 70 * 1024;
+    const bigBundle = testConnectorBundle();
+    // Random bytes do not compress, so the request really is this big on the wire.
+    const noise = randomBytes(400_000);
+    bigBundle.files.push({
+      path: 'src/Noise.php',
+      size: noise.length,
+      sha256: createHash('sha256').update(noise).digest('hex'),
+      bytes: noise,
+    });
+    const { service } = make({ readConnectorBundle: async () => bigBundle });
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toContain('takes requests of about 70 KB at most');
+    expect(error.message).toContain('upload it in wp-admin instead');
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it('needs a write key', async () => {
+    fake.pluginVersion = '1.0.0';
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey({ scope: 'read' }) });
+
+    expect(wordPressErrorCode(await failure(service.updateConnector(site.id)))).toBe('readOnly');
+    expect(fake.pluginVersion).toBe('1.0.0');
+  });
+
+  it('passes the site busy through when a deploy is still open', async () => {
+    fake.pluginVersion = '1.0.0';
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+    const client = await clientOf(service, site.id);
+    const begin = await client.call(WP_ROUTES.deployBegin, {
+      label: 'Open',
+      items: [THEME],
+      ops: [
+        {
+          op: 'put',
+          item: THEME,
+          path: 'style.css',
+          sha256: createHash('sha256').update('x').digest('hex'),
+          size: 1,
+          expected: 'any',
+        },
+      ],
+    });
+
+    const busy = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(busy)).toBe('busy');
+    await client.call(WP_ROUTES.deployAbort, { deployId: begin.data.deployId as string });
+    expect((await service.updateConnector(site.id)).outcome).toBe('updated');
+  });
+
+  it.each([
+    ['downgrade', /newer than the one that comes with this app/],
+    ['badPackage', /did not accept the connector files/],
+    ['notReplaceable', /can't be replaced from here/],
+  ])('says in its own words why the site refused (%s)', async (reason, words) => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.refuseUpdate = {
+      code: 'updateRefused',
+      message: 'raw site wording',
+      details: { reason },
+    };
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toMatch(words);
+    expect(error.message).not.toContain('raw site wording');
+    expect(fake.pluginVersion).toBe('1.0.0');
+  });
+
+  it('turns a syntax error in the new files into a refusal that names the file', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.refuseUpdate = {
+      code: 'syntaxError',
+      message: 'Parse error',
+      details: { path: 'src/Plugin.php', line: 12, message: 'unexpected token' },
+    };
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toContain('a syntax error in src/Plugin.php, line 12');
+    expect(error.message).toContain('so nothing was changed');
+  });
+
+  it('explains a request the site or its web server found too large', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.refuseUpdate = { code: 'tooLarge', message: 'Too big' };
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const error = await failure(service.updateConnector(site.id));
+
+    expect(wordPressErrorCode(error)).toBe('updateRefused');
+    expect(error.message).toMatch(/takes requests of about 8192 KB at most/);
+  });
+
+  it('keeps pulls and deploys off the site while it works, and one update at a time', async () => {
+    fake.pluginVersion = '1.0.0';
+    fake.switches.delayMs = 150;
+    const { service } = make();
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const first = service.updateConnector(site.id);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const second = await failure(service.updateConnector(site.id));
+    const pull = await failure(
+      service.rollback({ operationId: 'op-during-update', siteId: site.id, deployId: 'dep-1' }),
+    );
+
+    expect(wordPressErrorCode(second)).toBe('operationBusy');
+    expect(wordPressErrorCode(pull)).toBe('operationBusy');
+    expect((await first).outcome).toBe('updated');
+    expect(updateCalls()).toHaveLength(1);
+  });
+
+  it('recovers when the reply never arrives but the swap worked', async () => {
+    fake.pluginVersion = '1.0.0';
+    // The site applies the update, then the answer is lost on the way back.
+    const lossy: typeof nodeTransport = async (request) => {
+      const response = await nodeTransport(request);
+      if (request.url.includes('connector/update') || request.url.includes('connector%2Fupdate')) {
+        throw new WpRemoteError('timeout', 'The site took too long to answer.');
+      }
+      return response;
+    };
+    const { service } = make({ transport: lossy });
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    const result = await service.updateConnector(site.id);
+
+    expect(result).toMatchObject({ outcome: 'updated', fromVersion: '1.0.0', checks: [] });
+    expect(fake.pluginVersion).toBe(WP_CONNECTOR_VERSION);
+  });
+
+  it('keeps the original timeout when the swap did not happen', async () => {
+    fake.pluginVersion = '1.0.0';
+    const lossy: typeof nodeTransport = async (request) => {
+      if (request.url.includes('connector/update') || request.url.includes('connector%2Fupdate')) {
+        throw new WpRemoteError('timeout', 'The site took too long to answer.');
+      }
+      return nodeTransport(request);
+    };
+    const { service } = make({ transport: lossy });
+    const site = await service.connect({ connectionKey: fake.createKey() });
+
+    expect(wordPressErrorCode(await failure(service.updateConnector(site.id)))).toBe('timeout');
+    expect(fake.pluginVersion).toBe('1.0.0');
+  });
+});
+
 describe('a deploy left behind', () => {
   async function leftBehind(finish: 'done' | 'open' | 'applied' | 'gone') {
     const { service, state, bases } = make();
@@ -584,6 +856,11 @@ describe('cleaning what a site says', () => {
     expect(info.activeTheme).toEqual({ stylesheet: '', template: '' });
     expect(info.guard).toEqual({ installed: false, rescueUrl: null });
     expect(info.connection.label).toBe('');
+    // A real boolean is kept; no field (an old connector) and an odd value both stay unknown.
+    expect(info.selfUpdate).toBeUndefined();
+    expect(cleanInfo({ selfUpdate: true } as never).selfUpdate).toBe(true);
+    expect(cleanInfo({ selfUpdate: false } as never).selfUpdate).toBe(false);
+    expect(cleanInfo({ selfUpdate: 'yes' } as never).selfUpdate).toBeUndefined();
   });
 
   it('lists the files behind a rollback conflict', () => {

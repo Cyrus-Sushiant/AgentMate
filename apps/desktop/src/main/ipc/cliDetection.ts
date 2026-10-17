@@ -1,7 +1,4 @@
 import { type ChildProcess, execFile } from 'node:child_process';
-import { constants } from 'node:fs';
-import { access } from 'node:fs/promises';
-import { delimiter, join } from 'node:path';
 import type {
   CliDefinition,
   CliUpdateCheckResult,
@@ -15,12 +12,15 @@ import {
   getUpdateCommandForCurrentOS,
 } from '@agentmat/core';
 import { ipcMain } from 'electron';
+import type { CommandPrerequisite } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { checkCommandPrerequisite } from '../commandPrerequisite';
+import { installManagerOf, resolveExecutable, updateCommandFor } from '../installMethod';
 import { mapWithConcurrency } from '../packageManagers/execUtils';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { killProcessTree } from '../security/exec';
 import { refreshShellPath } from '../shellPath';
-import { pathKey } from '../windowsPath';
+import { refreshExtraToolPathDirs, withToolPath } from '../toolPaths';
 
 /**
  * Some CLIs take a long time to answer `--version` (Cline and Cursor's agent run past ten seconds,
@@ -31,53 +31,35 @@ const VERSION_TIMEOUT_MS = 20_000;
 /** Fifteen Node CLIs starting at once slowed each other past the timeout. */
 const PROBE_CONCURRENCY = 4;
 
-async function isExecutable(path: string): Promise<boolean> {
-  try {
-    await access(path, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Where on PATH the CLI lives, looked up the way the shell would, without starting it. */
-async function findOnPath(cli: CliDefinition): Promise<string | null> {
-  const dirs = (process.env[pathKey(process.env)] ?? '').split(delimiter).filter(Boolean);
-  const extensions =
-    process.platform === 'win32'
-      ? (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
-      : [''];
-  const names = [...new Set([cli.versionCommand.command, ...cli.executableNames])];
-  for (const dir of dirs) {
-    for (const name of names) {
-      for (const ext of extensions) {
-        const candidate = join(dir, name + ext);
-        if (await isExecutable(candidate)) return candidate;
-      }
-    }
-  }
-  return null;
-}
-
 interface VersionProbe {
   stdout: string;
   ok: boolean;
 }
 
-function probeVersion(cli: CliDefinition): Promise<VersionProbe> {
+/**
+ * Runs the CLI's version command. `executablePath` is where detection found it; on POSIX that is
+ * what gets spawned, so a CLI found only in one of the extra tool folders answers too.
+ */
+async function probeVersion(
+  cli: CliDefinition,
+  executablePath: string | null,
+): Promise<VersionProbe> {
+  // The extra tool folders go on the child's PATH as well, which is what lets cmd.exe find a CLI
+  // that a native installer put somewhere the app's own PATH does not reach.
+  // Cline's CLI self-updates on every invocation, including a bare version check, by
+  // spawning a detached background installer; on Windows that can flash open a visible
+  // console. This is a no-op env var for every other CLI we shell out to.
+  const env = await withToolPath({ ...process.env, CLINE_NO_AUTO_UPDATE: '1' });
   return new Promise((resolve) => {
     // npm-installed global CLIs are typically .cmd shims on Windows, which
     // Node refuses to spawn directly (security fix in Node >=18.20/20.11/21.6).
     // Route through cmd.exe explicitly (argv array, not `shell: true`) so
     // Node doesn't naively string-concatenate args. command/args here are
     // always static, developer-authored registry entries, never renderer input.
-    // Cline's CLI self-updates on every invocation, including a bare version check, by
-    // spawning a detached background installer; on Windows that can flash open a visible
-    // console. This is a no-op env var for every other CLI we shell out to.
     const options = {
       windowsHide: true,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, CLINE_NO_AUTO_UPDATE: '1' },
+      env,
     };
     let settled = false;
     const finish = (probe: VersionProbe): void => {
@@ -97,7 +79,12 @@ function probeVersion(cli: CliDefinition): Promise<VersionProbe> {
             options,
             callback,
           )
-        : execFile(cli.versionCommand.command, cli.versionCommand.args, options, callback);
+        : execFile(
+            executablePath ?? cli.versionCommand.command,
+            cli.versionCommand.args,
+            options,
+            callback,
+          );
     // Killing only cmd.exe left the CLI itself running and holding the output pipe open.
     const timer = setTimeout(() => {
       killProcessTree(child);
@@ -108,8 +95,11 @@ function probeVersion(cli: CliDefinition): Promise<VersionProbe> {
 
 async function detectCli(cli: CliDefinition): Promise<InstalledCli> {
   const lastCheckedAt = new Date().toISOString();
-  const executablePath = await findOnPath(cli);
-  const probe = await probeVersion(cli);
+  const executablePath = await resolveExecutable([
+    cli.versionCommand.command,
+    ...cli.executableNames,
+  ]);
+  const probe = await probeVersion(cli, executablePath);
   // Found on PATH is installed even when the version check fails or runs long (a CLI in the
   // middle of updating itself, a slow cold start). Otherwise the check answering at all is proof.
   const installed = executablePath !== null || probe.ok;
@@ -159,6 +149,9 @@ export function detectAllClis(force: boolean): Promise<InstalledCli[]> {
     .then(async () => {
       // On a Mac opened from Finder this is what puts ~/.local/bin, Homebrew and nvm on PATH.
       await refreshShellPath({ force: true });
+      // A forced rescan is what the user asks for right after an install, which may have just
+      // created a folder (a Python Scripts dir, ~/.grok/bin) the cached list did not have.
+      if (force) refreshExtraToolPathDirs();
       return mapWithConcurrency(CLI_REGISTRY, PROBE_CONCURRENCY, detectCli);
     })
     .then((value) => {
@@ -205,9 +198,27 @@ export function registerCliDetectionHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.cli.getUpdateCommand, (_event, cliId: string): string | null => {
-    const cli = getCliDefinition(cliId);
-    if (!cli) return null;
-    return getUpdateCommandForCurrentOS(cli, process.platform as SupportedOS);
-  });
+  ipcMain.handle(
+    IPC.cli.getUpdateCommand,
+    async (_event, cliId: string): Promise<string | null> => {
+      const cli = getCliDefinition(cliId);
+      if (!cli) return null;
+      const catalogCommand = getUpdateCommandForCurrentOS(cli, process.platform as SupportedOS);
+      // The copy being run may be an old npm or Homebrew install rather than the vendor's, and the
+      // vendor's installer would put a second copy next to it instead of updating it.
+      const detected = (await detectAllClis(false)).find((one) => one.id === cli.id);
+      if (!detected?.executablePath) return catalogCommand;
+      return updateCommandFor({
+        catalogCommand,
+        manager: await installManagerOf(detected.executablePath),
+        pypiPackage: cli.updateCheck?.type === 'pypi' ? cli.updateCheck.package : undefined,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC.cli.checkCommandPrerequisite,
+    (_event, command: string): Promise<CommandPrerequisite | null> =>
+      typeof command === 'string' ? checkCommandPrerequisite(command) : Promise.resolve(null),
+  );
 }

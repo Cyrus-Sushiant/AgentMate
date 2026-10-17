@@ -42,6 +42,7 @@ import { RunError } from './FlowParts';
 import { ItemPicker, toItemRef } from './ItemPicker';
 import { OperationTimeline } from './OperationTimeline';
 import { SitePicker, siteHost } from './SitePicker';
+import { replaceProject, useUnlinkWordPressProject } from './useUnlinkWordPressProject';
 import { ITEM_KIND_LABEL } from './wordpressCopy';
 
 /**
@@ -64,7 +65,7 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
   const [deployOpen, setDeployOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [relinkOpen, setRelinkOpen] = useState(false);
-  const [unlinking, setUnlinking] = useState(false);
+  const { unlinking, unlink: unlinkProject } = useUnlinkWordPressProject();
   const [, setSearchParams] = useSearchParams();
 
   const sitesQuery = useQuery({
@@ -117,19 +118,9 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
     (itemsQuery.data ?? []).map((item) => [wpItemKey(item), item]),
   );
 
-  async function unlink(): Promise<void> {
-    const ok = await confirmDialog({
-      title: 'Unlink this project from the site?',
-      description:
-        'Every file stays in the project folder. AgentMate just stops pulling from and deploying to the site, and forgets what it last synced.',
-      confirmLabel: 'Unlink',
-      icon: LinkOff,
-    });
-    if (!ok) return;
-    setUnlinking(true);
-    try {
-      const updated = await window.agentmat.deployWordPress.unlinkProject(project.id);
-      // The section goes with the link, so leave it for the Overview first.
+  function unlink(): void {
+    // The section goes with the link, so leave it for the Overview first.
+    void unlinkProject(project, () =>
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
@@ -137,14 +128,8 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
           return params;
         },
         { replace: true },
-      );
-      replaceProject(queryClient, updated);
-      toast.success('Unlinked. The files are still in the project folder.');
-    } catch (error) {
-      toast.error(wordPressErrorMessage(error));
-    } finally {
-      setUnlinking(false);
-    }
+      ),
+    );
   }
 
   async function removeItem(item: WpItemRef): Promise<void> {
@@ -229,7 +214,7 @@ export function WordPressProjectSection({ project }: { project: Project }): Reac
                 <CloudUpload className="h-3.5 w-3.5" /> Review and deploy
               </Button>
             </SimpleTooltip>
-            <Button variant="ghost" size="sm" disabled={unlinking} onClick={() => void unlink()}>
+            <Button variant="ghost" size="sm" disabled={unlinking} onClick={unlink}>
               {unlinking ? (
                 <Spinner className="h-3.5 w-3.5 animate-spin" />
               ) : (
@@ -435,18 +420,6 @@ function ChangeCount({
       <p className="text-[11px] text-muted-foreground">{label}</p>
     </div>
   );
-}
-
-function replaceProject(
-  queryClient: ReturnType<typeof useQueryClient>,
-  updated: Project | null | undefined,
-): void {
-  if (updated?.id) {
-    queryClient.setQueryData<Project[]>(queryKeys.projects, (prev) =>
-      prev?.map((entry) => (entry.id === updated.id ? updated : entry)),
-    );
-  }
-  void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
 }
 
 /** Adds more of the site's themes and plugins to the project, pulling each one in. */

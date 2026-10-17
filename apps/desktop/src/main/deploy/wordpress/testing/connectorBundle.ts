@@ -1,0 +1,30 @@
+import { createHash } from 'node:crypto';
+import { WP_CONNECTOR_VERSION } from '@agentmat/core';
+import type { ConnectorBundle } from '../connectorBundle';
+
+/** A small stand-in for the shipped connector, in the shape the update reads it. */
+export function testConnectorBundle(version: string = WP_CONNECTOR_VERSION): ConnectorBundle {
+  const sources: Record<string, string> = {
+    'agentmate-connector.php': `<?php
+/**
+ * Plugin Name:       AgentMate Connector
+ * Version:           ${version}
+ */
+define('AGENTMATE_CONNECTOR_VERSION', '${version}');
+`,
+    'readme.txt': `=== AgentMate Connector ===\nStable tag: ${version}\n`,
+    'src/Plugin.php': '<?php\nnamespace AgentMate\\Connector;\nfinal class Plugin {}\n',
+  };
+  const files = Object.keys(sources)
+    .sort()
+    .map((path) => {
+      const bytes = Buffer.from(sources[path], 'utf-8');
+      return {
+        path,
+        size: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        bytes,
+      };
+    });
+  return { version, files, totalBytes: files.reduce((sum, file) => sum + file.size, 0) };
+}

@@ -21,8 +21,16 @@ import {
 } from '@agentmat/core';
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
+import {
+  type InstallManager,
+  installManagerOf,
+  resolveExecutable,
+  uninstallCommandFor,
+  updateCommandFor,
+} from '../installMethod';
 import { compareVersions, fetchLatestVersion } from '../registryVersions';
 import { refreshExtraToolPathDirs, withToolPath } from '../toolPaths';
+import { refreshWindowsPath } from '../windowsPath';
 
 const execFileAsync = promisify(execFile);
 const DETECT_TIMEOUT_MS = 8000;
@@ -74,11 +82,12 @@ async function detectDockerStatus(
 }
 
 async function detectTool(tool: AgentToolDefinition): Promise<InstalledAgentTool> {
-  const [versionOutput, dockerStatus] = await Promise.all([
+  const [versionOutput, dockerStatus, executablePath] = await Promise.all([
     tool.detectCommand
       ? runProbe(tool.detectCommand.command, tool.detectCommand.args)
       : Promise.resolve(null),
     detectDockerStatus(tool),
+    tool.detectCommand ? resolveExecutable([tool.detectCommand.command]) : Promise.resolve(null),
   ]);
   const versionMatch = versionOutput?.match(/\d+\.\d+\.\d+[\w.-]*/);
   return {
@@ -86,15 +95,37 @@ async function detectTool(tool: AgentToolDefinition): Promise<InstalledAgentTool
     installed: versionOutput !== null,
     version: versionMatch ? versionMatch[0] : (versionOutput?.slice(0, 40) ?? null),
     dockerStatus,
+    executablePath,
     lastCheckedAt: new Date().toISOString(),
   };
 }
 
-export function detectAllTools(): Promise<InstalledAgentTool[]> {
+/**
+ * What the last detect pass found, so the update and uninstall buttons know whose copy they are
+ * dealing with without probing every tool again.
+ */
+const lastDetected = new Map<string, InstalledAgentTool>();
+
+export async function detectAllTools(): Promise<InstalledAgentTool[]> {
+  // Picks up a PATH entry an installer added to the registry since the app started.
+  await refreshWindowsPath();
   // A detect pass is also what the user presses after installing something, so this is the
   // right moment to look for script directories that did not exist a minute ago.
   refreshExtraToolPathDirs();
-  return Promise.all(AGENT_TOOL_REGISTRY.map((tool) => detectTool(tool)));
+  const results = await Promise.all(AGENT_TOOL_REGISTRY.map((tool) => detectTool(tool)));
+  for (const result of results) lastDetected.set(result.id, result);
+  return results;
+}
+
+/** Who owns the installed copy of `tool`: npm, Homebrew, pip, or nobody we know of. */
+async function managerOf(tool: AgentToolDefinition): Promise<InstallManager> {
+  const known = lastDetected.get(tool.id);
+  const executablePath = known
+    ? (known.executablePath ?? null)
+    : tool.detectCommand
+      ? await resolveExecutable([tool.detectCommand.command])
+      : null;
+  return executablePath ? installManagerOf(executablePath) : null;
 }
 
 export function registerToolHandlers(): void {
@@ -132,17 +163,31 @@ export function registerToolHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC.tools.getUpdateCommand, (_event, toolId: string): string | null => {
-    const tool = getAgentToolDefinition(toolId);
-    if (!tool) return null;
-    return getToolUpdateCommandForCurrentOS(tool, process.platform as SupportedOS);
-  });
+  ipcMain.handle(
+    IPC.tools.getUpdateCommand,
+    async (_event, toolId: string): Promise<string | null> => {
+      const tool = getAgentToolDefinition(toolId);
+      if (!tool) return null;
+      return updateCommandFor({
+        catalogCommand: getToolUpdateCommandForCurrentOS(tool, process.platform as SupportedOS),
+        manager: await managerOf(tool),
+        pypiPackage: tool.updateCheck?.type === 'pypi' ? tool.updateCheck.package : undefined,
+      });
+    },
+  );
 
-  ipcMain.handle(IPC.tools.getUninstallCommand, (_event, toolId: string): string | null => {
-    const tool = getAgentToolDefinition(toolId);
-    if (!tool) return null;
-    return getToolUninstallCommandForCurrentOS(tool, process.platform as SupportedOS);
-  });
+  ipcMain.handle(
+    IPC.tools.getUninstallCommand,
+    async (_event, toolId: string): Promise<string | null> => {
+      const tool = getAgentToolDefinition(toolId);
+      if (!tool) return null;
+      return uninstallCommandFor({
+        catalogCommand: getToolUninstallCommandForCurrentOS(tool, process.platform as SupportedOS),
+        manager: await managerOf(tool),
+        pypiPackage: tool.updateCheck?.type === 'pypi' ? tool.updateCheck.package : undefined,
+      });
+    },
+  );
 
   ipcMain.handle(IPC.tools.getInteractiveLaunchCommand, (_event, toolId: string): string | null => {
     const tool = getAgentToolDefinition(toolId);
@@ -163,7 +208,7 @@ export function registerToolHandlers(): void {
       if (action === 'start') return getDockerStartCommand(tool);
       if (action === 'stop') return getDockerStopCommand(tool);
       if (action === 'remove') return getDockerRemoveCommand(tool);
-      return getDockerResetCommand(tool);
+      return getDockerResetCommand(tool, process.platform as SupportedOS);
     },
   );
 }

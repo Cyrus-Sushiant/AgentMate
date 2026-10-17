@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Tests that need a real Linux host with Docker (test servers, nginx, Pebble, firewalls). They
-    skip everywhere else and only run in CI's [e2e] job.
+    skip everywhere else and only run in the nightly CI workflow.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

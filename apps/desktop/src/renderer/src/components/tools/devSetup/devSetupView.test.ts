@@ -88,6 +88,26 @@ describe('describeRow: installed', () => {
 
     expect(view.chips).toEqual([{ text: 'Not on your PATH', tone: 'warning' }]);
   });
+
+  it('offers to put a tool that is not on PATH there, keeping the warning', () => {
+    const view = describeRow(rowFor('git', { git: found('2.55.0', false) }), inApp);
+
+    expect(view.action).toEqual({ kind: 'add-to-path', label: 'Add Git to PATH' });
+    expect(view.chips).toEqual([{ text: 'Not on your PATH', tone: 'warning' }]);
+  });
+
+  it('names the tool in the button, whatever the tool is called', () => {
+    const view = describeRow(rowFor('node', { node: found('22.12.0', false) }), inApp);
+
+    expect(view.action?.label).toBe('Add Node.js to PATH');
+  });
+
+  it('offers nothing for a tool that is already on PATH', () => {
+    const view = describeRow(rowFor('git', { git: found('2.55.0', true) }), inApp);
+
+    expect(view.action).toBeNull();
+    expect(view.chips).toEqual([]);
+  });
 });
 
 describe('describeRow: checking', () => {
@@ -193,6 +213,49 @@ describe('describeRow: missing and outdated', () => {
     });
     expect(wsl.terminalCommand).toBe('wsl --install --no-distribution');
   });
+
+  it('words the button for an item that is a step, not a program', () => {
+    const signIn = describeRow(
+      rowFor('gh-auth', { gh: found('2.62.0'), 'gh-auth': absent }),
+      inApp,
+    );
+    const licenses = describeRow(
+      rowFor('android-licenses', {
+        jdk17: found('17.0.12'),
+        'android-cmdline-tools': found('13.0'),
+        'android-licenses': absent,
+      }),
+      inApp,
+    );
+    const docker = describeRow(
+      rowFor('docker-running', {
+        wsl2: found('2.5.9'),
+        'docker-desktop': found('27.0.0'),
+        'docker-running': absent,
+      }),
+      inApp,
+    );
+
+    expect(signIn.action?.label).toBe('Sign in to GitHub');
+    expect(licenses.action?.label).toBe('Accept Android SDK licenses');
+    expect(docker.action?.label).toBe('Start Docker');
+  });
+
+  it('asks for a step before an item, in words that fit a step', () => {
+    const view = describeRow(
+      rowFor('android-emulator', {
+        jdk17: absent,
+        'android-cmdline-tools': absent,
+        'android-licenses': absent,
+        'android-emulator': absent,
+      }),
+      inApp,
+    );
+
+    expect(view.action?.hint).toBe(
+      'Accept Android SDK licenses first. Install all missing handles the order.',
+    );
+  });
 });
 
 describe('describeRow: blocked', () => {
@@ -221,7 +284,7 @@ describe('describeRow: blocked', () => {
         kind: 'install',
         label: 'Install Android emulator',
         disabled: true,
-        hint: 'Install Android SDK licenses first. Install all missing handles the order.',
+        hint: 'Accept Android SDK licenses first. Install all missing handles the order.',
       },
     });
   });

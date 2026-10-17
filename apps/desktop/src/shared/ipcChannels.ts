@@ -48,6 +48,7 @@ export const IPC = {
     getInstallCommand: 'cli:getInstallCommand',
     checkForUpdate: 'cli:checkForUpdate',
     getUpdateCommand: 'cli:getUpdateCommand',
+    checkCommandPrerequisite: 'cli:checkCommandPrerequisite',
   },
   terminal: {
     create: 'terminal:create',
@@ -557,9 +558,40 @@ export const IPC = {
     peek: 'devSetup:peek',
     install: 'devSetup:install',
     cancel: 'devSetup:cancel',
+    /** Puts the folder of a tool that is installed but off PATH on the user PATH. */
+    addToPath: 'devSetup:addToPath',
     jobState: 'devSetup:jobState',
     /** Main to renderer: one step of an install run, as it happens. */
     onEvent: 'devSetup:onEvent',
+  },
+  /** Project health checks (E22): targets, their probes and incidents. Secrets stay in main. */
+  health: {
+    // ({ projectId? }) -> HealthTargetSummary[]
+    list: 'health:list',
+    // (targetId) -> HealthTargetDetail | null
+    get: 'health:get',
+    // (HealthTargetInput) -> HealthCreateResult, with the new key shown once
+    create: 'health:create',
+    // (targetId, Partial<HealthTargetInput>) -> HealthTargetSummary
+    update: 'health:update',
+    remove: 'health:remove',
+    // (targetId, paused) -> HealthTargetSummary
+    setPaused: 'health:setPaused',
+    // (targetId) -> HealthTargetDetail, after a probe that runs right away
+    checkNow: 'health:checkNow',
+    // (targetId) -> HealthSecretReveal: a new key or password, the old one stops working
+    rotateSecret: 'health:rotateSecret',
+    // (targetId) -> HealthSetupPrompt for the agent that implements the endpoint
+    setupPrompt: 'health:setupPrompt',
+    // () -> string: the protocol document
+    spec: 'health:spec',
+    // (targetId) -> string | null: the redacted "fix this" prompt for the last report
+    fixPrompt: 'health:fixPrompt',
+    // (targetId) -> void: runs the read-only AI analysis for the open incident now
+    diagnoseNow: 'health:diagnoseNow',
+    cancelDiagnose: 'health:cancelDiagnose',
+    // main -> renderer: HealthChangedEvent
+    onChanged: 'health:changed',
   },
   /** The Android page: the SDK behind it, AVDs, emulators and adb devices. */
   android: {

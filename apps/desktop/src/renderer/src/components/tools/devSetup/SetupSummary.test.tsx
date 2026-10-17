@@ -135,9 +135,7 @@ describe('SetupSummary while installing', () => {
   });
 
   it('speaks of the run instead of the totals', () => {
-    renderWithProviders(
-      <SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />,
-    );
+    renderWithProviders(<SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />);
 
     expect(screen.getByRole('heading', { name: 'Installing 2 of 5: Node.js' })).toBeTruthy();
     expect(screen.getByText('1 done, 4 to go.')).toBeTruthy();
@@ -145,9 +143,7 @@ describe('SetupSummary while installing', () => {
   });
 
   it('draws how far through the run it is', () => {
-    renderWithProviders(
-      <SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />,
-    );
+    renderWithProviders(<SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />);
 
     const bar = screen.getByRole('progressbar', { name: 'Dev setup progress' });
     expect(bar).toHaveAttribute('aria-valuenow', '40');
@@ -173,9 +169,7 @@ describe('SetupSummary while installing', () => {
   });
 
   it('does not check again in the middle of an install', () => {
-    renderWithProviders(
-      <SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />,
-    );
+    renderWithProviders(<SetupSummary summary={summary()} onRecheckAll={vi.fn()} run={run()} />);
 
     expect(screen.getByRole('button', { name: 'Check again' })).toBeDisabled();
   });

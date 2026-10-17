@@ -1,3 +1,4 @@
+import { delimiter } from 'node:path';
 import { BrowserWindow } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -140,6 +141,10 @@ vi.mock('../system/listeningPorts', () => ({
     ]),
 }));
 
+// The real list starts Python to ask for its Scripts folder.
+const toolDirs = vi.hoisted(() => ({ current: [] as string[] }));
+vi.mock('../toolPaths', () => ({ toolPathCandidates: () => toolDirs.current }));
+
 useTempUserData();
 
 // onData and onExit are pushed from main to the renderer, so nothing registers them as handlers.
@@ -164,6 +169,7 @@ beforeEach(async () => {
   host.local.writes = [];
   host.local.resizes = [];
   host.local.killed = [];
+  toolDirs.current = [];
   terminal = await loadIpc(
     () => import('./terminal'),
     (module) => module.registerTerminalHandlers(),
@@ -198,6 +204,26 @@ describe('terminal:create', () => {
       AGENTMATE_SESSION_ID: 'tab-1',
       AGENTMATE_PROJECT_ID: 'project-1',
     });
+  });
+
+  it('puts the tool folders on the end of PATH, even ones that do not exist yet', async () => {
+    // Claude Code's native installer drops it in ~/.local/bin and adds that folder through a
+    // shell rc file the app never reads, so without this `claude` would not run in the very tab
+    // that just installed it.
+    const key = Object.keys(process.env).find((one) => one.toUpperCase() === 'PATH') ?? 'PATH';
+    vi.stubEnv(key, ['/usr/bin', '/already/here'].join(delimiter));
+    toolDirs.current = ['/already/here', '/home/sam/.local/bin', '/not/created/yet'];
+
+    await invoke(IPC.terminal.create, { sessionId: 'tool-path' });
+
+    const env = lastCreatePayload().env as Record<string, string>;
+    // Written back to the key already there, so the child does not end up with Path and PATH.
+    expect(env[key]?.split(delimiter)).toEqual([
+      '/usr/bin',
+      '/already/here',
+      '/home/sam/.local/bin',
+      '/not/created/yet',
+    ]);
   });
 
   it('only accepts a shell from the allowlist', async () => {

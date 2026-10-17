@@ -1,9 +1,10 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import type { CliUpdateCheckResult, InstalledCli } from '@agentmat/core';
+import { CLI_REGISTRY, getUpdateCommandForCurrentOS, type SupportedOS } from '@agentmat/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC } from '../../shared/ipcChannels';
-import { tempDir } from '../../test/main/fixtures';
+import { tempDir, writeTree } from '../../test/main/fixtures';
 import {
   expectChannelsCovered,
   invoke,
@@ -33,6 +34,28 @@ const { refreshShellPath } = vi.hoisted(() => ({
   refreshShellPath: vi.fn<(options?: { force?: boolean }) => Promise<void>>(),
 }));
 vi.mock('../shellPath', () => ({ refreshShellPath }));
+/**
+ * The folders native installers use (~/.local/bin and friends). The real list would point at this
+ * machine's home folder and start Python to find its Scripts folder.
+ */
+const toolDirs = vi.hoisted(() => ({ current: [] as string[] }));
+const { refreshExtraToolPathDirs } = vi.hoisted(() => ({ refreshExtraToolPathDirs: vi.fn() }));
+vi.mock('../toolPaths', () => ({
+  getExtraToolPathDirs: async () => toolDirs.current,
+  pythonScriptDirs: async () => [],
+  refreshExtraToolPathDirs,
+  withToolPath: async (env?: NodeJS.ProcessEnv) => {
+    const base = { ...(env ?? process.env) };
+    const key = Object.keys(base).find((one) => one.toUpperCase() === 'PATH') ?? 'PATH';
+    base[key] = [base[key], ...toolDirs.current].filter(Boolean).join(delimiter);
+    return base;
+  },
+}));
+// Reading PATH back from the registry would put this machine's real Node.js on it.
+vi.mock('../windowsPath', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../windowsPath')>()),
+  refreshWindowsPath: async () => undefined,
+}));
 
 async function register(): Promise<void> {
   await loadIpc(
@@ -67,6 +90,8 @@ beforeEach(async () => {
   // the result depend on who is running the tests.
   vi.stubEnv(key, binDir);
   loginShellDir = null;
+  toolDirs.current = [];
+  refreshExtraToolPathDirs.mockReset();
   refreshShellPath.mockReset();
   refreshShellPath.mockImplementation(async () => {
     if (!loginShellDir) return;
@@ -124,6 +149,35 @@ describe('detecting installed CLIs', () => {
     expect(found?.installed).toBe(true);
     expect(found?.executablePath?.toLowerCase()).toContain(loginShellDir.toLowerCase());
   });
+
+  it('finds a CLI only a native installer folder has, and looks for new folders on a forced sweep', async () => {
+    // Claude's native installer drops it in ~/.local/bin and adds that to PATH only through a
+    // shell rc file, which the app never reads.
+    const localBin = join(tempDir('agentmate-native-'), '.local', 'bin');
+    mkdirSync(localBin, { recursive: true });
+    writeFakeClaude('9.9.9', localBin);
+    toolDirs.current = [localBin];
+
+    const found = claude(await invoke<InstalledCli[]>(IPC.cli.detectAll, true));
+
+    expect(refreshExtraToolPathDirs).toHaveBeenCalled();
+    expect(found?.installed).toBe(true);
+    expect(found?.executablePath?.toLowerCase()).toContain(localBin.toLowerCase());
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'reads the version of a CLI found only in a native installer folder',
+    async () => {
+      const localBin = join(tempDir('agentmate-native-'), '.local', 'bin');
+      mkdirSync(localBin, { recursive: true });
+      writeFakeClaude('9.9.9', localBin);
+      toolDirs.current = [localBin];
+
+      const found = claude(await invoke<InstalledCli[]>(IPC.cli.detectAll, true));
+
+      expect(found?.version).toContain('9.9.9');
+    },
+  );
 
   it('reports one that is nowhere on PATH as missing', async () => {
     const found = claude(await invoke<InstalledCli[]>(IPC.cli.detectAll, true));
@@ -188,6 +242,75 @@ describe('install and update commands', () => {
 
   it('gives the update command for this OS', async () => {
     await expect(invoke(IPC.cli.getUpdateCommand, 'claude-code')).resolves.toBeTruthy();
+  });
+
+  it("updates an npm-installed copy with npm when the catalog's update is the vendor installer", async () => {
+    // Re-running Qwen's install script over an old `npm install -g` copy would leave the npm
+    // one in place and still first on PATH, so the update would seem to do nothing.
+    const platform = process.platform as SupportedOS;
+    const cli = CLI_REGISTRY.find((one) => {
+      const command = getUpdateCommandForCurrentOS(one, platform);
+      return (
+        one.updateCheck?.type === 'npm' &&
+        one.supportedOS.includes(platform) &&
+        !!command &&
+        /^(curl|irm|iwr|wget)\b/i.test(command)
+      );
+    });
+    if (!cli || cli.updateCheck?.type !== 'npm') throw new Error('no CLI updates by script here');
+    const pkg = cli.updateCheck.package;
+    const name = cli.versionCommand.command;
+    // The layout `npm install -g` leaves on Windows: a shim next to node_modules, naming the
+    // package it runs. On macOS and Linux the extensionless shim reads the same way.
+    writeTree(binDir, {
+      [`node_modules/${pkg}/cli.js`]: '',
+      [process.platform === 'win32' ? `${name}.cmd` : name]:
+        process.platform === 'win32'
+          ? `@echo off\r\n"%dp0%\\node_modules\\${pkg.replace('/', '\\')}\\cli.js" %*\r\n`
+          : `#!/bin/sh\n# "$basedir/node_modules/${pkg}/cli.js"\necho 1.0.0\n`,
+    });
+    if (process.platform !== 'win32') chmodSync(join(binDir, name), 0o755);
+    await invoke(IPC.cli.detectAll, true);
+
+    await expect(invoke(IPC.cli.getUpdateCommand, cli.id)).resolves.toBe(
+      `npm install -g ${pkg}@latest`,
+    );
+  });
+
+  it("keeps the catalog's update for a copy no package manager owns", async () => {
+    writeFakeClaude();
+    await invoke(IPC.cli.detectAll, true);
+
+    const definition = CLI_REGISTRY.find((one) => one.id === 'claude-code');
+    if (!definition) throw new Error('claude-code is missing from the registry');
+    const catalog = getUpdateCommandForCurrentOS(definition, process.platform as SupportedOS);
+    await expect(invoke(IPC.cli.getUpdateCommand, 'claude-code')).resolves.toBe(catalog);
+  });
+});
+
+describe('checking what an install command needs', () => {
+  it('names Node.js when an npm command has no npm to run it', async () => {
+    await expect(
+      invoke(IPC.cli.checkCommandPrerequisite, 'npm install -g @openai/codex'),
+    ).resolves.toEqual({ name: 'Node.js', url: 'https://nodejs.org/en/download' });
+  });
+
+  it('answers null once npm is on PATH', async () => {
+    writeTree(binDir, {
+      [process.platform === 'win32' ? 'npm.cmd' : 'npm']:
+        process.platform === 'win32' ? '@echo off\r\n' : '#!/bin/sh\n',
+    });
+    if (process.platform !== 'win32') chmodSync(join(binDir, 'npm'), 0o755);
+
+    await expect(
+      invoke(IPC.cli.checkCommandPrerequisite, 'npm install -g @openai/codex'),
+    ).resolves.toBeNull();
+  });
+
+  it('asks nothing of a vendor install script', async () => {
+    await expect(
+      invoke(IPC.cli.checkCommandPrerequisite, 'curl -fsSL https://claude.ai/install.sh | bash'),
+    ).resolves.toBeNull();
   });
 });
 

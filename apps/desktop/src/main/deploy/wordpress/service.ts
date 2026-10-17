@@ -1,15 +1,20 @@
 import { randomUUID } from 'node:crypto';
 import {
+  encodeWpFrame,
   isValidWpSlug,
   type ProjectWordPressItemKind,
   WP_ROUTES,
   type WpAuditEntry,
+  type WpConnectorUpdateRequest,
+  type WpConnectorUpdateResponse,
   type WpDeployRecord,
   type WpDeployRollbackResponse,
   type WpDeployStateResponse,
+  type WpHealthCheck,
   type WpItem,
   type WpItemRef,
   type WpSiteInfo,
+  type WpUpdateRefusal,
   wpItemRoot,
   wpKeyTransportSecurity,
 } from '@agentmat/core';
@@ -27,11 +32,13 @@ import type {
   DeployWordPressSettingsInput,
   DeployWordPressSite,
   DeployWordPressSiteInfo,
+  DeployWordPressUpdateConnectorResult,
 } from '../../../shared/deployWordPressTypes';
 import { wordPressError, wordPressErrorCode } from '../../../shared/wordpressErrors';
 import { VaultLockedError } from '../../ssh/vaultErrors';
-import { WpClient, WpRemoteError } from './client';
-import { privateKeyFromPem } from './crypto';
+import { WpClient, WpRemoteError, wpRequestCap } from './client';
+import { type ConnectorBundle, compareConnectorVersions } from './connectorBundle';
+import { gzipBytes, privateKeyFromPem } from './crypto';
 import { checkPlainHttp, pairWithSite, sameOriginRescueUrl, wpDeviceName } from './pairing';
 import { cleanSiteText } from './siteText';
 import type { StoredWpSite, WordPressBases, WordPressState } from './state';
@@ -57,6 +64,8 @@ export interface WordPressServiceDeps {
   /** os.hostname(); the site lists this computer under it. */
   hostname: () => string;
   saveConnectorZip: () => Promise<DeployWordPressSaveZipResult>;
+  /** The connector that ships with the app, unpacked for an in-app update of a site. */
+  readConnectorBundle: () => Promise<ConnectorBundle>;
   /** Milliseconds. */
   now?: () => number;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -70,6 +79,19 @@ const KINDS: ReadonlySet<string> = new Set<ProjectWordPressItemKind>([
   'mu-plugin',
 ]);
 const HISTORY_LIMIT = 50;
+/** The site health-checks itself before and after the swap, so allow it more than a pull needs. */
+const CONNECTOR_UPDATE_TIMEOUT_MS = 120_000;
+/** What a refused connector update says, by the site's reason, in this app's own words. */
+const UPDATE_REFUSED: Record<WpUpdateRefusal, string> = {
+  downgrade:
+    'The connector on the site is newer than the one that comes with this app, so it was left as it is.',
+  badPackage:
+    'The site did not accept the connector files that come with this app, so nothing was changed. Download the plugin and upload it in wp-admin instead.',
+  requirements:
+    'The newer connector needs a newer PHP or WordPress than this site has, so it was not installed. Nothing was changed.',
+  notReplaceable:
+    "The connector's folder on the site can't be replaced from here (it may be a symlink or not writable), so nothing was changed. Download the plugin and upload it in wp-admin instead.",
+};
 /** More themes and plugins than any site has; a longer list is cut here. */
 export const MAX_LISTED_ITEMS = 2000;
 
@@ -189,6 +211,8 @@ export function cleanInfo(info: WpSiteInfo): WpSiteInfo {
       ...info.connection,
       label: cleanSiteText(info.connection?.label, 100),
     },
+    // Absent from a connector that predates the update route, and that is not the same as false.
+    selfUpdate: typeof info.selfUpdate === 'boolean' ? info.selfUpdate : undefined,
   };
 }
 
@@ -418,6 +442,157 @@ export class WordPressService {
     return this.deps.saveConnectorZip();
   }
 
+  /**
+   * Replaces the connector on a site with the one that ships with this app. Only a connector that
+   * reports `selfUpdate` has the route (older ones are updated by hand once). The site swaps its
+   * own plugin folder, health-checks itself, and puts the old files back when it fails the check.
+   */
+  async updateConnector(siteId: string): Promise<DeployWordPressUpdateConnectorResult> {
+    const bundle = await this.deps.readConnectorBundle();
+    const result = await this.holdSite(siteId, () =>
+      this.withSite(siteId, (client) => this.sendConnector(client, bundle)),
+    );
+    if (result.outcome === 'current') return result;
+    // Asked again either way: the reply is signed by whichever code runs on the site now, and the
+    // answer is what the app remembers as the site's version.
+    const after = await this.siteInfo(siteId);
+    if (
+      result.outcome === 'updated' &&
+      compareConnectorVersions(after.pluginVersion, bundle.version) < 0
+    ) {
+      throw wordPressError(
+        'internal',
+        `The site took the update but still reports version ${after.pluginVersion}. Its PHP cache may need a moment, or a restart. Check again in a minute.`,
+      );
+    }
+    return result;
+  }
+
+  private async sendConnector(
+    client: WpClient,
+    bundle: ConnectorBundle,
+  ): Promise<DeployWordPressUpdateConnectorResult> {
+    const info = cleanInfo((await client.call(WP_ROUTES.siteInfo, {})).data);
+    const fromVersion = info.pluginVersion;
+    if (compareConnectorVersions(fromVersion, bundle.version) >= 0) {
+      return { outcome: 'current', fromVersion, version: bundle.version, checks: [] };
+    }
+    if (info.selfUpdate === false) {
+      // It has the route, but PHP can't swap its folder here, and a manual upload won't change that.
+      throw wordPressError('updateRefused', UPDATE_REFUSED.notReplaceable);
+    }
+    if (info.selfUpdate !== true) {
+      throw wordPressError(
+        'connectorOutdated',
+        `The connector on this site (version ${fromVersion || 'unknown'}) can't update itself. Upload the plugin once in wp-admin (Plugins > Add New > Upload Plugin); after that, updates can be done from here.`,
+      );
+    }
+    const request: WpConnectorUpdateRequest = {
+      version: bundle.version,
+      files: bundle.files.map(({ path, size, sha256 }) => ({ path, size, sha256 })),
+    };
+    const blobs = bundle.files.map((file) => file.bytes);
+    // What goes on the wire is the gzipped frame, so that is what the site's limit is held against.
+    const wireBytes = gzipBytes(
+      encodeWpFrame({ route: WP_ROUTES.connectorUpdate, body: request, blobs }),
+    ).length;
+    const limit = info.limits?.maxRequestBytes;
+    if (
+      typeof limit === 'number' &&
+      Number.isFinite(limit) &&
+      wireBytes > wpRequestCap(info.limits)
+    ) {
+      throw this.updateTooLarge(wireBytes, limit);
+    }
+
+    let reply: WpConnectorUpdateResponse;
+    try {
+      reply = (
+        await client.call(WP_ROUTES.connectorUpdate, request, {
+          blobs,
+          timeoutMs: CONNECTOR_UPDATE_TIMEOUT_MS,
+        })
+      ).data;
+    } catch (error) {
+      // A reply that never came back may still have followed a swap that worked.
+      const code = error instanceof WpRemoteError ? error.code : null;
+      if (code === 'timeout' || code === 'unreachable' || code === 'foreignResponse') {
+        const now = await client
+          .call(WP_ROUTES.siteInfo, {})
+          .then((reading) => cleanInfo(reading.data))
+          .catch(() => null);
+        if (now && compareConnectorVersions(now.pluginVersion, bundle.version) >= 0) {
+          return { outcome: 'updated', fromVersion, version: bundle.version, checks: [] };
+        }
+      }
+      throw this.connectorUpdateError(error, wireBytes, limit);
+    }
+    const state: unknown = reply.state;
+    if (state !== 'updated' && state !== 'rolledBack') {
+      throw wordPressError(
+        'internal',
+        'The connector sent back a reply to the update that AgentMate could not read.',
+      );
+    }
+    return {
+      outcome: state,
+      fromVersion,
+      version: bundle.version,
+      checks: (Array.isArray(reply.checks) ? reply.checks : [])
+        .slice(0, 10)
+        .filter(isEntry)
+        .map((check: WpHealthCheck) => ({
+          name: check.name,
+          status: typeof check.status === 'number' ? check.status : null,
+          ok: typeof check.ok === 'boolean' ? check.ok : null,
+          detail: cleanSiteText(check.detail, 300),
+        })),
+    };
+  }
+
+  private updateTooLarge(wireBytes: number, limit: number): Error {
+    const kb = (bytes: number) => Math.max(1, Math.round(bytes / 1024));
+    return wordPressError(
+      'updateRefused',
+      `This site takes requests of about ${kb(limit)} KB at most, and the connector update needs about ${kb(wireBytes)} KB. Download the plugin and upload it in wp-admin instead.`,
+    );
+  }
+
+  /** The site's refusal in this app's words; anything else passes through. */
+  private connectorUpdateError(error: unknown, wireBytes: number, limit: unknown): unknown {
+    if (!(error instanceof WpRemoteError)) return error;
+    if (error.code === 'updateRefused') {
+      const reason = error.details.reason as WpUpdateRefusal;
+      // The site's own sentence names the PHP or WordPress version it needs; keep it.
+      if (reason === 'requirements') return error;
+      const known = Object.hasOwn(UPDATE_REFUSED, reason) ? UPDATE_REFUSED[reason] : null;
+      return known ? new WpRemoteError('updateRefused', known, error.details, error.status) : error;
+    }
+    if (error.code === 'syntaxError') {
+      const where = [error.details.path, error.details.line]
+        .filter((part) => typeof part === 'string' || typeof part === 'number')
+        .map((part) => cleanSiteText(String(part), 200))
+        .join(', line ');
+      return new WpRemoteError(
+        'updateRefused',
+        `This site's PHP can't run the new connector${where ? ` (a syntax error in ${where})` : ''}, so nothing was changed. The site's PHP version may be too old.`,
+        error.details,
+        error.status,
+      );
+    }
+    if (error.code === 'tooLarge') {
+      return typeof limit === 'number' && Number.isFinite(limit)
+        ? this.updateTooLarge(wireBytes, limit)
+        : new WpRemoteError(
+            'updateRefused',
+            'The site or its web server refused a request this large. Download the plugin and upload it in wp-admin instead.',
+            error.details,
+            error.status,
+          );
+    }
+    return error;
+  }
+
   // Shared plumbing.
 
   protected siteUnknown(): Error {
@@ -544,6 +719,26 @@ export class WordPressService {
 
   protected siteBusy(siteId: string): boolean {
     return [...this.operations.values()].some((operation) => operation.siteId === siteId);
+  }
+
+  /**
+   * Keeps pulls, deploys and other holds off a site while `work` runs, without a progress stream
+   * of its own (nothing in the work takes long enough to show steps).
+   */
+  private async holdSite<T>(siteId: string, work: () => Promise<T>): Promise<T> {
+    if (this.siteBusy(siteId)) {
+      throw wordPressError(
+        'operationBusy',
+        'A pull, deploy or update for this site is still running. Wait for it to finish.',
+      );
+    }
+    const id = `connector-update-${randomUUID()}`;
+    this.operations.set(id, { siteId, controller: new AbortController() });
+    try {
+      return await work();
+    } finally {
+      this.operations.delete(id);
+    }
   }
 
   /**

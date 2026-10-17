@@ -8,6 +8,8 @@
 import { forms, login } from './admin.mjs';
 import { putOp, SiteClient } from './client.mjs';
 import { startWordPressFixture } from './fixture.mjs';
+import { request } from './http.mjs';
+import { connectorRelease, nextVersion, sendConnectorUpdate, sourceVersion } from './release.mjs';
 
 const port = Number(process.env.AGENTMATE_WPC_MS_PORT || 18991);
 let failures = 0;
@@ -175,6 +177,29 @@ try {
       'network deploy',
     'the file is on the network',
   );
+
+  say('Connector update on the network');
+  {
+    const current = (await client.call('/site/info')).data.pluginVersion;
+    const next = nextVersion(current);
+    const update = await sendConnectorUpdate(client, connectorRelease(sourceVersion(), next), next);
+    check(
+      update.verified && update.ok && update.data.state === 'updated',
+      'the update goes through',
+      update.data ?? update,
+    );
+    const after = await client.call('/site/info');
+    check(after.ok && after.data.pluginVersion === next, 'the new version answers', after.data);
+    check(networkActive().includes('agentmate-connector'), 'it is still network-active');
+    check(
+      !/\.agentmate-connector/.test(site.exec('ls -A /var/www/html/wp-content/plugins')),
+      'no staging folder is left beside the plugin',
+    );
+    for (const url of [site.url, second]) {
+      const home = await request(`${url}?agentmate_smoke=${Date.now()}`, { redirect: 'manual' });
+      check(home.status === 200, `${url} still answers`, home.status);
+    }
+  }
 
   say('Uninstall from the network');
   {

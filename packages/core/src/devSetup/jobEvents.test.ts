@@ -208,6 +208,36 @@ describe('applyJobEvent', () => {
     expect(state.order).toEqual(['git', 'node']);
   });
 
+  it('shows a failed step as queued again the moment it is added to the run that is going', () => {
+    const state = run([
+      { type: 'plan', jobId: 'a', steps: ['git', 'node'] },
+      { type: 'started', jobId: 'a', itemId: 'git' },
+      { type: 'finished', jobId: 'a', itemId: 'git', result: 'failed', message: 'No.' },
+      { type: 'started', jobId: 'a', itemId: 'node' },
+      { type: 'log', jobId: 'a', itemId: 'git', line: 'old attempt' },
+      { type: 'plan', jobId: 'a', steps: ['git'] },
+    ]);
+
+    expect(state.items.git).toEqual({ status: 'queued' });
+    expect(state.items.node).toMatchObject({ status: 'installing' });
+    expect(state.order).toEqual(['git', 'node']);
+    expect(state.logs.git).toBeUndefined();
+  });
+
+  it('leaves a step that is already queued or installing alone when it is planned again', () => {
+    const before = run([
+      { type: 'plan', jobId: 'a', steps: ['git', 'node'] },
+      { type: 'started', jobId: 'a', itemId: 'git' },
+      { type: 'log', jobId: 'a', itemId: 'git', line: 'Found Git' },
+    ]);
+
+    const after = applyJobEvent(before, { type: 'plan', jobId: 'a', steps: ['git', 'node'] });
+
+    expect(after.items).toEqual(before.items);
+    expect(after.logs).toEqual(before.logs);
+    expect(after.order).toEqual(['git', 'node']);
+  });
+
   it('starts a clean run after the last one, but keeps a failure that was not retried', () => {
     const first = run([
       { type: 'plan', jobId: 'a', steps: ['git'] },
@@ -444,7 +474,10 @@ describe('phaseFromInstallerLine', () => {
   it.each([
     ['Found Git [Git.Git] Version 2.55.0', 'preparing'],
     ['This application is licensed to you by its owner.', 'preparing'],
-    ['Downloading https://github.com/git-for-windows/git/releases/download/v2.55.0/Git.exe', 'downloading'],
+    [
+      'Downloading https://github.com/git-for-windows/git/releases/download/v2.55.0/Git.exe',
+      'downloading',
+    ],
     ['Successfully verified installer hash', 'verifying'],
     ['Starting package install...', 'installing'],
     ['==> Fetching downloads for: gh', 'downloading'],
@@ -460,5 +493,36 @@ describe('phaseFromInstallerLine', () => {
   it('has nothing to say about a line that gives no hint', () => {
     expect(phaseFromInstallerLine('Some other output')).toBeNull();
     expect(phaseFromInstallerLine('')).toBeNull();
+  });
+});
+
+describe('applyJobEvent: how a run ended', () => {
+  it('remembers that a run was cancelled', () => {
+    const state = run([
+      { type: 'plan', jobId: 'a', steps: ['git'] },
+      { type: 'done', jobId: 'a', cancelled: true },
+    ]);
+
+    expect(state.cancelled).toBe(true);
+  });
+
+  it('does not call a run that finished cancelled', () => {
+    const state = run([
+      { type: 'plan', jobId: 'a', steps: ['git'] },
+      { type: 'done', jobId: 'a', cancelled: false },
+    ]);
+
+    expect(state.cancelled).toBeFalsy();
+  });
+
+  it('forgets it when the next run starts', () => {
+    const first = run([
+      { type: 'plan', jobId: 'a', steps: ['git'] },
+      { type: 'done', jobId: 'a', cancelled: true },
+    ]);
+
+    const second = applyJobEvent(first, { type: 'plan', jobId: 'b', steps: ['node'] });
+
+    expect(second.cancelled).toBeFalsy();
   });
 });

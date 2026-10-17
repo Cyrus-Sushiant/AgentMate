@@ -190,6 +190,7 @@ describe('ToolsPage install and uninstall', () => {
   it('puts the install command in a terminal for the user to confirm', async () => {
     const { bridge, user } = renderPage({
       'tools.getInstallCommand': async () => 'npm install -g 9router',
+      'cli.checkCommandPrerequisite': async () => null,
     });
     await screen.findByText(ROUTER.name);
 
@@ -198,15 +199,44 @@ describe('ToolsPage install and uninstall', () => {
     );
 
     await waitFor(() =>
-      expect(bridge.$fn('tools.getInstallCommand')).toHaveBeenCalledWith('9router'),
+      expect(toast.info).toHaveBeenCalledWith(
+        `Press Enter in the terminal to install ${ROUTER.name}.`,
+      ),
+    );
+    expect(bridge.$fn('tools.getInstallCommand')).toHaveBeenCalledWith('9router');
+    expect(bridge.$fn('cli.checkCommandPrerequisite')).toHaveBeenCalledWith(
+      'npm install -g 9router',
     );
     const session = useTerminalStore
       .getState()
       .sessions.find((one) => one.title === `Install ${ROUTER.name}`);
     expect(session?.initialInput).toBe('npm install -g 9router');
-    expect(toast.info).toHaveBeenCalledWith(
-      `Press Enter in the terminal to install ${ROUTER.name}.`,
+  });
+
+  it('asks for the missing tool first rather than opening a terminal that would fail', async () => {
+    const { bridge, user } = renderPage({
+      'tools.getInstallCommand': async () => 'npm install -g 9router',
+      'cli.checkCommandPrerequisite': { name: 'Node.js', url: 'https://nodejs.org/en/download' },
+    });
+    await screen.findByText(ROUTER.name);
+
+    await user.click(
+      within(toolCard(ROUTER.name)).getByRole('button', { name: /Install \(npm\)/ }),
     );
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        `${ROUTER.name} needs Node.js, which isn't installed.`,
+        expect.anything(),
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
+    expect(toast.info).not.toHaveBeenCalled();
+
+    // The toast's button is the way to go and get it.
+    const [, options] = toast.error.mock.calls[0] as [string, { action: { onClick: () => void } }];
+    options.action.onClick();
+    expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith('https://nodejs.org/en/download');
   });
 
   it('says so instead of opening an empty terminal when this OS has no install command', async () => {
@@ -242,6 +272,30 @@ describe('ToolsPage install and uninstall', () => {
         .sessions.find((one) => one.title === `Uninstall ${ROUTER.name}`);
       expect(session?.initialInput).toBe('npm uninstall -g 9router');
     });
+    expect(toast.info).toHaveBeenCalledWith(
+      `Press Enter in the terminal to uninstall ${ROUTER.name}.`,
+    );
+  });
+
+  it('does not open an uninstall terminal when npm is not there to run it', async () => {
+    const { user } = renderPage({
+      'tools.detectAll': [status({ id: '9router' })],
+      'tools.getUninstallCommand': async () => 'npm uninstall -g 9router',
+      'cli.checkCommandPrerequisite': { name: 'Node.js', url: 'https://nodejs.org/en/download' },
+    });
+    await screen.findByText(ROUTER.name);
+    const card = toolCard(ROUTER.name);
+    await within(card).findByText('1.4.0');
+
+    await user.click(within(card).getByRole('button', { name: /Uninstall/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        `${ROUTER.name} needs Node.js, which isn't installed.`,
+        expect.anything(),
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
   });
 
   it('copies the setup commands for a tool that installs inside another agent', async () => {
@@ -318,6 +372,11 @@ describe('ToolsPage updates', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Update' }));
 
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        `Press Enter in the terminal to update ${ROUTER.name}.`,
+      ),
+    );
     const session = useTerminalStore
       .getState()
       .sessions.find((one) => one.title === `Update ${ROUTER.name}`);

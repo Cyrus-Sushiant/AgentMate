@@ -68,6 +68,8 @@ const PROBLEMS: Record<WordPressErrorCode, string> = {
     'This key has expired. Keys work once, for 15 minutes. Make a new one in Tools > AgentMate Connector.',
   protocolMismatch:
     'The connector on the site and this app speak different versions. Update whichever one is older.',
+  updateRefused:
+    'The site would not take the connector update. Download the plugin and upload it in wp-admin instead.',
   internal: 'Something went wrong on the site. Its PHP error log may say more.',
   vaultLocked:
     "Your saved servers are locked with a passkey, and this site's key with them. Unlock them, then try again.",
@@ -119,7 +121,11 @@ const CONNECT_PROBLEMS: Partial<Record<WordPressErrorCode, string>> = {
  * Codes whose message from the main process is more specific than the fixed wording here: it says
  * whether Cloudflare answered, whether the connector is missing (404), or where a redirect went.
  */
-const SPECIFIC_FROM_MAIN: ReadonlySet<string> = new Set(['foreignResponse', 'redirected']);
+const SPECIFIC_FROM_MAIN: ReadonlySet<string> = new Set([
+  'foreignResponse',
+  'redirected',
+  'updateRefused',
+]);
 
 /** The human version of a failure from a WordPress call; unknown failures keep their own words. */
 export function wpProblem(error: unknown, context: WpProblemContext = 'site'): string {
@@ -226,6 +232,8 @@ export const AUDIT_EVENT_LABEL: Record<WpAuditEvent, string> = {
   deployDone: 'Deploy finished',
   deployRolledBack: 'Deploy rolled back',
   deployAborted: 'Deploy cancelled',
+  connectorUpdated: 'Connector updated',
+  connectorRolledBack: 'Connector update undone',
   settingsChanged: 'Settings changed',
 };
 
@@ -235,6 +243,7 @@ export const AUDIT_EVENT_WARNS: ReadonlySet<WpAuditEvent> = new Set<WpAuditEvent
   'authFailed',
   'rateLimited',
   'deployRolledBack',
+  'connectorRolledBack',
 ]);
 
 const PHASE_LABEL: Record<DeployWordPressPhase, string> = {

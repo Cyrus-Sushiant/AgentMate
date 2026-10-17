@@ -29,6 +29,8 @@ import { toast } from 'sonner';
 import { CliLogo, cliOptionIcon } from '@/components/cliLogos';
 import { MonacoEditor } from '@/components/editor/MonacoEditor';
 import { GrammarTextarea } from '@/components/grammar/GrammarTextarea';
+import { HealthBoard } from '@/components/health/HealthBoard';
+import { useProjectHealthBadge } from '@/components/health/useProjectHealthBadge';
 import {
   ArrowDown,
   ArrowLeft,
@@ -115,6 +117,8 @@ import {
   VersionChangeReview,
   type VersionReviews,
 } from '@/components/projects/VersionChangeReview';
+import { LinkWordPressDialog } from '@/components/projects/wordpress/LinkWordPressDialog';
+import { useUnlinkWordPressProject } from '@/components/projects/wordpress/useUnlinkWordPressProject';
 import { WordPressProjectSection } from '@/components/projects/wordpress/WordPressProjectSection';
 import { ProjectWorktreeSetupCard } from '@/components/settings/WorktreeSettings';
 import { SkillAuditVerdictBadge } from '@/components/skills/SkillAuditReport';
@@ -175,6 +179,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
   const [editOpen, setEditOpen] = useState(false);
   const [editFocusRun, setEditFocusRun] = useState(false);
   const [createRunAiOpen, setCreateRunAiOpen] = useState(false);
+  const [linkWordPressOpen, setLinkWordPressOpen] = useState(false);
+  const { unlink: unlinkWordPress } = useUnlinkWordPressProject();
   const [promptOpen, setPromptOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -639,8 +645,10 @@ export default function ProjectDetailPage(): React.JSX.Element {
   }
 
   const skillUpdateCount = (skillUpdatesQuery.data ?? []).filter((u) => u.hasUpdate).length;
+  const healthBadge = useProjectHealthBadge(projectId);
   const sectionBadges = useMemo((): Partial<Record<ProjectSectionId, SectionBadge>> => {
     const badges: Partial<Record<ProjectSectionId, SectionBadge>> = {};
+    if (healthBadge) badges.health = healthBadge;
     const skillCount = installedSkillsQuery.data?.length ?? 0;
     const mcpCount = installedMcpServersQuery.data?.length ?? 0;
     const promptCount = openDraftCount + missedTaskCount;
@@ -654,6 +662,7 @@ export default function ProjectDetailPage(): React.JSX.Element {
     if (serious > 0) badges.security = { count: serious, attention: true };
     return badges;
   }, [
+    healthBadge,
     installedMcpServersQuery.data,
     installedSkillsQuery.data,
     latestSecurityScanQuery.data,
@@ -1174,6 +1183,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
 
           {section === 'docker' && <DockerTab project={project} />}
 
+          {section === 'health' && <HealthBoard key={project.id} projectId={project.id} />}
+
           {section === 'wordpress' && project.wordpress && (
             <WordPressProjectSection project={project} />
           )}
@@ -1257,6 +1268,8 @@ export default function ProjectDetailPage(): React.JSX.Element {
         onSubmit={(values) => updateMutation.mutate(values)}
         isSubmitting={updateMutation.isPending}
         onCreateWithAi={() => setCreateRunAiOpen(true)}
+        onMakeWordPress={() => setLinkWordPressOpen(true)}
+        onMakeRegular={() => void unlinkWordPress(project, () => setSection('overview'))}
       />
 
       <CreateRunWithAiDialog
@@ -1267,6 +1280,13 @@ export default function ProjectDetailPage(): React.JSX.Element {
           setEditFocusRun(true);
           setEditOpen(true);
         }}
+      />
+
+      <LinkWordPressDialog
+        open={linkWordPressOpen}
+        onOpenChange={setLinkWordPressOpen}
+        project={project}
+        onLinked={() => setSection('wordpress')}
       />
 
       <SkillSecurityDialog

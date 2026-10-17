@@ -25,7 +25,7 @@ export function Sidebar(): React.JSX.Element {
   const hidden = sidebarMode === 'hidden';
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
-  const { unread, workspaceAttention } = useNavBadges();
+  const { unread, workspaceAttention, healthIncidents } = useNavBadges();
 
   const pillTransition = reduceMotion
     ? { duration: 0 }
@@ -109,6 +109,20 @@ export function Sidebar(): React.JSX.Element {
               {unread > 99 ? '99+' : unread}
             </span>
           )
+        ) : null}
+        {item.to === '/health' && healthIncidents > 0 ? (
+          collapsed ? (
+            <span className="absolute right-1 top-1 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
+          ) : (
+            <span className="relative z-10 ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
+              {healthIncidents > 99 ? '99+' : healthIncidents}
+            </span>
+          )
+        ) : null}
+        {item.to === '/health' && healthIncidents > 0 ? (
+          <span className="sr-only">
+            , {healthIncidents} open incident{healthIncidents === 1 ? '' : 's'}
+          </span>
         ) : null}
         {item.to === '/workspace' && workspaceAttention ? (
           <span

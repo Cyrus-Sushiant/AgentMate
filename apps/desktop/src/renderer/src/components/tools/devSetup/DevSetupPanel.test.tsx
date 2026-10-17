@@ -59,6 +59,7 @@ function bridgeFor(
     'devSetup.jobState': IDLE,
     'devSetup.install': async () => IDLE,
     'devSetup.cancel': async () => undefined,
+    'devSetup.addToPath': async () => ({ changed: true, where: 'your user PATH' }),
     'shell.openExternal': async () => undefined,
   };
 }
@@ -138,7 +139,9 @@ describe('DevSetupPanel: the checklist', () => {
   it('lists the tools under their stack, each with what it found', async () => {
     renderPanel();
 
-    const essentials = await screen.findByRole('region', { name: 'Essentials' });
+    // Each row answers on its own, so wait for the whole list to settle before reading it.
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+    const essentials = screen.getByRole('region', { name: 'Essentials' });
     expect(within(essentials).getByText('Git')).toBeTruthy();
     expect(within(essentials).getByText('Version 2.55.0')).toBeTruthy();
     expect(within(essentials).getByText('Version 22.12.0')).toBeTruthy();
@@ -394,7 +397,6 @@ describe('DevSetupPanel: when an install goes wrong', () => {
 
   it('tries the install again when asked', async () => {
     const { user, bridge } = await failRun();
-    bridge.$fn('devSetup.install').mockClear();
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));
 
@@ -407,7 +409,9 @@ describe('DevSetupPanel: when an install goes wrong', () => {
     expect(
       screen.getByRole('button', { name: 'Open the GitHub CLI install in a terminal' }),
     ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Copy the GitHub CLI install command' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Copy the GitHub CLI install command' }),
+    ).toBeTruthy();
   });
 });
 
@@ -511,5 +515,124 @@ describe('DevSetupPanel: the terminal, for installs the person runs', () => {
     expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(
       expect.stringMatching(/^https:\/\//),
     );
+  });
+});
+
+describe('DevSetupPanel: a tool that is installed but not on PATH', () => {
+  const gitOffPath: DevDetection = {
+    state: 'found',
+    version: '2.55.0',
+    path: 'C:\\Git\\cmd\\git.exe',
+    onPath: false,
+  };
+
+  it('warns about it and offers to put it on the PATH', async () => {
+    renderPanel(bridgeFor({ detections: { ...MOST, git: gitOffPath } }));
+
+    expect(await screen.findByText('Not on your PATH')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add Git to PATH' })).toBeTruthy();
+  });
+
+  it('asks main to do it for that tool when the button is pressed', async () => {
+    const { user, bridge } = renderPanel(bridgeFor({ detections: { ...MOST, git: gitOffPath } }));
+
+    await user.click(await screen.findByRole('button', { name: 'Add Git to PATH' }));
+
+    expect(bridge.$fn('devSetup.addToPath')).toHaveBeenCalledWith('git');
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Added Git to your user PATH. Open a new terminal to use it.',
+      ),
+    );
+  });
+
+  it('offers nothing for a tool that is already on the PATH', async () => {
+    renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    expect(screen.queryByText('Not on your PATH')).toBeNull();
+    expect(screen.queryByRole('button', { name: /to PATH$/ })).toBeNull();
+  });
+});
+
+describe('DevSetupPanel: telling a screen reader what happened', () => {
+  const region = () => screen.getByRole('status', { name: 'Install updates' });
+
+  it('has a polite live region that starts out empty', async () => {
+    renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    expect(region()).toHaveAttribute('aria-live', 'polite');
+    expect(region().textContent).toBe('');
+  });
+
+  it('says when a tool finished installing', async () => {
+    const { bridge } = renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    await emit(
+      bridge,
+      { type: 'plan', jobId: 'a', steps: ['gh'] },
+      { type: 'started', jobId: 'a', itemId: 'gh' },
+      { type: 'finished', jobId: 'a', itemId: 'gh', result: 'installed' },
+    );
+
+    expect(region().textContent).toBe('GitHub CLI installed.');
+  });
+
+  it('says when a tool could not be installed', async () => {
+    const { bridge } = renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    await emit(
+      bridge,
+      { type: 'plan', jobId: 'a', steps: ['gh'] },
+      { type: 'started', jobId: 'a', itemId: 'gh' },
+      { type: 'finished', jobId: 'a', itemId: 'gh', result: 'failed', message: 'No.' },
+    );
+
+    expect(region().textContent).toBe('GitHub CLI could not be installed.');
+  });
+
+  it('does not read out progress, which would talk over everything else', async () => {
+    const { bridge } = renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    await emit(
+      bridge,
+      { type: 'plan', jobId: 'a', steps: ['gh'] },
+      { type: 'started', jobId: 'a', itemId: 'gh' },
+      { type: 'progress', jobId: 'a', itemId: 'gh', phase: 'downloading', fraction: 0.4 },
+    );
+
+    expect(region().textContent).toBe('');
+  });
+
+  it('says each result once, as they come in', async () => {
+    const { bridge } = renderPanel(bridgeFor({ detections: {} }));
+    await screen.findByRole('heading', { name: '0 of 4 ready' });
+
+    await emit(
+      bridge,
+      { type: 'plan', jobId: 'a', steps: ['git', 'node'] },
+      { type: 'finished', jobId: 'a', itemId: 'git', result: 'installed' },
+    );
+    expect(region().textContent).toBe('Git installed.');
+
+    await emit(bridge, { type: 'finished', jobId: 'a', itemId: 'node', result: 'installed' });
+    expect(region().textContent).toBe('Node.js installed.');
+  });
+
+  it('says when a run was cancelled', async () => {
+    const { bridge } = renderPanel();
+    await screen.findByRole('heading', { name: '3 of 4 ready' });
+
+    await emit(
+      bridge,
+      { type: 'plan', jobId: 'a', steps: ['gh'] },
+      { type: 'done', jobId: 'a', cancelled: true },
+    );
+
+    expect(region().textContent).toBe('Install cancelled.');
   });
 });

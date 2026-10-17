@@ -12,7 +12,7 @@ import { SmartCloudsLogo } from './SmartCloudsLogo';
 
 export const SMARTCLOUDS_URL = 'https://smartclouds.co';
 /** The repository, the same as `homepage` in package.json. */
-export const SOURCE_URL = 'https://github.com/Cyrus-Sushiant/AgentMate';
+export const SOURCE_URL = 'https://github.com/SmartClouds/AgentMate';
 
 /**
  * About AgentMate: what the app is, the running version, a way to check for updates, a link to

@@ -262,6 +262,41 @@ describe('per-OS command lookups', () => {
       }
     }
   });
+
+  it('never use && on Windows, where the terminal is PowerShell 5.1', () => {
+    for (const tool of AGENT_TOOL_REGISTRY) {
+      const commands = [
+        getToolInstallCommandForCurrentOS(tool, 'win32'),
+        getToolUpdateCommandForCurrentOS(tool, 'win32'),
+        getToolUninstallCommandForCurrentOS(tool, 'win32'),
+      ];
+      for (const command of commands) expect(command ?? '', tool.id).not.toContain('&&');
+    }
+  });
+
+  it('never write to /usr/local/bin or call sudo, since the terminal runs as the user', () => {
+    for (const tool of AGENT_TOOL_REGISTRY) {
+      for (const os of PLATFORMS) {
+        const commands = [
+          getToolInstallCommandForCurrentOS(tool, os),
+          getToolUpdateCommandForCurrentOS(tool, os),
+          getToolUninstallCommandForCurrentOS(tool, os),
+        ];
+        for (const command of commands) {
+          expect(command ?? '', `${tool.id} ${os}`).not.toContain('/usr/local/bin');
+          expect(command ?? '', `${tool.id} ${os}`).not.toMatch(/\bsudo\b/);
+        }
+      }
+    }
+  });
+
+  it('install Semgrep with pipx rather than pip, which PEP 668 blocks on most systems', () => {
+    const semgrep = getAgentToolDefinition('semgrep');
+    if (!semgrep) throw new Error('semgrep missing from the registry');
+    for (const os of PLATFORMS) {
+      expect(getToolInstallCommandForCurrentOS(semgrep, os), os).toContain('pipx install semgrep');
+    }
+  });
 });
 
 describe('Docker commands', () => {
@@ -315,6 +350,17 @@ describe('Docker commands', () => {
     for (const tool of withDocker()) {
       expect(getDockerResetCommand(tool), tool.id).toBe(
         `${getDockerRemoveCommand(tool)} && ${getDockerRunCommand(tool)}`,
+      );
+      expect(getDockerResetCommand(tool, 'darwin'), tool.id).toBe(
+        `${getDockerRemoveCommand(tool)} && ${getDockerRunCommand(tool)}`,
+      );
+    }
+  });
+
+  it('joins the reset steps with ; on Windows, where PowerShell 5.1 has no &&', () => {
+    for (const tool of withDocker()) {
+      expect(getDockerResetCommand(tool, 'win32'), tool.id).toBe(
+        `${getDockerRemoveCommand(tool)}; ${getDockerRunCommand(tool)}`,
       );
     }
   });

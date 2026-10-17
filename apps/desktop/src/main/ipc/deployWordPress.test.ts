@@ -45,6 +45,7 @@ function harness(trusted = true) {
     localChanges: fn(),
     remoteFile: fn(),
     saveConnectorZip: fn(),
+    updateConnector: fn(),
   };
   registerDeployWordPressHandlers({
     ipc: { handle: (channel, listener) => handlers.set(channel, listener) },
@@ -100,6 +101,7 @@ describe('registerDeployWordPressHandlers', () => {
     await call(IPC.deployWordPress.unlinkProject, PROJECT);
     await call(IPC.deployWordPress.localChanges, PROJECT);
     await call(IPC.deployWordPress.saveConnectorZip);
+    await call(IPC.deployWordPress.updateConnector, SITE);
 
     expect(service.siteInfo).toHaveBeenCalledWith(SITE);
     expect(service.listItems).toHaveBeenCalledWith(SITE);
@@ -109,6 +111,7 @@ describe('registerDeployWordPressHandlers', () => {
     expect(service.localChanges).toHaveBeenCalledWith(PROJECT);
     expect(service.listSites).toHaveBeenCalledTimes(1);
     expect(service.saveConnectorZip).toHaveBeenCalledTimes(1);
+    expect(service.updateConnector).toHaveBeenCalledWith(SITE);
   });
 
   it('reads a connect call, dropping the line breaks a pasted key picks up', async () => {
@@ -238,6 +241,9 @@ describe('registerDeployWordPressHandlers', () => {
     const { call } = harness();
     for (const id of [undefined, '', '../etc', 'a b', '-starts-with-dash', 'x'.repeat(65)]) {
       await expect(call(IPC.deployWordPress.siteInfo, id)).rejects.toThrow(
+        'not a connected WordPress site',
+      );
+      await expect(call(IPC.deployWordPress.updateConnector, id)).rejects.toThrow(
         'not a connected WordPress site',
       );
     }

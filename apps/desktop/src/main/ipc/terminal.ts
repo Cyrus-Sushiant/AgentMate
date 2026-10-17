@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { delimiter } from 'node:path';
 import { looksLikeNeedsInput } from '@agentmat/core';
 import { type IpcMainInvokeEvent, ipcMain, type WebContents } from 'electron';
 import type {
@@ -26,6 +27,8 @@ import { ALLOWED_SHELLS, type AllowedShell, defaultShellName } from '../ptyHost/
 import { store } from '../store';
 import { sampleListeningPorts } from '../system/listeningPorts';
 import { sampleProcessTrees } from '../system/processTree';
+import { toolPathCandidates } from '../toolPaths';
+import { pathKey } from '../windowsPath';
 import { broadcastToWindows, sendToContents } from './send';
 
 function defaultShell(): AllowedShell {
@@ -199,6 +202,33 @@ export function startTerminalBackend(): void {
   void ensureBackend();
 }
 
+/**
+ * The environment a new shell starts with. The folders native installers and pip use go on the
+ * end of PATH, so a CLI installed into ~/.local/bin is runnable right after its install in the
+ * same app, even though the app never re-reads the shell rc file that would have added it. They
+ * are added even when they do not exist yet, because the install running in this very tab may be
+ * what creates them.
+ */
+function terminalEnv(sessionId: string, projectId?: string): Record<string, string> {
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    // The ids let a hook script started inside this shell (Claude Code's, say) say
+    // which tab it belongs to. Only a brand-new shell picks them up.
+    AGENTMATE_SESSION_ID: sessionId,
+    AGENTMATE_PROJECT_ID: projectId ?? '',
+  };
+  const key = pathKey(env);
+  const current = (env[key] ?? '').split(delimiter).filter(Boolean);
+  const normalize = (dir: string): string => {
+    const trimmed = dir.replace(/[\\/]+$/, '');
+    return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
+  };
+  const known = new Set(current.map(normalize));
+  const added = toolPathCandidates().filter((dir) => !known.has(normalize(dir)));
+  if (added.length > 0) env[key] = [...current, ...added].join(delimiter);
+  return env;
+}
+
 async function createOrAttach(
   payload: CreateOrAttachPayload,
 ): Promise<CreateOrAttachResult | null> {
@@ -237,13 +267,7 @@ export function registerTerminalHandlers(): void {
           cwd: options.cwd,
           cols: options.cols,
           rows: options.rows,
-          // The ids let a hook script started inside this shell (Claude Code's, say) say
-          // which tab it belongs to. Only a brand-new shell picks them up.
-          env: {
-            ...(process.env as Record<string, string>),
-            AGENTMATE_SESSION_ID: sessionId,
-            AGENTMATE_PROJECT_ID: options.projectId ?? '',
-          },
+          env: terminalEnv(sessionId, options.projectId),
           initialInput: options.initialInput,
           projectId: options.projectId,
           attachOnly: options.attachOnly,

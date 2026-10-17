@@ -10,9 +10,20 @@ const state = vi.hoisted(() => ({
   calls: [] as { file: string; args: string[]; options: Record<string, unknown> }[],
   stdout: '',
   error: null as { message: string; stderr?: string } | null,
+  /** What the next `spawn` prints, then how it ends. */
+  spawnOutput: [] as string[],
+  spawnCode: 0,
+  spawned: [] as Array<{
+    file: string;
+    args: string[];
+    options: Record<string, unknown>;
+    stdinWrites: string[];
+    child: unknown;
+  }>,
 }));
 
-vi.mock('node:child_process', () => {
+vi.mock('node:child_process', async () => {
+  const { EventEmitter } = await import('node:events');
   const custom = Symbol.for('nodejs.util.promisify.custom');
   const execFile = Object.assign(() => undefined, {
     [custom]: (file: string, args: string[], options: Record<string, unknown>) => {
@@ -23,7 +34,22 @@ vi.mock('node:child_process', () => {
       return Promise.resolve({ stdout: state.stdout, stderr: '' });
     },
   });
-  return { execFile };
+  const spawn = (file: string, args: string[], options: Record<string, unknown>) => {
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(),
+      stderr: new EventEmitter(),
+      stdin: { write: (text: string) => record.stdinWrites.push(text) },
+    });
+    const record = { file, args, options, stdinWrites: [] as string[], child };
+    state.spawned.push(record);
+    // Output and the exit come after the caller has had the child, as with a real process.
+    setImmediate(() => {
+      for (const chunk of state.spawnOutput) child.stdout.emit('data', Buffer.from(chunk));
+      child.emit('close', state.spawnCode);
+    });
+    return child;
+  };
+  return { execFile, spawn };
 });
 
 const SDK_ROOT = 'C:\\Program Files\\Android\\Sdk';
@@ -49,6 +75,9 @@ beforeEach(() => {
   state.calls.length = 0;
   state.stdout = '';
   state.error = null;
+  state.spawnOutput = [];
+  state.spawnCode = 0;
+  state.spawned.length = 0;
 });
 
 describe('runAdb', () => {
@@ -183,5 +212,70 @@ describe('a Windows batch tool', () => {
 
     expect(state.calls[0].file).toBe(sdk.paths.adb);
     expect(state.calls[0].args).toEqual(['devices']);
+  });
+});
+
+describe('runSdkManagerStreaming', () => {
+  it('hands the running process to the caller, so a cancel can stop it', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+    const onSpawn = vi.fn();
+
+    await runSdkManagerStreaming(sdk, ['--licenses'], { onSpawn });
+
+    expect(onSpawn).toHaveBeenCalledTimes(1);
+    expect(onSpawn).toHaveBeenCalledWith(state.spawned[0]?.child);
+  });
+
+  it('reports each line and the progress it carries', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+    state.spawnOutput = ['Warning: nothing\n[=====     ] 42% Downloading emulator\n'];
+    const lines: string[] = [];
+    const progress: Array<{ percent: number; label: string }> = [];
+
+    await runSdkManagerStreaming(sdk, ['emulator'], {
+      onLine: (line) => lines.push(line),
+      onProgress: (one) => progress.push(one),
+    });
+
+    expect(lines).toContain('Warning: nothing');
+    expect(progress).toEqual([{ percent: 42, label: 'Downloading emulator' }]);
+  });
+
+  it('answers a licence question when the caller says to', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+    state.spawnOutput = ['Accept? (y/N): '];
+
+    await runSdkManagerStreaming(sdk, ['--licenses'], { onPrompt: () => 'y\n' });
+
+    expect(state.spawned[0]?.stdinWrites).toEqual(['y\n']);
+  });
+
+  it('leaves a licence question unanswered when the caller says nothing', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+    state.spawnOutput = ['Accept? (y/N): '];
+
+    await runSdkManagerStreaming(sdk, ['--licenses'], { onPrompt: () => undefined });
+
+    expect(state.spawned[0]?.stdinWrites).toEqual([]);
+  });
+
+  it('fails when the tool exits with an error', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+    state.spawnCode = 1;
+
+    await expect(runSdkManagerStreaming(sdk, ['emulator'], {})).rejects.toThrow(
+      'sdkmanager exited with 1.',
+    );
+  });
+
+  it('runs the absolute sdkmanager with the SDK location in its environment', async () => {
+    const { runSdkManagerStreaming } = await import('./exec');
+
+    await runSdkManagerStreaming(sdk, ['platform-tools'], {});
+
+    const spawned = state.spawned[0];
+    expect(`${spawned?.file} ${spawned?.args.join(' ')}`).toContain('sdkmanager');
+    const env = spawned?.options.env as Record<string, string>;
+    expect(env.ANDROID_HOME).toBe(SDK_ROOT);
   });
 });

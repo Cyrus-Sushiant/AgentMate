@@ -148,6 +148,7 @@ const PLUGIN_CODES: ReadonlySet<string> = new Set<WpErrorCode>([
   'pairingInvalid',
   'pairingExpired',
   'protocolMismatch',
+  'updateRefused',
   'internal',
 ]);
 

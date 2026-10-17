@@ -47,6 +47,7 @@ export const STARTUP_PAGES = [
   '/api-client',
   '/pipelines',
   '/deploy',
+  '/health',
   '/skills',
   '/mcp',
   '/tools',
@@ -304,7 +305,10 @@ export type AppNotificationKind =
   /** A server core's alert, by severity (the Deploy section's watcher raises these). */
   | 'deploy-critical'
   | 'deploy-warning'
-  | 'deploy-info';
+  | 'deploy-info'
+  /** A project healthcheck confirmed down, and back up (E22). */
+  | 'health-failure'
+  | 'health-recovered';
 
 /** In-app inbox item: pipeline results from watched GitHub Actions, or a CLI/tool update. */
 export interface AppNotification {

@@ -42,7 +42,7 @@ import {
  * (see updater/macInstall.ts).
  */
 const ONE_HOUR_MS = 60 * 60 * 1000;
-const GITHUB_OWNER = 'Cyrus-Sushiant';
+const GITHUB_OWNER = 'SmartClouds';
 const GITHUB_REPO = 'AgentMate';
 
 let currentStatus: UpdateStatus = { state: 'idle' };

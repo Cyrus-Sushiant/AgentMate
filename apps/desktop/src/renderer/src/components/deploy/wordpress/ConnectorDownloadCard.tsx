@@ -26,8 +26,9 @@ export function ConnectorSteps({ className }: { className?: string }): React.JSX
 }
 
 /**
- * Hands over the AgentMate Connector plugin that ships with the app. The plugin can't update
- * itself, so this is also how a site gets a newer version.
+ * Hands over the AgentMate Connector plugin that ships with the app. This is how a site first gets
+ * the plugin, and how one whose connector is too old to update itself gets a newer version. A
+ * connector that can update itself is updated from the site's overview instead.
  */
 export function ConnectorDownloadCard({
   title = 'Get the AgentMate Connector',

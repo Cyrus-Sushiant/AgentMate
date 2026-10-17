@@ -2,6 +2,7 @@ import { WP_CONNECTOR_VERSION, WP_PROTOCOL_VERSION } from '@agentmat/core';
 import type { DeployWordPressSite, DeployWordPressSiteInfo } from '@shared/deployWordPressTypes';
 import { wordPressErrorCode } from '@shared/wordpressErrors';
 import {
+  ArrowUp,
   CircleCheck,
   CircleInfo,
   Clock,
@@ -18,7 +19,12 @@ import { cn } from '@/lib/utils';
 import { DeployCard, FactRow, FactRows, Notice } from '../deployKit';
 import { SetupFailure } from '../SetupFailure';
 import { ConnectorDownloadCard } from './ConnectorDownloadCard';
-import { useSaveConnectorZip, useSiteInfo } from './hooks';
+import {
+  type ConnectorUpdate,
+  useSaveConnectorZip,
+  useSiteInfo,
+  useUpdateConnector,
+} from './hooks';
 import {
   compareVersions,
   DEPLOY_STATE_LABEL,
@@ -63,24 +69,113 @@ function Status({
   );
 }
 
-/** A newer connector of the same protocol: worth having, not needed. */
-function NewerConnector(): React.JSX.Element {
+/**
+ * A newer connector of the same protocol: worth having, not needed. A connector that can replace
+ * itself is updated from here; an older one has to be uploaded in wp-admin once, and says so.
+ */
+function NewerConnector({
+  info,
+  site,
+  connectorUpdate,
+}: {
+  info: DeployWordPressSiteInfo;
+  site: DeployWordPressSite;
+  connectorUpdate: ConnectorUpdate;
+}): React.JSX.Element {
   const { save, saving } = useSaveConnectorZip();
+  const changes = fileChangesStatus(info, site);
+  const download = (
+    <Button
+      variant="link"
+      size="sm"
+      className="h-auto p-0 text-xs"
+      disabled={saving}
+      onClick={() => void save()}
+    >
+      Download version {WP_CONNECTOR_VERSION}
+    </Button>
+  );
+
+  if (info.selfUpdate === true && changes.allowed) {
+    return (
+      <span className="mt-1.5 block text-xs text-muted-foreground">
+        Version {WP_CONNECTOR_VERSION} comes with this app.
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button
+            size="sm"
+            disabled={connectorUpdate.updating}
+            onClick={() => void connectorUpdate.update()}
+          >
+            {connectorUpdate.updating ? (
+              <Spinner className="motion-safe:animate-spin" />
+            ) : (
+              <ArrowUp />
+            )}
+            {connectorUpdate.updating ? 'Updating' : `Update to ${WP_CONNECTOR_VERSION}`}
+          </Button>
+          {download}
+        </span>
+      </span>
+    );
+  }
+
+  let why: string;
+  if (info.selfUpdate === true) {
+    why =
+      site.scope === 'read'
+        ? "This connection is read-only, so it can't update the connector from here. Make a read and write key in Tools > AgentMate Connector, or upload the new one in wp-admin."
+        : "File changes are switched off on this site (see File changes below), so the connector can't be updated from here. Upload the new one in wp-admin when it suits you.";
+  } else if (info.selfUpdate === false) {
+    why =
+      "This one still works, but it can't replace its own folder here (it may be a symlink or not writable). Upload the new one in wp-admin when it suits you.";
+  } else {
+    why =
+      'This one still works; upload the new one in wp-admin when it suits you. After this one upload, future updates can be done from here.';
+  }
   return (
     <span className="mt-1 block text-xs text-muted-foreground">
-      Version {WP_CONNECTOR_VERSION} comes with this app. This one still works; upload the new one
-      in wp-admin when it suits you.{' '}
-      <Button
-        variant="link"
-        size="sm"
-        className="h-auto p-0 text-xs"
-        disabled={saving}
-        onClick={() => void save()}
-      >
-        Download version {WP_CONNECTOR_VERSION}
-      </Button>
+      Version {WP_CONNECTOR_VERSION} comes with this app. {why} {download}
     </span>
   );
+}
+
+/** What the last in-app connector update did, kept on screen after the version row is gone. */
+function ConnectorUpdateNotice({
+  connectorUpdate,
+}: {
+  connectorUpdate: ConnectorUpdate;
+}): React.JSX.Element | null {
+  const { result, problem } = connectorUpdate;
+  if (problem) {
+    return (
+      <Notice role="alert" tone="destructive" icon={TriangleAlert}>
+        {problem}
+      </Notice>
+    );
+  }
+  if (result?.outcome === 'updated') {
+    return (
+      <Notice role="status" tone="success">
+        The connector on this site is now version {result.version} (it was {result.fromVersion}).
+        {result.checks.some((check) => check.ok === true) &&
+          ' The site passed its health check after the swap.'}
+      </Notice>
+    );
+  }
+  if (result?.outcome === 'rolledBack') {
+    const failed = result.checks.filter((check) => check.ok === false);
+    return (
+      <Notice role="alert" tone="warning" icon={TriangleAlert}>
+        The site failed its health check with version {result.version}, so it put version{' '}
+        {result.fromVersion} back on its own.
+        {failed.length > 0 && (
+          <> It failed: {failed.map((check) => `${check.name} (${check.detail})`).join(', ')}.</>
+        )}{' '}
+        Nothing else on the site changed.
+      </Notice>
+    );
+  }
+  return null;
 }
 
 function ConnectorNotice({ info }: { info: DeployWordPressSiteInfo }): React.JSX.Element | null {
@@ -114,6 +209,7 @@ function ConnectorNotice({ info }: { info: DeployWordPressSiteInfo }): React.JSX
  */
 export function SiteOverviewPanel({ site }: { site: DeployWordPressSite }): React.JSX.Element {
   const infoQuery = useSiteInfo(site.id);
+  const connectorUpdate = useUpdateConnector(site.id);
   const info = infoQuery.data;
   const loading = infoQuery.isPending;
   const errorCode = infoQuery.isError ? wordPressErrorCode(infoQuery.error) : null;
@@ -142,6 +238,7 @@ export function SiteOverviewPanel({ site }: { site: DeployWordPressSite }): Reac
         </div>
       )}
       {info && <ConnectorNotice info={info} />}
+      <ConnectorUpdateNotice connectorUpdate={connectorUpdate} />
       {info?.pendingDeploy && (
         <Notice role="status" tone="primary" icon={Clock}>
           A deploy is waiting for confirmation ({DEPLOY_STATE_LABEL[info.pendingDeploy.state]}). If
@@ -221,7 +318,9 @@ export function SiteOverviewPanel({ site }: { site: DeployWordPressSite }): Reac
               <FactRow label="Version">
                 {info.pluginVersion}
                 <span className="text-muted-foreground">, protocol {info.protocol}</span>
-                {newerConnector && info.protocol === WP_PROTOCOL_VERSION && <NewerConnector />}
+                {newerConnector && info.protocol === WP_PROTOCOL_VERSION && (
+                  <NewerConnector info={info} site={site} connectorUpdate={connectorUpdate} />
+                )}
               </FactRow>
               <FactRow label="Signing">
                 {info.sodium === 'native'

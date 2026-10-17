@@ -75,6 +75,7 @@ import {
   faGripVertical,
   faHardDrive,
   faHeading,
+  faHeartPulse,
   faImage,
   faInfinity,
   faItalic,
@@ -459,3 +460,4 @@ export const ZoomOut = makeIcon(faMagnifyingGlassMinus);
 export const Vault = makeIcon(faVault);
 export const Dice = makeIcon(faDice);
 export const Sliders = makeIcon(faSliders);
+export const HeartPulse = makeIcon(faHeartPulse);

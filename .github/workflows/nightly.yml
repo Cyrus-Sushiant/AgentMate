@@ -5,7 +5,8 @@ name: Nightly
 # server core's own nginx and Pebble system tests.
 # Each `[e2e]` push runs a smaller set (Ubuntu and Rocky installs, ufw and firewalld, Ubuntu for the
 # rest; see the server-core-system job in test.yml).
-# This one runs every night and by hand, never on a push.
+# This one runs every night and by hand, never on a push, on the self-hosted Linux runner like
+# the rest of CI. The jobs queue one after another on it.
 #
 # Each job sets AGENTMATE_TEST_SERVER_IMAGES to its image, and every system test runs on it when it
 # supports it (see testServerImages in apps/desktop/src/main/deploy/testing/testServers.ts). A test
@@ -26,7 +27,7 @@ concurrency:
 jobs:
   system:
     name: System tests (${{ matrix.image }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -41,6 +42,9 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true
@@ -107,7 +111,7 @@ jobs:
   # The firewall variants of Ubuntu and Rocky, since one step needs a firewall.
   full-stack:
     name: Full-stack e2e (${{ matrix.image }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -123,12 +127,18 @@ jobs:
 
       - name: Display and Electron libraries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          packages="xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6"
+          if ! dpkg -s $packages > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y $packages
+          fi
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true
@@ -217,7 +227,7 @@ jobs:
   # agent files behind, a refused syntax error, a rollback by the site's guard and one by hand.
   wordpress-e2e:
     name: WordPress e2e
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     env:
       electron_config_cache: ${{ github.workspace }}/.cache/electron
@@ -227,9 +237,12 @@ jobs:
 
       - name: Display and Electron libraries
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          packages="xvfb libnss3 libgbm1 libasound2t64 libxss1 libxtst6"
+          if ! dpkg -s $packages > /dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y $packages
+          fi
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -293,7 +306,7 @@ jobs:
   # renewed by Pebble through real nginx (E11). They need Linux with Docker, which no push runs.
   server-core-system:
     name: Server core system tests (nginx and Pebble)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 60
     env:
       DOTNET_NOLOGO: "1"
@@ -307,6 +320,9 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        # The default, /usr/share/dotnet, needs root, which a self-hosted runner may not have.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
         with:
           dotnet-version: 10.0.4xx
           cache: true

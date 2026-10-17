@@ -96,6 +96,7 @@ import { DashboardUsageCard } from '@/components/usage/DashboardUsageCard';
 import { useSystemStatsHistory } from '@/hooks/useSystemStatsHistory';
 import { useUsageSummary } from '@/hooks/useUsageSummary';
 import { useChartColors } from '@/lib/chartColors';
+import { openCommandTerminal } from '@/lib/openCommandTerminal';
 import { queryKeys } from '@/lib/queryKeys';
 import { formatCost, formatPercent, formatTokens } from '@/lib/usageFormat';
 import { cn } from '@/lib/utils';
@@ -393,16 +394,13 @@ function CliUpdateRow({
   status: InstalledCli;
   latestVersion: string;
 }): React.JSX.Element {
-  const openSession = useTerminalStore((s) => s.openSession);
-
   async function handleUpdate(): Promise<void> {
     const command = await window.agentmat.cli.getUpdateCommand(cli.id);
     if (!command) {
       toast.error(`No update command available for ${cli.name} on this OS.`);
       return;
     }
-    openSession({ title: `Update ${cli.name}`, initialInput: command });
-    toast.info(`Press Enter in the terminal to update ${cli.name}.`);
+    await openCommandTerminal({ command, name: cli.name, verb: 'update' });
   }
 
   return (
@@ -425,16 +423,13 @@ function ToolUpdateRow({
   status: InstalledAgentTool;
   latestVersion: string;
 }): React.JSX.Element {
-  const openSession = useTerminalStore((s) => s.openSession);
-
   async function handleUpdate(): Promise<void> {
     const command = await window.agentmat.tools.getUpdateCommand(tool.id);
     if (!command) {
       toast.error(`No update command available for ${tool.name} on this OS.`);
       return;
     }
-    openSession({ title: `Update ${tool.name}`, initialInput: command });
-    toast.info(`Press Enter in the terminal to update ${tool.name}.`);
+    await openCommandTerminal({ command, name: tool.name, verb: 'update' });
   }
 
   return (

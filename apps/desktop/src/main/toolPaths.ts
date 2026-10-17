@@ -15,6 +15,12 @@ import { delimiter, join } from 'node:path';
  * absolute path of semgrep.exe would not be enough: the folder has to be on the PATH the child
  * process inherits, or the scan dies with "executing pysemgrep failed".
  *
+ * Native installers have the same problem in a different shape. Claude Code's install script, Grok,
+ * OpenCode and friends drop their binary into a folder under the home directory and put that
+ * folder on PATH only through a shell rc file (or, on Windows, the user PATH in the registry). The
+ * app never re-reads rc files, and a macOS app launched from Finder starts with a bare PATH that
+ * has none of them, so a CLI installed a minute ago would read as missing until the next login.
+ *
  * These go on the end of PATH, never the front, so a copy the user installed deliberately
  * (winget, brew, pipx) still wins.
  */
@@ -52,7 +58,7 @@ function runPython(command: string, args: string[]): Promise<string | null> {
   });
 }
 
-async function pythonScriptDirs(): Promise<string[]> {
+export async function pythonScriptDirs(): Promise<string[]> {
   for (const [command, args] of PYTHON_CANDIDATES) {
     const stdout = await runPython(command, args);
     if (stdout === null) continue;
@@ -69,11 +75,53 @@ async function pythonScriptDirs(): Promise<string[]> {
 
 function staticDirs(): string[] {
   const home = homedir();
-  if (process.platform === 'win32') return [];
-  const dirs = [join(home, '.local', 'bin')];
+  if (process.platform === 'win32') {
+    const dirs = [
+      // Claude Code's native installer, Goose, and uv (which is how aider gets installed).
+      join(home, '.local', 'bin'),
+      join(home, '.grok', 'bin'),
+    ];
+    const localAppData = process.env.LOCALAPPDATA;
+    if (localAppData) {
+      dirs.push(
+        join(localAppData, 'cursor-agent'),
+        join(localAppData, 'Programs', 'muse'),
+        join(localAppData, 'codegraph', 'current', 'bin'),
+        join(localAppData, 'Programs', 'OpenAI', 'Codex', 'bin'),
+        join(localAppData, 'qwen-code', 'bin'),
+        join(localAppData, 'hermes', 'bin'),
+      );
+    }
+    return dirs;
+  }
+  const dirs = [
+    join(home, '.local', 'bin'),
+    join(home, '.opencode', 'bin'),
+    join(home, '.grok', 'bin'),
+    join(home, '.strix', 'bin'),
+  ];
   if (process.platform === 'darwin') {
     // A packaged app launched from Finder gets a bare PATH with no Homebrew in it.
     dirs.push('/opt/homebrew/bin', '/usr/local/bin');
+  }
+  return dirs;
+}
+
+/**
+ * Every folder a native installer might put a tool into, whether or not it exists yet. A terminal
+ * tab that is about to run an install needs these on its PATH up front, because the folder may
+ * only be created by that install a moment later. Python's Scripts folders are left out on
+ * purpose: finding them means starting Python, which would hold up opening every terminal, and
+ * pipx and uv put their tools in ~/.local/bin, which is already here.
+ */
+export function toolPathCandidates(): string[] {
+  const seen = new Set<string>();
+  const dirs: string[] = [];
+  for (const dir of staticDirs()) {
+    const key = normalize(dir);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    dirs.push(dir);
   }
   return dirs;
 }
@@ -94,9 +142,18 @@ function pathKey(env: NodeJS.ProcessEnv): string | null {
 
 const CACHE_TTL_MS = 5 * 60_000;
 let cached: { at: number; dirs: Promise<string[]> } | null = null;
+let cachedPython: { at: number; dirs: Promise<string[]> } | null = null;
+
+/** Detection and the install-method lookup both ask for these, and each probe waits on a spawn. */
+function cachedPythonScriptDirs(): Promise<string[]> {
+  if (!cachedPython || Date.now() - cachedPython.at > CACHE_TTL_MS) {
+    cachedPython = { at: Date.now(), dirs: pythonScriptDirs() };
+  }
+  return cachedPython.dirs;
+}
 
 async function discover(): Promise<string[]> {
-  const candidates = [...(await pythonScriptDirs()), ...staticDirs()];
+  const candidates = [...(await cachedPythonScriptDirs()), ...staticDirs()];
   const onPath = new Set(
     currentPath(process.env)
       .split(delimiter)
@@ -132,6 +189,7 @@ export function getExtraToolPathDirs(): Promise<string[]> {
 /** Call when the user has just installed something and is asking us to look again. */
 export function refreshExtraToolPathDirs(): void {
   cached = null;
+  cachedPython = null;
 }
 
 /**

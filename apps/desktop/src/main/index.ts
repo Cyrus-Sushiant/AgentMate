@@ -11,8 +11,11 @@ import { stopEmulatorsOnQuit } from './android/runtime';
 import { registerBlueprintFileProtocol } from './blueprintFileStore';
 import { configureBrowserSession, setupBrowserGuests } from './browser/guestSession';
 import { registerDeployIpc } from './deploy';
+import { disposeDevSetup } from './devSetup/runtime';
 import { seedExampleRepositoryIfEmpty } from './exampleSkillRepo';
 import { shutdownLocalServer } from './grammar/localServer';
+import { startHealthScheduler, stopHealthScheduler } from './health/scheduler';
+import { pruneOrphanHealthTargets } from './health/store';
 import { registerActivityHandlers } from './ipc/activity';
 import { registerAgentHandlers } from './ipc/agents';
 import { registerAiHandlers } from './ipc/ai';
@@ -24,7 +27,6 @@ import { registerBackupHandlers } from './ipc/backup';
 import { registerBlueprintHandlers } from './ipc/blueprints';
 import { registerBrowserHandlers } from './ipc/browser';
 import { registerCliDetectionHandlers } from './ipc/cliDetection';
-import { disposeDevSetup } from './devSetup/runtime';
 import { registerDevSetupHandlers } from './ipc/devSetup';
 import { registerDockerHandlers } from './ipc/docker';
 import { registerEnvironmentHandlers } from './ipc/environments';
@@ -32,6 +34,7 @@ import { registerExplorerHandlers } from './ipc/explorer';
 import { registerFileSystemHandlers } from './ipc/fileSystem';
 import { registerGitHandlers } from './ipc/git';
 import { registerGrammarHandlers } from './ipc/grammar';
+import { registerHealthHandlers } from './ipc/health';
 import { registerHelpHandlers } from './ipc/help';
 import { registerIpGeoHandlers } from './ipc/ipGeo';
 import { registerMcpHandlers } from './ipc/mcp';
@@ -71,7 +74,7 @@ import { registerWindowHandlers } from './ipc/window';
 import { registerWorkspaceSearchHandlers } from './ipc/workspaceSearch';
 import { registerWorktreeHandlers } from './ipc/worktrees';
 import { flushLastRoute, prepareStartupRoute, takeStartupRoute, trackLastRoute } from './lastRoute';
-import { focusMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
+import { focusMainWindow, getMainWindow, setMainWindow, setMainWindowFactory } from './mainWindow';
 import {
   loadMainWindowState,
   MAIN_WINDOW_MIN_SIZE,
@@ -367,6 +370,15 @@ function registerAllIpcHandlers(): void {
   registerAppNotificationHandlers();
   registerSpellcheckHandlers();
   registerGrammarHandlers();
+  // Health targets carry sealed keys, so only the main window's own page may reach them.
+  registerHealthHandlers({
+    guard: (event) => {
+      const win = getMainWindow();
+      return (
+        !!win && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame
+      );
+    },
+  });
 }
 
 app.whenReady().then(async () => {
@@ -450,6 +462,7 @@ app.whenReady().then(async () => {
   void migrateInlineProjectIcons();
   void pruneOrphanBlueprints();
   void pruneOrphanEnvironments();
+  void pruneOrphanHealthTargets();
   void startHookServer();
   setMainWindowFactory(createMainWindow);
   // Nothing answers a confirmation dialog in a test, so closing must not ask.
@@ -467,6 +480,7 @@ app.whenReady().then(async () => {
   if (!isE2E) startResourceActivityTracker();
   startPipelineWatcher();
   startToolUpdateWatcher();
+  startHealthScheduler();
   startScheduledTaskRunner();
   startHourlyUpdateChecks();
 
@@ -521,6 +535,7 @@ app.on('before-quit', (event) => {
   stopResourceActivityTracker();
   stopPipelineWatcher();
   stopToolUpdateWatcher();
+  stopHealthScheduler();
   stopScheduledTaskRunner();
   shutdownLocalServer();
   remoteManager.shutdown();

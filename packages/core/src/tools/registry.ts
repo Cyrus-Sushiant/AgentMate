@@ -18,9 +18,10 @@ import type { AgentToolDefinition } from './types.js';
 /**
  * Curated agent-improvement tools (proxies, plugins, and indexers that reduce token spend or
  * make agents write better code), distinct from the MCP/skills marketplaces, since none of
- * these are MCP servers or skill packages. Researched from each project's own README/docs as of
- * 2026-07-19 (OpenClaw and Hermes: 2026-07-24); re-check upstream before relying on exact flags,
- * they may have changed since.
+ * these are MCP servers or skill packages. Install, update and uninstall commands were last
+ * checked against each project's own README, docs and installer scripts on 2026-10-17; re-check
+ * upstream before relying on exact flags, they may have changed since. Windows commands are typed
+ * into Windows PowerShell 5.1, which has no `&&`, so two steps there are joined with `;`.
  */
 /** Shared so the Tools page tab and the six scanner entries can never drift apart. */
 export const SECURITY_TOOL_CATEGORY = 'Security & Code Scanning';
@@ -129,19 +130,24 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     websiteUrl: 'https://www.rtk-ai.app/',
     repositoryUrl: 'https://github.com/rtk-ai/rtk',
     installKind: 'shell',
+    // The install script handles macOS too (no sudo, ~/.local/bin, checks the SHA-256), so a Mac
+    // without Homebrew can install it. A copy that did come from brew is still upgraded with brew,
+    // because main picks the update by where the binary lives. Windows has a prebuilt winget
+    // package now, which saves installing Rust just to compile it.
     installCommand: {
-      darwin: 'brew install rtk',
+      darwin:
+        'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       linux:
         'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
-      win32: 'cargo install --git https://github.com/rtk-ai/rtk',
+      win32: 'winget install rtk-ai.rtk',
     },
-    // brew/cargo have their own upgrade verbs, and the Linux installer script is
-    // idempotent, so re-running it upgrades in place.
+    // The installer script is idempotent, so re-running it upgrades in place.
     updateCommand: {
-      darwin: 'brew upgrade rtk',
+      darwin:
+        'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
       linux:
         'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh',
-      win32: 'cargo install --git https://github.com/rtk-ai/rtk --force',
+      win32: 'winget upgrade rtk-ai.rtk',
     },
     updateCheck: { type: 'github-release', package: 'rtk-ai/rtk' },
     // `rtk init -g --uninstall` removes the agent hook (the part that actually affects agent
@@ -225,16 +231,24 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     official: false,
     repositoryUrl: 'https://github.com/colbymchenry/codegraph',
     installKind: 'shell',
+    // The standalone installers bundle their own Node. Neither puts codegraph on this shell's
+    // PATH, but the terminal AgentMate opens already has ~/.local/bin and
+    // %LOCALAPPDATA%\codegraph\current\bin on it, so the `codegraph install` that wires up the
+    // agents can run right after in the same line.
     installCommand: {
-      win32: 'npm i -g @colbymchenry/codegraph && codegraph install',
-      darwin: 'npm i -g @colbymchenry/codegraph && codegraph install',
-      linux: 'npm i -g @colbymchenry/codegraph && codegraph install',
+      win32:
+        'irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex; codegraph install',
+      darwin:
+        'curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh && codegraph install',
+      linux:
+        'curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh && codegraph install',
     },
-    // `codegraph install` re-registers the MCP server, which the new build may have changed.
+    // `codegraph upgrade` works out whether it came from the bundle, npm or npx. `codegraph
+    // install` re-registers the MCP server, which the new build may have changed.
     updateCommand: {
-      win32: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
-      darwin: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
-      linux: 'npm i -g @colbymchenry/codegraph@latest && codegraph install',
+      win32: 'codegraph upgrade; codegraph install',
+      darwin: 'codegraph upgrade && codegraph install',
+      linux: 'codegraph upgrade && codegraph install',
     },
     updateCheck: { type: 'npm', package: '@colbymchenry/codegraph' },
     uninstallCommand: {
@@ -295,17 +309,25 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     official: false,
     repositoryUrl: 'https://github.com/openclaw/openclaw',
     installKind: 'shell',
+    // The official installers bring Node 24 when it is missing (OpenClaw refuses Node 22, 23 and
+    // 25) and then start onboarding.
     installCommand: {
-      win32: 'npm install -g openclaw@latest',
-      darwin: 'npm install -g openclaw@latest',
-      linux: 'npm install -g openclaw@latest',
+      win32: 'iwr -useb https://openclaw.ai/install.ps1 | iex',
+      darwin: 'curl -fsSL https://openclaw.ai/install.sh | bash',
+      linux: 'curl -fsSL https://openclaw.ai/install.sh | bash',
     },
-    // installCommand already pins @latest, so it doubles as the update command.
+    updateCommand: {
+      win32: 'openclaw update',
+      darwin: 'openclaw update',
+      linux: 'openclaw update',
+    },
     updateCheck: { type: 'npm', package: 'openclaw' },
+    // `openclaw uninstall` removes the gateway service, state and workspace first; the installers
+    // put the CLI itself in through npm, so npm removes it after.
     uninstallCommand: {
-      win32: 'npm uninstall -g openclaw',
-      darwin: 'npm uninstall -g openclaw',
-      linux: 'npm uninstall -g openclaw',
+      win32: 'openclaw uninstall --all --yes --non-interactive; npm rm -g openclaw',
+      darwin: 'openclaw uninstall --all --yes --non-interactive && npm rm -g openclaw',
+      linux: 'openclaw uninstall --all --yes --non-interactive && npm rm -g openclaw',
     },
     detectCommand: { command: 'openclaw', args: ['--version'] },
     docker: {
@@ -387,8 +409,12 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
       darwin: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
       linux: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
     },
-    // The install script upgrades an existing install in place, so it doubles as the
-    // update command.
+    // `hermes update` is the documented upgrade path now, rather than re-running the installer.
+    updateCommand: {
+      win32: 'hermes update',
+      darwin: 'hermes update',
+      linux: 'hermes update',
+    },
     updateCheck: { type: 'github-release', package: 'NousResearch/hermes-agent' },
     // Without --full this keeps ~/.hermes (config, skills, memories); the user can rerun with
     // --full themselves if they want the data gone too.
@@ -532,14 +558,15 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     manualInstallInstructions: `1. Download ${LANGUAGETOOL_DOWNLOAD_URL}\n2. Extract it into AgentMate's tools folder (the "Open tools folder" button opens it).\n3. Turn on "Use local LanguageTool" in Settings > AI > Writing check.`,
   },
   // --- Security & Code Scanning ---
-  // Commands checked against each project's own docs on 2026-08-29. Semgrep has shipped native
+  // Commands checked against each project's own docs on 2026-10-17. Semgrep has shipped native
   // Windows binaries since its Fall 2025 release, so it no longer needs WSL; Bearer still has no
-  // Windows build at all, which is why its win32 path is Docker.
+  // Windows build at all, which is why its win32 path is Docker. The Trivy and Bearer scripts
+  // install into ~/.local/bin, because /usr/local/bin needs sudo and the scripts never ask for it.
   {
     id: 'semgrep',
     name: 'Semgrep',
     description:
-      'Pattern-based static analysis for 30+ languages, with a large community ruleset. Fast enough to run on every project and the best first security scan to reach for. Runs the scan from a project\u2019s Security tab. Installs through pip, which on Windows drops the executable into a Scripts folder that is usually not on PATH; AgentMate looks there itself, so the card picks it up when you press Refresh.',
+      'Pattern-based static analysis for 30+ languages, with a large community ruleset. Fast enough to run on every project and the best first security scan to reach for. Runs the scan from a project\u2019s Security tab. Installs through pipx (Python 3.10+), which is what Semgrep recommends now that plain pip refuses to install into a system Python on most Linux distros and on Homebrew.',
     category: SECURITY_TOOL_CATEGORY,
     tags: ['sast', 'static-analysis', 'security'],
     author: 'Semgrep',
@@ -547,21 +574,25 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     websiteUrl: 'https://semgrep.dev',
     repositoryUrl: 'https://github.com/semgrep/semgrep',
     installKind: 'shell',
+    // Semgrep's quickstart: pipx (or uv) everywhere, brew only "best-effort". On Windows it also
+    // asks for PYTHONUTF8=1 in the user environment first. A copy installed the old way, with pip
+    // or brew, is still updated with pip or brew, since main picks by where the binary lives.
     installCommand: {
-      win32: 'pip install semgrep',
-      darwin: 'brew install semgrep',
-      linux: 'pip install semgrep',
+      win32:
+        "[System.Environment]::SetEnvironmentVariable('PYTHONUTF8', '1', 'User'); pipx install semgrep",
+      darwin: 'pipx install semgrep',
+      linux: 'pipx install semgrep',
     },
     updateCommand: {
-      win32: 'pip install --upgrade semgrep',
-      darwin: 'brew upgrade semgrep',
-      linux: 'pip install --upgrade semgrep',
+      win32: 'pipx upgrade semgrep',
+      darwin: 'pipx upgrade semgrep',
+      linux: 'pipx upgrade semgrep',
     },
     updateCheck: { type: 'pypi', package: 'semgrep' },
     uninstallCommand: {
-      win32: 'pip uninstall -y semgrep',
-      darwin: 'brew uninstall semgrep',
-      linux: 'pip uninstall -y semgrep',
+      win32: 'pipx uninstall semgrep',
+      darwin: 'pipx uninstall semgrep',
+      linux: 'pipx uninstall semgrep',
     },
     detectCommand: { command: 'semgrep', args: ['--version'] },
     settingsFields: [
@@ -599,23 +630,29 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     websiteUrl: 'https://trivy.dev',
     repositoryUrl: 'https://github.com/aquasecurity/trivy',
     installKind: 'shell',
+    // Aqua's docs give `brew install trivy` for macOS and this script (with sudo) for Linux. The
+    // script runs on macOS too, so both use it without sudo, and a brew copy is still upgraded
+    // through brew. Windows: the docs only offer the release zip; the winget package is kept up
+    // to date by the community.
     installCommand: {
       win32: 'winget install -e --id AquaSecurity.Trivy',
-      darwin: 'brew install trivy',
+      darwin:
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
       linux:
-        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
     },
     updateCommand: {
       win32: 'winget upgrade -e --id AquaSecurity.Trivy',
-      darwin: 'brew upgrade trivy',
+      darwin:
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
       linux:
-        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+        'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
     },
     updateCheck: { type: 'github-release', package: 'aquasecurity/trivy' },
     uninstallCommand: {
       win32: 'winget uninstall -e --id AquaSecurity.Trivy',
-      darwin: 'brew uninstall trivy',
-      linux: 'sudo rm -f /usr/local/bin/trivy',
+      darwin: 'rm -f "$HOME/.local/bin/trivy"',
+      linux: 'rm -f "$HOME/.local/bin/trivy"',
     },
     detectCommand: { command: 'trivy', args: ['--version'] },
     quickActions: [
@@ -641,19 +678,19 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     installCommand: {
       darwin: 'brew install bearer/tap/bearer',
       linux:
-        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
     },
     manualInstallInstructions:
       'Bearer publishes macOS and Linux builds only, and there is no npm, winget or chocolatey package for it. On Windows, run it through Docker: press "Pull Docker image" on this card, then scan from a project’s Security tab. AgentMate starts a container per scan with your project mounted read-only and removes it afterwards, so nothing else needs installing.',
     updateCommand: {
-      darwin: 'brew upgrade bearer',
+      darwin: 'brew upgrade bearer/tap/bearer',
       linux:
-        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b /usr/local/bin',
+        'curl -sfL https://raw.githubusercontent.com/Bearer/bearer/main/contrib/install.sh | sh -s -- -b "$HOME/.local/bin"',
     },
     updateCheck: { type: 'github-release', package: 'bearer/bearer' },
     uninstallCommand: {
-      darwin: 'brew uninstall bearer',
-      linux: 'sudo rm -f /usr/local/bin/bearer',
+      darwin: 'brew uninstall bearer/tap/bearer',
+      linux: 'rm -f "$HOME/.local/bin/bearer"',
     },
     detectCommand: { command: 'bearer', args: ['version'] },
     // Deliberately no `docker` block. Bearer is not a server: a scan starts a container, runs
@@ -728,7 +765,7 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     id: 'strix',
     name: 'Strix',
     description:
-      'An autonomous AI agent that runs your code in a sandbox and proves vulnerabilities with real working exploits, so what it reports has no false positives. Needs Docker and your own LLM API key, and a run costs tokens. Installs through pip, which on Windows drops the executable into a Scripts folder that is usually not on PATH; AgentMate looks there itself, so the card picks it up when you press Refresh.',
+      'An autonomous AI agent that runs your code in a sandbox and proves vulnerabilities with real working exploits, so what it reports has no false positives. Needs Docker and your own LLM API key, and a run costs tokens. On macOS and Linux it installs with Strix’s own installer, which needs no Python; on Windows it installs through pipx (Python 3.12+).',
     category: SECURITY_TOOL_CATEGORY,
     tags: ['pentest', 'ai-agent', 'dast'],
     author: 'Strix',
@@ -736,22 +773,26 @@ export const AGENT_TOOL_REGISTRY: AgentToolDefinition[] = [
     websiteUrl: 'https://usestrix.com',
     repositoryUrl: 'https://github.com/usestrix/strix',
     installKind: 'shell',
+    // The installer drops a prebuilt binary in ~/.strix/bin and adds it to the shell's rc file.
+    // It only runs in a POSIX shell, so Windows uses pipx, the other documented method.
     installCommand: {
-      win32: 'pip install strix-agent',
-      darwin: 'pip install strix-agent',
-      linux: 'pip install strix-agent',
+      win32: 'pipx install strix-agent',
+      darwin: 'curl -sSL https://strix.ai/install | bash',
+      linux: 'curl -sSL https://strix.ai/install | bash',
     },
     updateCommand: {
-      win32: 'pip install --upgrade strix-agent',
-      darwin: 'pip install --upgrade strix-agent',
-      linux: 'pip install --upgrade strix-agent',
+      win32: 'pipx upgrade strix-agent',
+      darwin: 'strix --update',
+      linux: 'strix --update',
     },
     updateCheck: { type: 'pypi', package: 'strix-agent' },
+    // The installer copy has no uninstall command (see manualUninstallInstructions), so only the
+    // pipx copy on Windows gets one here.
     uninstallCommand: {
-      win32: 'pip uninstall -y strix-agent',
-      darwin: 'pip uninstall -y strix-agent',
-      linux: 'pip uninstall -y strix-agent',
+      win32: 'pipx uninstall strix-agent',
     },
+    manualUninstallInstructions:
+      'On macOS and Linux, delete the ~/.strix/bin folder and remove the PATH line the installer added to your shell startup file (~/.zshrc, ~/.bashrc or fish config). If you installed it with pipx instead, run: pipx uninstall strix-agent',
     detectCommand: { command: 'strix', args: ['--version'] },
     settingsFields: [
       {
@@ -828,11 +869,19 @@ export function getDockerStopCommand(tool: AgentToolDefinition): string | null {
   return `docker stop ${tool.docker.containerName}`;
 }
 
-export function getDockerResetCommand(tool: AgentToolDefinition): string | null {
+/**
+ * Windows PowerShell 5.1, the terminal on Windows, rejects `&&`, so there the two steps are joined
+ * with `;`. `docker rm -f` on a container that is already gone fails harmlessly either way.
+ */
+export function getDockerResetCommand(
+  tool: AgentToolDefinition,
+  platform?: SupportedOS,
+): string | null {
   if (!tool.docker) return null;
   const runCommand = getDockerRunCommand(tool);
   if (!runCommand) return null;
-  return `docker rm -f ${tool.docker.containerName} && ${runCommand}`;
+  const separator = platform === 'win32' ? ';' : ' &&';
+  return `docker rm -f ${tool.docker.containerName}${separator} ${runCommand}`;
 }
 
 /** Deletes the container outright; unlike reset, doesn't recreate it. */

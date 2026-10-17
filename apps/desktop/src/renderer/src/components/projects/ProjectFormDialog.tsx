@@ -20,6 +20,8 @@ import {
   Globe,
   GripVertical,
   Keyboard,
+  Link as LinkIcon,
+  LinkOff,
   Pencil,
   Plus,
   Sparkles,
@@ -49,6 +51,7 @@ import { ReorderableGroup } from '@/components/ui/ReorderableGroup';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MULTILINE_FIELD_RADIUS } from '@/components/ui/textarea';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { WordPressMark } from '@/components/wordpress/WordPressMark';
 import { cn } from '@/lib/utils';
 
 /** Combobox needs a non-empty value, so "inherit the app default" travels as this sentinel. */
@@ -112,6 +115,12 @@ export interface ProjectFormDialogProps {
    * the agent adds later would not show up in a form that is already open.
    */
   onCreateWithAi?: () => void;
+  /**
+   * Edit only: a Project type row that turns the project into a WordPress project, or back into
+   * a regular one. Both close the form first, because they change the project behind it.
+   */
+  onMakeWordPress?: () => void;
+  onMakeRegular?: () => void;
 }
 
 function splitTags(raw: string): string[] {
@@ -164,6 +173,8 @@ export function ProjectFormDialog({
   isSubmitting,
   focusRunCommands = false,
   onCreateWithAi,
+  onMakeWordPress,
+  onMakeRegular,
 }: ProjectFormDialogProps): React.JSX.Element {
   const ids = useId();
   const [tab, setTab] = useState('basics');
@@ -632,6 +643,58 @@ export function ProjectFormDialog({
                   placeholder="One line about what this project is."
                 />
               </Field>
+
+              {initial && (onMakeWordPress || onMakeRegular) ? (
+                <Field
+                  label="Project type"
+                  hint={
+                    initial.wordpress
+                      ? 'Unlinking keeps every file in the folder. Only the link to the site goes.'
+                      : 'Link the folder to a WordPress site to pull and deploy its themes and plugins.'
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg bg-foreground/[0.03] px-3 py-2.5 ring-1 ring-inset ring-foreground/[0.07]">
+                    {initial.wordpress ? (
+                      <WordPressMark className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="min-w-0 flex-1 text-sm font-medium">
+                      {initial.wordpress ? 'WordPress site' : 'Regular project'}
+                    </span>
+                    {initial.wordpress && onMakeRegular ? (
+                      <SimpleTooltip label="Closes this form first. Unsaved changes here are lost.">
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => {
+                            onOpenChange(false);
+                            onMakeRegular();
+                          }}
+                        >
+                          <LinkOff className="h-3.5 w-3.5" /> Switch to a regular project
+                        </Button>
+                      </SimpleTooltip>
+                    ) : null}
+                    {!initial.wordpress && onMakeWordPress ? (
+                      <SimpleTooltip label="Closes this form first. Unsaved changes here are lost.">
+                        <Button
+                          type="button"
+                          variant="soft"
+                          size="sm"
+                          onClick={() => {
+                            onOpenChange(false);
+                            onMakeWordPress();
+                          }}
+                        >
+                          <LinkIcon className="h-3.5 w-3.5" /> Switch to a WordPress project
+                        </Button>
+                      </SimpleTooltip>
+                    ) : null}
+                  </div>
+                </Field>
+              ) : null}
             </TabsContent>
 
             <TabsContent value="appearance" className="mt-5 min-h-[19rem] space-y-4">

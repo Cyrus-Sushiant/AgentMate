@@ -13,6 +13,7 @@ import {
   registerSealedSecretStore,
 } from '../../ssh/vault';
 import { store } from '../../store';
+import { readShippedConnector } from './connectorBundle';
 import { saveConnectorZip } from './connectorZip';
 import { WordPressProjectService } from './projectService';
 import { WordPressBases, WordPressState, wordPressStateFilePort } from './state';
@@ -45,6 +46,12 @@ export function registerDeployWordPressIpc(deps: {
       create: createProjectRecord,
       setLink: setProjectWordPressLink,
     },
+    readConnectorBundle: () =>
+      readShippedConnector({
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath,
+        appPath: app.getAppPath(),
+      }),
     saveConnectorZip: () =>
       saveConnectorZip({
         isPackaged: app.isPackaged,

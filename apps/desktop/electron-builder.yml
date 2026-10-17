@@ -128,6 +128,6 @@ deb:
 # the repo; electron-updater talks to the GitHub Releases API directly.
 publish:
   provider: github
-  owner: Cyrus-Sushiant
+  owner: SmartClouds
   repo: AgentMate
   releaseType: release

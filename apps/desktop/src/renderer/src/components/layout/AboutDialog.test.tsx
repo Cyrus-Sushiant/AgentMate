@@ -189,7 +189,7 @@ describe('AboutDialog links', () => {
   it('opens the source on GitHub in the browser, not in the app window', async () => {
     const { bridge } = renderAbout();
     const link = within(await dialog()).getByRole('link', { name: /^Source on GitHub/ });
-    expect(link).toHaveAttribute('href', 'https://github.com/Cyrus-Sushiant/AgentMate');
+    expect(link).toHaveAttribute('href', 'https://github.com/SmartClouds/AgentMate');
 
     const click = createEvent.click(link);
     fireEvent(link, click);
@@ -197,7 +197,7 @@ describe('AboutDialog links', () => {
     expect(click.defaultPrevented).toBe(true);
     expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledWith(SOURCE_URL);
     expect(bridge.$fn('shell.openExternal')).toHaveBeenCalledTimes(1);
-    expect(SOURCE_URL).toBe('https://github.com/Cyrus-Sushiant/AgentMate');
+    expect(SOURCE_URL).toBe('https://github.com/SmartClouds/AgentMate');
     expect(SMARTCLOUDS_URL).toBe('https://smartclouds.co');
   });
 

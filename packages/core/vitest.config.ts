@@ -30,6 +30,8 @@ export default defineConfig({
         'src/deploy/prompts.ts': { lines: 95, branches: 90 },
         // The WordPress connector protocol (E19): what is signed, what is refused, what syncs.
         'src/deploy/wordpress/**': { lines: 95, branches: 90 },
+        // Project health checks (E22): what a report is read as, and what it is scrubbed of.
+        'src/health/**': { lines: 95, branches: 85 },
       },
     },
   },

@@ -20,6 +20,7 @@ import {
 import { dialog, ipcMain } from 'electron';
 import type { BootstrapResult, CreateProjectInput, FaviconResult } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
+import { pruneOrphanHealthTargets } from '../health/store';
 import {
   deleteClaudeHook,
   installProjectNotificationHooks,
@@ -208,6 +209,7 @@ export function registerProjectHandlers(): void {
     // runs the same sweep, so a restored backup can't leave any behind either.
     await pruneOrphanBlueprints();
     await pruneOrphanEnvironments();
+    await pruneOrphanHealthTargets({ projectIds: [projectId] });
   });
 
   /**

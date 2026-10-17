@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { matchPath } from 'react-router-dom';
 import { toast } from 'sonner';
+import { openIncidentCount } from '@/components/health/healthView';
 import type { IconProps } from '@/components/icons';
 import {
   Android,
@@ -12,6 +13,7 @@ import {
   Docker,
   FolderKanban,
   Github,
+  HeartPulse,
   LayoutDashboard,
   MessageSquare,
   Monitor,
@@ -80,6 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/usage', label: 'Token Usage', icon: ChartColumn, group: 'Agents' },
   { to: '/pipelines', label: 'Pipelines', icon: Github, group: 'Ship' },
   { to: '/deploy', label: 'Deploy', icon: Rocket, group: 'Ship' },
+  { to: '/health', label: 'Health', icon: HeartPulse, group: 'Ship' },
   { to: '/docker', label: 'Docker', icon: Docker, group: 'Ship' },
   { to: '/android', label: 'Android', icon: Android, group: 'Ship' },
   { to: '/remote', label: 'Remote', icon: Monitor, group: 'Connect' },
@@ -99,8 +102,15 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
 
 export type WorkspaceAttention = 'needs-input' | 'done' | null;
 
-/** What the menu flags for attention: unread pipeline results and an agent waiting in the Workspace. */
-export function useNavBadges(): { unread: number; workspaceAttention: WorkspaceAttention } {
+/**
+ * What the menu flags for attention: unread pipeline results, health targets with an incident
+ * open, and an agent waiting in the Workspace.
+ */
+export function useNavBadges(): {
+  unread: number;
+  workspaceAttention: WorkspaceAttention;
+  healthIncidents: number;
+} {
   const queryClient = useQueryClient();
   const unreadQuery = useQuery({
     queryKey: queryKeys.appNotificationUnread,
@@ -115,12 +125,32 @@ export function useNavBadges(): { unread: number; workspaceAttention: WorkspaceA
     });
   }, [queryClient]);
 
+  // The same list the Health page reads, so the badge and the page never disagree.
+  const healthQuery = useQuery({
+    queryKey: queryKeys.healthList(),
+    queryFn: async () => (await window.agentmat.health.list()) ?? [],
+    meta: { silentLoading: true },
+  });
+
+  useEffect(() => {
+    return window.agentmat.health.onChanged(() => {
+      void queryClient.invalidateQueries(
+        { queryKey: queryKeys.healthList() },
+        { cancelRefetch: false },
+      );
+    });
+  }, [queryClient]);
+
   const workspaceAttention = useAgentStatusStore((s): WorkspaceAttention => {
     const all = Object.values(s.statuses);
     return all.includes('needs-input') ? 'needs-input' : all.includes('done') ? 'done' : null;
   });
 
-  return { unread: unreadQuery.data ?? 0, workspaceAttention };
+  return {
+    unread: unreadQuery.data ?? 0,
+    workspaceAttention,
+    healthIncidents: openIncidentCount(healthQuery.data),
+  };
 }
 
 /** The company behind the app, spelled the way the LICENSE and splash spell it. */

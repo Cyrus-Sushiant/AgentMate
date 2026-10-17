@@ -123,6 +123,7 @@ import type {
   CleanupAfterMergeInput,
   CloneIntoInput,
   CloneIntoResult,
+  CommandPrerequisite,
   ConfirmationForwardedPayload,
   ConnectRemoteInput,
   CreateGithubRepoInput,
@@ -457,6 +458,7 @@ import { createDeployDocker } from './deployDocker';
 import { createDeployHardening } from './deployHardening';
 import { createDeployRegistry } from './deployRegistry';
 import { createDeployWordPress } from './deployWordPress';
+import { createHealth } from './health';
 
 interface TerminalDataPayload {
   sessionId: string;
@@ -521,6 +523,9 @@ const cli = {
     ipcRenderer.invoke(IPC.cli.checkForUpdate, cliId, currentVersion),
   getUpdateCommand: (cliId: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC.cli.getUpdateCommand, cliId),
+  /** What `command` needs that this machine lacks (Node.js for npm, say), or null. */
+  checkCommandPrerequisite: (command: string): Promise<CommandPrerequisite | null> =>
+    ipcRenderer.invoke(IPC.cli.checkCommandPrerequisite, command),
 };
 
 const terminal = {
@@ -983,6 +988,12 @@ const devSetup = {
     ipcRenderer.invoke(IPC.devSetup.install, request),
   /** With an id, takes that waiting step out of the queue; without, stops the whole run. */
   cancel: (id?: string): Promise<void> => ipcRenderer.invoke(IPC.devSetup.cancel, id),
+  /**
+   * Puts the folder of a tool that is installed but off PATH on the user PATH. Only the id is sent;
+   * main works out the folder. `where` is for the sentence that says what was written.
+   */
+  addToPath: (id: string): Promise<{ changed: boolean; where: string }> =>
+    ipcRenderer.invoke(IPC.devSetup.addToPath, id),
   jobState: (): Promise<DevJobState> => ipcRenderer.invoke(IPC.devSetup.jobState),
   onEvent: (callback: (event: DevJobEvent) => void): (() => void) =>
     subscribe(IPC.devSetup.onEvent, callback),
@@ -1827,6 +1838,7 @@ const deployAppStore = {
 
 /** Private registries (E08): sign-ins on this computer and credentials stored on a server. */
 const deployRegistry = createDeployRegistry();
+const health = createHealth();
 
 /** A server core's alerts: disk pressure, failed jobs, a reboot waiting. */
 const deployAlerts = {
@@ -2640,6 +2652,7 @@ const agentmatApi = {
   deployStacks,
   deployAppStore,
   deployRegistry,
+  health,
   cloudflare,
   cloudflareServer,
   pullRequests,

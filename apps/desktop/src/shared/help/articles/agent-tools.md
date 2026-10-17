@@ -2,26 +2,71 @@
 title: Agent Tools
 category: Agents
 order: 40
-summary: A curated list of third-party tools that cut agent token spend, add code intelligence or scan your code for security problems, which you can install, configure and update from one page.
-keywords: agent tools, tools, install, uninstall, update, docker, security scanners, semgrep, trivy, codeql, bearer, sonarqube, strix, rtk, 9router, codegraph, diffray, openclaw, hermes, ponytail, languagetool, token saving
+summary: A checklist that installs the developer tools a computer needs (Git, Node.js, .NET, Flutter, Android, Docker), plus a curated list of third-party tools that cut agent token spend, add code intelligence or scan your code for security problems.
+keywords: agent tools, tools, dev setup, developer tools, set up, checklist, install everything, git, node, npm, github cli, dotnet, flutter, dart, android sdk, emulator, docker desktop, wsl, winget, homebrew, install, uninstall, update, docker, security scanners, semgrep, trivy, codeql, bearer, sonarqube, strix, rtk, 9router, codegraph, diffray, openclaw, hermes, ponytail, languagetool, token saving
 route: /tools
 ---
 
-Agent Tools is a catalog of outside tools that make AI coding agents cheaper, smarter or safer. They are not MCP servers or skills (those have their own pages). Each tool has a card where you can install it, configure it, update it, run its Docker container and open its website or GitHub page. The security scanners you install here are the ones a project's **Security** tab runs.
+Agent Tools has two jobs. **Dev Setup** is a checklist of the developer tools a computer needs, with a button to install each one that is missing. The rest of the page is a catalog of outside tools that make AI coding agents cheaper, smarter or safer. They are not MCP servers or skills (those have their own pages). Each tool has a card where you can install it, configure it, update it, run its Docker container and open its website or GitHub page. The security scanners you install here are the ones a project's **Security** tab runs.
 
 ## Where to find it
 
 Click **Agent Tools** in the sidebar under **Agents**, or open the command palette and type "Agent Tools". A project's **Security** tab also links here with a **Browse security tools** button, which opens this page on the **Security** tab.
 
+## Dev Setup
+
+**Dev Setup** checks what this computer already has, shows each tool as ready or not, and installs the ones that are missing. Open it from **Dev Setup** under **Setup** in the page's left menu, or open the page with `?tab=dev-setup`. Beside the entry, a number says how many required tools are still missing, and a tick means none are.
+
+### Pick what you build
+
+**What do you build?** at the top has a chip for each stack. **Essentials** is always on. Turn on the others and their tools join the list. AgentMate remembers your choice.
+
+| Stack | What it checks and installs |
+| --- | --- |
+| **Essentials** | Git, Node.js (22.12 or newer), npm and the GitHub CLI. pnpm and a GitHub sign-in are listed as optional. On a Mac it also needs Homebrew and the Xcode Command Line Tools. |
+| **.NET** | The .NET SDK (10 or newer) and, as an optional extra, the Entity Framework tool. |
+| **Flutter + Android** | Java 17, the Flutter SDK (which includes Dart), the Android command-line tools, the Android SDK licenses, platform tools, the emulator, an Android 16 platform and an emulator image. Android Studio is an optional extra, and on a Mac so are Xcode and CocoaPods. |
+| **Docker** | Docker Desktop (Docker Engine on Linux), a check that Docker is running and, on Windows, the Windows Subsystem for Linux that Docker Desktop runs on. |
+
+### Read the checklist
+
+Each tool is a row with a name, a line saying how it stands and one button.
+
+- **Version 22.12.0** means it is installed and recent enough. A **Not on your PATH** badge means it was found but a terminal would not find it. That row has an **Add to PATH** button (it names the tool, such as **Add Git to PATH**) that puts the tool's folder on your user PATH. On Windows it changes your user PATH in the registry, and on macOS and Linux it adds a marked block to your shell startup file. Terminals that are already open will not see the change, so open a new one.
+- **Not installed. Needs 22.12 or newer.** has an **Install** button. A tool that is installed but too old says **Needs 22.12 or newer** and has an **Update** button.
+- **Waiting for Git** means the tool needs something first. Its button is switched off, and **Install all missing** takes care of the order. A tool that comes with another says **Comes with Node.js**.
+- While the page is still looking, a row shows a shimmer instead of a verdict, so a tool is never called missing before it has been checked.
+
+Beside the main button, **Open in terminal** types the same command into a terminal for you to run yourself and **Copy command** copies it.
+
+### Install
+
+- **One click.** **Install** runs the install inside AgentMate and shows live progress with a **Cancel** button. This is how winget on Windows and Homebrew on macOS install, and how pnpm and the Entity Framework tool install. Flutter and the Android tools have no package, so AgentMate downloads them itself from Google, checks the SHA-256 or SHA-1 checksum and unpacks them. Flutter goes into `develop/flutter` in your home folder and is added to your user PATH, and the Android tools go into the existing Android SDK folder or, if there is none, the one Android Studio would use.
+- **In a terminal.** Anything that needs your password, a restart or a question (Linux packages, some Mac apps, the Windows Subsystem for Linux, the GitHub sign-in) opens a terminal with the command typed in. Press `Enter` to run it, and the row checks again by itself every few seconds.
+- **A download page.** On Windows without winget, the row opens the tool's download page. The page tells you when winget is missing and links to App Installer in the Microsoft Store.
+
+**Install all missing** runs every step it can, in order. Steps that need a terminal or a download stay for you, and the button says how many. Press it again once you have done them. While a run goes on, the card shows which tool it is on and how far along the whole run is, and **Cancel install** stops it.
+
+Installing the Android SDK licenses or Docker Desktop first asks you to accept the agreements, with their addresses listed. Nothing is accepted until you press **Accept and install**.
+
+### When something fails
+
+The row says why in a sentence, such as "winget could not finish (code 1603)", and the **Install log** opens by itself with everything the installer printed. Use **Try again**, run the same install in a terminal, or **Copy log** to share it. A download that fails its checksum is deleted and never unpacked.
+
+After an install, terminals that were already open do not see the new tools, so open a new one. If an installer says a restart is needed, AgentMate says so too.
+
+> [!NOTE]
+> AgentMate edits your user PATH only to add Flutter's folder when it installs Flutter, or the folder of a tool when you press **Add to PATH**. On Windows it changes your user PATH in the registry and keeps every existing entry as it was. On macOS and Linux it adds one marked block to your shell startup file. If your PATH has an entry in quotes, AgentMate leaves it alone and asks you to add the folder by hand.
+
 ## The page layout
 
 ### Target project
 
-The **Target project** picker at the top chooses a project for actions that work inside a codebase, such as initializing a tool in a project or writing its config file. Docker and global setup actions do not need one. If an action needs a project and none is chosen, AgentMate says "Choose a target project first."
+The **Target project** picker at the bottom of the left menu chooses a project for actions that work inside a codebase, such as initializing a tool in a project or writing its config file. Docker and global setup actions do not need one. If an action needs a project and none is chosen, AgentMate says "Choose a target project first." The picker and the filter box only act on tool cards, so they are hidden on **Dev Setup**.
 
 ### Category tabs
 
-Tabs under the picker filter the cards by category, each with a count: **All**, **Security**, **Agent Behavior**, **Agent Runtimes**, **Code Intelligence**, **Token & Cost** and **Writing**. **Security** comes first after **All**. You can also jump straight to a tab by opening the page with `?tab=security`.
+The left menu has two groups. **Setup** holds **Dev Setup**. **Categories** filters the cards, each with a count: **All**, **Security**, **Agent Behavior**, **Agent Runtimes**, **Code Intelligence**, **Token & Cost** and **Writing**. **Security** comes first after **All**. You can also jump straight to a tab by opening the page with `?tab=security` or `?tab=dev-setup`.
 
 ### Refresh and update checks
 
@@ -36,14 +81,18 @@ Each card shows the tool name, its category, a description, a status badge, tags
 
 The main button on a card depends on how the tool installs.
 
-- **Install (npm)**, **Install (pip)**, **Install (winget)**, **Install (brew)**, **Install (script)** or **Install (cargo)**: the button names whatever runs. Click it and a terminal opens with the install command typed in. Press `Enter` in that terminal to run it.
+- **Install (npm)**, **Install (pipx)**, **Install (winget)**, **Install (brew)**, **Install (script)** or plain **Install**: the button names whatever runs. Click it and a terminal opens with the install command typed in. Press `Enter` in that terminal to run it.
 - **Install** (interactive): used by Ponytail. It opens a terminal running Claude Code and copies the setup commands to your clipboard. Press `Enter` to launch Claude Code, paste the commands (`Ctrl+Shift+V`, or `Cmd+V` on macOS, not plain `Ctrl+V`) and press `Enter` again.
 - **Setup instructions** or **Copy setup commands**: for tools with no install command for your operating system, or that must be set up by hand. It copies the written steps to your clipboard.
 - **Uninstall**: replaces the install button once a tool is detected. It opens a terminal with the uninstall command for you to run. Tools that are uninstalled by hand (such as Ponytail) have a trash icon instead (**Copy uninstall commands**) that copies the steps to your clipboard.
 
 Nothing runs until you press `Enter` in the terminal, so you can read the command first. If a tool has no command for your operating system, you see a message instead of a terminal.
 
-After installing, click **Refresh**. Tools installed with pip on Windows can land in a folder that is not on `PATH`. AgentMate looks there itself, so the card picks them up on Refresh.
+Each tool uses the installer its makers recommend. CodeGraph, OpenClaw, Hermes Agent and RTK (on macOS and Linux) use their own install scripts, and RTK installs with WinGet on Windows. Semgrep installs with pipx. Trivy, and Bearer on Linux, are downloaded into `~/.local/bin` in your home folder, so they need no `sudo`. Bearer on macOS comes from Homebrew. 9Router and diffray install with npm.
+
+If the command needs something that is not on your machine, such as Node.js for npm, pipx, Homebrew or WinGet, AgentMate says which one is missing, for example "Semgrep needs pipx, which isn't installed.", and gives you a button to its download page. No terminal opens, since the command would only fail. This applies to installs, updates and uninstalls.
+
+After installing, click **Refresh**. Tools installed with pipx, or into `~/.local/bin`, can land in a folder that is not on `PATH`. AgentMate looks there itself, so the card picks them up on Refresh.
 
 ## Update a tool
 

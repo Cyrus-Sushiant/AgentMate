@@ -285,4 +285,51 @@ describe('install and update commands per OS', () => {
       }
     }
   });
+
+  it('never uses && on Windows, where the terminal is PowerShell 5.1', () => {
+    for (const cli of CLI_REGISTRY) {
+      expect(getInstallCommandForCurrentOS(cli, 'win32') ?? '', cli.id).not.toContain('&&');
+      expect(getUpdateCommandForCurrentOS(cli, 'win32') ?? '', cli.id).not.toContain('&&');
+    }
+  });
+
+  it("installs Claude Code with Anthropic's native installer, not npm", () => {
+    const claude = getCliDefinition('claude-code');
+    if (!claude) throw new Error('claude-code missing from the registry');
+    expect(getInstallCommandForCurrentOS(claude, 'win32')).toBe(
+      'irm https://claude.ai/install.ps1 | iex',
+    );
+    expect(getInstallCommandForCurrentOS(claude, 'darwin')).toBe(
+      'curl -fsSL https://claude.ai/install.sh | bash',
+    );
+    expect(getInstallCommandForCurrentOS(claude, 'linux')).toBe(
+      'curl -fsSL https://claude.ai/install.sh | bash',
+    );
+    for (const os of platforms) {
+      expect(getUpdateCommandForCurrentOS(claude, os), os).toBe('claude update');
+    }
+  });
+
+  it('moves OpenClaude off the deprecated @gitlawb package before installing the new one', () => {
+    const openclaude = getCliDefinition('openclaude');
+    if (!openclaude) throw new Error('openclaude missing from the registry');
+    expect(openclaude.updateCheck?.package).toBe('@twigpine/openclaude');
+    for (const os of platforms) {
+      const install = getInstallCommandForCurrentOS(openclaude, os) ?? '';
+      expect(install, os).not.toContain('@gitlawb');
+      const update = getUpdateCommandForCurrentOS(openclaude, os) ?? '';
+      expect(update.indexOf('npm uninstall -g @gitlawb/openclaude'), os).toBe(0);
+      expect(update, os).toContain('npm install -g @twigpine/openclaude@latest');
+    }
+  });
+
+  it('installs Goose on Windows too, from its new home under aaif-goose', () => {
+    const goose = getCliDefinition('goose');
+    if (!goose) throw new Error('goose missing from the registry');
+    expect(goose.supportedOS).toContain('win32');
+    expect(goose.updateCheck?.package).toBe('aaif-goose/goose');
+    for (const os of platforms) {
+      expect(getInstallCommandForCurrentOS(goose, os), os).toContain('aaif-goose/goose');
+    }
+  });
 });

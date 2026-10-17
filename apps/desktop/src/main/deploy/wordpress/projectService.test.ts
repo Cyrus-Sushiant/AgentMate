@@ -88,6 +88,9 @@ function make(planTtlMs?: number) {
     },
     hostname: () => 'laptop',
     saveConnectorZip: async () => ({ saved: false }),
+    readConnectorBundle: async () => {
+      throw new Error('No connector bundle in this test.');
+    },
     sleep: async () => undefined,
     projects: port,
     ...(planTtlMs === undefined ? {} : { planTtlMs }),

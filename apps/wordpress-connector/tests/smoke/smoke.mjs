@@ -11,6 +11,7 @@ import { forms, login } from './admin.mjs';
 import { putOp, SiteClient, sha } from './client.mjs';
 import { connectorZip, startWordPressFixture } from './fixture.mjs';
 import { request } from './http.mjs';
+import { connectorRelease, nextVersion, sendConnectorUpdate, sourceVersion } from './release.mjs';
 
 const port = Number(process.env.AGENTMATE_WPC_PORT || 18990);
 let failures = 0;
@@ -513,6 +514,128 @@ try {
     /agentmate_smoke_undefined_function/.test(debugLog),
     'debug.log is on (it holds the smoke fatal)',
   );
+
+  say('Connector update from the app');
+  {
+    const current = (await client.call('/site/info')).data.pluginVersion;
+    const next = nextVersion(current);
+    const release = (version, edit) => connectorRelease(sourceVersion(), version, edit);
+    const send = (files, version, who = client, wrongHash = false) =>
+      sendConnectorUpdate(who, files, version, wrongHash);
+    const pluginsLs = () => site.exec('ls -A /var/www/html/wp-content/plugins');
+
+    const before = (await client.call('/site/info')).data;
+    check(before.selfUpdate === true, '/site/info says the connector can replace itself', before);
+
+    const reader = new SiteClient(site.keyFor('read'));
+    await reader.pair('Update reader');
+    const asReader = await send(release(next), next, reader);
+    check(asReader.verified && asReader.error?.code === 'readOnly', 'a read key cannot update');
+
+    const older = await send(release('0.0.1'), '0.0.1');
+    check(
+      older.verified &&
+        older.error?.code === 'updateRefused' &&
+        older.error.details?.reason === 'downgrade',
+      'an older release is refused',
+      older,
+    );
+
+    const bad = await send(release(next), next, client, true);
+    check(
+      bad.verified &&
+        bad.error?.code === 'updateRefused' &&
+        bad.error.details?.reason === 'badPackage',
+      'a file that does not match its hash is refused',
+      bad,
+    );
+
+    // A release that breaks the site at load: the health check fails and the old folder comes back.
+    const broken = await send(
+      release(next, (files) => {
+        const plugin = files.get('src/Plugin.php').toString('utf8');
+        const patched = plugin.replace(
+          /public static function boot\(\): void\n {4}\{\n/,
+          'public static function boot(): void\n    {\n        agentmate_smoke_update_fatal();\n',
+        );
+        files.set('src/Plugin.php', Buffer.from(patched));
+      }),
+      next,
+    );
+    check(
+      broken.verified && broken.ok && broken.data.state === 'rolledBack',
+      'a release that breaks the site is rolled back by the plugin',
+      broken.data ?? broken,
+    );
+    check((await homeStatus(site.url)) === 200, 'the site still answers');
+    const afterBroken = await client.call('/site/info');
+    check(
+      afterBroken.verified && afterBroken.data.pluginVersion === current,
+      'the old version is running again',
+      afterBroken.data?.pluginVersion,
+    );
+    check(
+      !/\.agentmate-connector/.test(pluginsLs()),
+      'no staging folder is left beside the plugin',
+    );
+
+    const update = await send(release(next), next);
+    check(
+      update.verified && update.ok && update.data.state === 'updated',
+      'the update goes through',
+      update.data ?? update,
+    );
+    const after = await client.call('/site/info');
+    check(
+      after.verified && after.ok && after.data.pluginVersion === next,
+      'the new version answers with a signed reply',
+      after.data?.pluginVersion ?? after,
+    );
+    check(
+      site
+        .exec(
+          'test -f /var/www/html/wp-content/plugins/agentmate-connector/src/SmokeMarker.php && echo there || echo gone',
+        )
+        .trim() === 'there',
+      'the new files are in the plugin folder',
+    );
+    check(
+      !/\.agentmate-connector/.test(pluginsLs()),
+      'no staging folder is left beside the plugin',
+    );
+    check(
+      site
+        .wp(['plugin', 'list', '--status=active', '--field=name'])
+        .includes('agentmate-connector'),
+      'the connector is still active',
+    );
+    check(
+      site
+        .exec(
+          'grep -m1 "Version:" /var/www/html/wp-content/mu-plugins/00-agentmate-connector-guard.php',
+        )
+        .includes(next),
+      'the guard was rewritten for the new version',
+    );
+    check((await homeStatus(site.url)) === 200, 'the site works on the new version');
+
+    const run = await deploy(
+      client,
+      'Smoke: after the update',
+      [theme],
+      [putOp(theme, 'agentmate-smoke/after-update.txt', 'still deploys', null)],
+    );
+    check(run.commit?.ok && run.commit.data.state === 'applied', 'a deploy still applies', run);
+    const undone = await client.call('/deploy/rollback', { deployId: run.deployId });
+    check(undone.ok && undone.data.state === 'rolledBack', 'and rolls back', undone);
+
+    const admin = await login(site.url, 'admin', 'admin');
+    const audit = await admin.get('/wp-admin/tools.php?page=agentmate-connector&tab=audit');
+    check(
+      audit.text.includes('Connector updated') && audit.text.includes('Connector update undone'),
+      'the audit log shows the update and the undone one',
+    );
+  }
 
   say('A copy of the site at another address gets its own key');
   {

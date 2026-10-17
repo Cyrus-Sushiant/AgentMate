@@ -68,6 +68,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { SimpleTooltip } from '@/components/ui/tooltip';
+import { openCommandTerminal } from '@/lib/openCommandTerminal';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
 import { usePageHeader } from '@/stores/pageHeaderStore';
@@ -89,7 +90,6 @@ interface PendingToolUpdate {
  */
 function installLabel(command: string | undefined): string {
   if (!command) return 'Install';
-  const first = command.trim().split(/\s+/)[0].toLowerCase();
   const known: Record<string, string> = {
     npm: 'npm',
     pnpm: 'pnpm',
@@ -104,9 +104,17 @@ function installLabel(command: string | undefined): string {
     cargo: 'cargo',
     curl: 'script',
     wget: 'script',
+    irm: 'script',
+    iwr: 'script',
+    powershell: 'script',
     sudo: 'apt',
   };
-  const manager = known[first];
+  // Semgrep's Windows line sets an environment variable before `pipx install`, so the first
+  // statement that names a known installer decides the label.
+  const manager = command
+    .split(/;|&&/)
+    .map((statement) => known[statement.trim().split(/\s+/)[0].toLowerCase()])
+    .find(Boolean);
   return manager ? `Install (${manager})` : 'Install';
 }
 
@@ -358,8 +366,7 @@ export default function ToolsPage(): React.JSX.Element {
       toast.error(`No install command available for ${tool.name} on this OS.`);
       return;
     }
-    openSession({ title: `Install ${tool.name}`, initialInput: command });
-    toast.info(`Press Enter in the terminal to install ${tool.name}.`);
+    await openCommandTerminal({ command, name: tool.name, verb: 'install' });
   }
 
   async function buildPendingUpdate(
@@ -407,14 +414,11 @@ export default function ToolsPage(): React.JSX.Element {
     });
   }
 
-  function handleConfirmUpdate(): void {
+  async function handleConfirmUpdate(): Promise<void> {
     if (!pendingUpdate) return;
-    openSession({
-      title: `Update ${pendingUpdate.tool.name}`,
-      initialInput: pendingUpdate.command,
-    });
-    toast.info(`Press Enter in the terminal to update ${pendingUpdate.tool.name}.`);
+    const { tool, command } = pendingUpdate;
     dismissPendingUpdate();
+    await openCommandTerminal({ command, name: tool.name, verb: 'update' });
   }
 
   async function handleCheckAllForUpdates(): Promise<void> {
@@ -463,8 +467,7 @@ export default function ToolsPage(): React.JSX.Element {
       toast.error(`No uninstall command available for ${tool.name} on this OS.`);
       return;
     }
-    openSession({ title: `Uninstall ${tool.name}`, initialInput: command });
-    toast.info(`Press Enter in the terminal to uninstall ${tool.name}.`);
+    await openCommandTerminal({ command, name: tool.name, verb: 'uninstall' });
   }
 
   function handleCopyManualInstructions(tool: AgentToolDefinition): void {
@@ -1128,7 +1131,7 @@ export default function ToolsPage(): React.JSX.Element {
             <Button variant="soft" onClick={dismissPendingUpdate}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmUpdate}>Update</Button>
+            <Button onClick={() => void handleConfirmUpdate()}>Update</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

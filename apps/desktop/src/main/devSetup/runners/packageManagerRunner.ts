@@ -28,6 +28,11 @@ export interface ProgressUpdate {
 
 export interface RunHooks {
   token: CancelToken;
+  /**
+   * For a run that is not just a process (a download, say): hands over how to stop it. Called if
+   * the install is cancelled. A process is stopped through the token and needs no help.
+   */
+  onCancel?: (abort: () => void) => void;
   onProgress: (update: ProgressUpdate) => void;
   /** A line worth putting in the log, already cleaned of spinners and progress bars. */
   onLine: (line: string) => void;
@@ -80,7 +85,12 @@ function describeEnd(command: string, end: SpawnStreamingResult): Omit<RunResult
   };
 }
 
-export function createPackageManagerRunner(deps: { spawn: SpawnFn; cwd: string }): {
+export function createPackageManagerRunner(deps: {
+  spawn: SpawnFn;
+  cwd: string;
+  /** The environment to run in. Left out, the process's own is used. */
+  env?: NodeJS.ProcessEnv;
+}): {
   run: (recipe: DevRecipe, intent: InstallIntent, hooks: RunHooks) => Promise<RunResult>;
 } {
   return {
@@ -116,6 +126,7 @@ export function createPackageManagerRunner(deps: { spawn: SpawnFn; cwd: string }
           command,
           args: argv.slice(1),
           cwd: deps.cwd,
+          env: deps.env,
           timeoutMs: IDLE_TIMEOUT_MS[command] ?? 5 * 60_000,
           idle: true,
           token: hooks.token,

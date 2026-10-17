@@ -3,7 +3,7 @@ title: AI CLI Manager
 category: Agents
 order: 10
 summary: See which AI coding CLIs (Claude Code, Codex, Gemini CLI, Cursor and more) are installed, install or update them, and choose your default CLI, launch defaults and agent order.
-keywords: cli, ai cli, claude code, codex, gemini cli, cursor, opencode, aider, goose, copilot, muse code, install, update, version, default cli, launch defaults, agent order, running clis, npm, pipx
+keywords: cli, ai cli, claude code, codex, gemini cli, cursor, opencode, aider, goose, copilot, muse code, install, update, version, default cli, launch defaults, agent order, running clis, npm, pipx, node.js, native installer, homebrew, winget
 route: /cli-manager
 ---
 
@@ -22,21 +22,26 @@ AgentMate knows these 16 CLIs. Each one has a card on the page.
 | Claude Code CLI | Anthropic's agentic coding CLI. |
 | Codex CLI | OpenAI's local coding agent. |
 | Gemini CLI | Google's command-line agent. |
-| Cursor CLI | Cursor's agent for the terminal. Installed with Cursor's own install script. |
+| Cursor CLI | Cursor's agent for the terminal. |
 | GitHub Copilot CLI | GitHub's Copilot agent in the terminal. |
 | OpenCode | Open-source terminal coding agent. |
 | OpenClaude | Open-source agent that runs against any model provider. |
 | Grok CLI | xAI's Grok coding agent. |
 | Qwen CLI | Alibaba's Qwen Code agent. |
 | FreeBuff CLI | Free, ad-supported coding agent. |
-| Aider | AI pair programming in your local git repo. Installed with `pipx`. |
+| Aider | AI pair programming in your local git repo. |
 | Goose | Block's on-machine agent. |
 | Cline CLI | Autonomous coding agent from the Cline team. |
 | Continue CLI | Open-source assistant CLI (`cn`). |
 | Pi | Minimal, extensible terminal coding agent. |
 | Muse Code CLI | Meta's coding agent for the terminal and CI. |
 
-Most of them install with `npm install -g ...`, so you need Node.js and npm on your machine for those. Aider uses `pipx`. Cursor CLI, Goose and Muse Code use their own install scripts.
+Each CLI installs the way its vendor recommends for your operating system:
+
+- **Their own installer**: Claude Code, Codex, Grok, Cursor, GitHub Copilot, Goose, Aider, Qwen, Pi, Muse Code and Continue. On macOS and Linux that is a `curl ... | bash` script, on Windows a PowerShell `irm ... | iex` script. Copilot on Windows installs with WinGet.
+- **npm**: Gemini CLI, OpenClaude, Cline and FreeBuff, plus OpenCode on Windows (it uses its own script on macOS and Linux).
+
+Node.js is only needed for the npm ones. If an install needs a tool that is not on your machine, such as Node.js, pipx, Homebrew or WinGet, AgentMate tells you which one is missing and gives you a button to its download page, instead of opening a terminal that would only fail.
 
 ## How detection works
 
@@ -64,7 +69,7 @@ On an installed card, click the CLI's name or logo. AgentMate opens a terminal s
 3. A terminal opens with the install command already typed in. Press `Enter` in that terminal to run it.
 4. When it finishes, click **Refresh** at the top of the page. The card switches to installed.
 
-If a CLI has no install command for your operating system, you get a message saying so instead of a terminal.
+If a CLI has no install command for your operating system, you get a message saying so instead of a terminal. The same goes for a missing tool the install needs, such as "Gemini CLI needs Node.js, which isn't installed." Click **Get Node.js** in that message to open the download page, install it, then click **Install** again.
 
 ### Check for updates
 
@@ -72,6 +77,8 @@ If a CLI has no install command for your operating system, you get a message say
 - Click **Check all for updates** at the top to check every installed CLI, one after another.
 
 If an update exists, an **Update <name>?** dialog shows the current version, the latest version and the exact command. Click **Update** to open a terminal with the command typed in (press `Enter` to run it), or **Cancel** to skip. When several CLIs have updates, the dialog steps through them one by one.
+
+The update command is the CLI's own updater where it has one (`claude update`, `codex update`, `opencode upgrade` and so on), which also handles a copy you installed with npm. A copy that came from Homebrew is updated with `brew upgrade`. For a CLI with no updater of its own, whose update re-runs its installer, an npm copy is updated with npm instead, so you don't end up with two copies side by side. As with installs, you are told when the tool the update needs is missing.
 
 Possible messages:
 
@@ -151,7 +158,7 @@ In **Settings** under **General**, the **Check for CLI and tool updates** switch
 ## Tips
 
 - If a CLI you just installed is not detected, click **Refresh**. If it is still missing, open a new terminal and make sure the command works there, since AgentMate looks on your `PATH`.
-- Windows users installing npm CLIs need Node.js installed first.
+- Only the npm-based CLIs need Node.js. You don't have to install it for Claude Code, Codex or the other CLIs with their own installer.
 - Use **Launch defaults** for how an agent starts in the Workspace, and **Background task arguments** for what AgentMate runs silently. They are separate on purpose.
 
 ## Related

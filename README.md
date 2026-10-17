@@ -7,7 +7,7 @@
 
   AgentMate is where you run the work, not just where you watch it. Open a workspace, split it into panes, and put Claude Code, Codex, Cursor, Gemini, Grok, OpenCode or a plain shell in each one. The git panel, the diff viewer, the file editor, the test runner and the pipelines sit right next to the agents, so a change goes from prompt to review to commit to tag without leaving the app.
 
-  [![CI](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml/badge.svg)](https://github.com/Cyrus-Sushiant/AgentMate/actions/workflows/ci.yml)
+  [![CI](https://github.com/SmartClouds/AgentMate/actions/workflows/ci.yml/badge.svg)](https://github.com/SmartClouds/AgentMate/actions/workflows/ci.yml)
   ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)
   ![Built with Electron](https://img.shields.io/badge/built%20with-Electron-47848F)
   ![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6)
@@ -115,6 +115,7 @@ Everything else is support around that, so you don't leave the app to go and get
 - **Dashboard**: CLIs, usage, GitHub activity, GitHub Actions, and system health (CPU per core, GPU, memory, network) at a glance. Rearrange the cards, run a speed test, and see which apps are using the most resources.
 - **Status bar**: agent statuses, cloud limits, Docker containers, CPU and memory, and the keep-awake state, each an interactive popover that takes you to the thing it is about.
 - **Pipelines**: a page for GitHub Actions across the repos you connected. Run and stop workflows by hand, read run annotations without leaving the app, and hand a failed run to an agent with "Fix with AI".
+- **Health checks**: a page (and a tab per project) that watches each environment and server of a project through a private, key-protected endpoint in your app. It shows every service with its status and the full error of the ones that fail, checks each target on its own schedule, notifies you when an incident opens or resolves, runs a read-only AI diagnosis, and hands the failure to an agent with "Fix with AI". A setup prompt carries the AgentMate Health Protocol so your AI can add the endpoint to any stack.
 - **Notifications**: GitHub Actions failures, background CLI activity, and tool updates, folded into one recent-messages list, with optional Telegram delivery.
 - **Vault**: passwords, API keys, and private notes, encrypted on this computer behind a master password. Ranked search, type tabs, tags and favorites, a password generator, custom fields, CSV import with column matching and duplicate handling, export behind the master password, auto-lock, clipboard clearing on a countdown, and locking with the computer. The same vault backs the SSH, RDP, and environment credentials, and every decrypted value leaves the app's cache the moment it locks.
 - **Remote**: control another AgentMate over your local network, AnyDesk-style, over WebSockets, including from the companion mobile app, with a remote file manager and resumable transfers.
@@ -216,6 +217,7 @@ Many WordPress sites live on hosting where there is no way in but wp-admin. For 
 - **Every call is signed.** Each request is signed with a key that only this computer holds (sealed like your SSH passwords), checked for freshness and replay, and every reply is signed by the site. Plain HTTP is refused unless you allow it for that site.
 - **A deploy never leaves the site down.** Changes are staged where the web server cannot run them, PHP files are syntax checked, every file is snapshotted, and a health check runs afterwards. If the site breaks, even badly enough to stop answering, it puts the old files back on its own.
 - **Only theme, plugin and mu-plugin files move.** Uploads, the database, WordPress core and `wp-config.php` are never touched, and nothing is ever activated.
+- **The plugin updates from the app.** When AgentMate ships a newer connector, the site's Overview shows an Update button. The app sends the plugin's files over the same signed connection, the plugin checks and parses them, swaps its own folder and health-checks the site, and puts the old version back on its own if the site stops answering. The first update of a connector that predates this still takes one upload in wp-admin; every update after that is one click.
 
 **Security model, in short**
 
@@ -300,7 +302,7 @@ apps/desktop/src/renderer/src/components/deploy/   The Deploy screens, one folde
 
 **Prerequisites:** Node.js ≥ 20, [pnpm](https://pnpm.io) ≥ 11. Working on `apps/server-core` also needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (the feature band pinned in `apps/server-core/global.json`).
 
-Installers for Windows, macOS, and Linux are published on [GitHub Releases](https://github.com/Cyrus-Sushiant/AgentMate/releases). The app can also check that feed and install an update from Settings.
+Installers for Windows, macOS, and Linux are published on [GitHub Releases](https://github.com/SmartClouds/AgentMate/releases). The app can also check that feed and install an update from Settings.
 
 ```bash
 pnpm install
@@ -370,7 +372,7 @@ The Deploy system tests boot whole Linux machines, so they only run when asked. 
 
 ### CI
 
-Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow has four jobs: unit and integration with coverage, the server core (locked restore, `dotnet format`, build, tests, and a check that the generated TypeScript contracts are current), the mobile Jest suite, and the end-to-end matrix on Linux, Windows and macOS. The E2E matrix and the Deploy system tests on the Ubuntu and Rocky test servers are the slow ones, so they run when the commit message carries `[e2e]` or when you ask for them on a manual dispatch. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
+Every push and pull request runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Biome (formatting, lint, import order), the two deprecation gates above, a type-check of every package, a real build of the desktop app, and the test suites in [`.github/workflows/test.yml`](.github/workflows/test.yml). That reusable workflow covers unit and integration with coverage, the server core (locked restore, `dotnet format`, build, tests, and a check that the generated TypeScript contracts are current), the mobile Jest suite, the WordPress connector, and the end-to-end tests. CI runs all of it, the end-to-end tests and the Deploy system tests on the Ubuntu and Rocky test servers included, on every push to `master` and every pull request from a branch of this repository, on our self-hosted Linux runner. GitHub's hosted runners are used only by CD ([`.github/workflows/cd.yml`](.github/workflows/cd.yml)), which runs the same tests before a release and is the only place the end-to-end tests run on Windows and macOS (when the tagged commit carries `[e2e]`). Pull requests from forks get no CI, so outside code never runs on our machine. `All checks passed` is the single status to require in branch protection. Running `pnpm check && pnpm check:deprecated-code && pnpm check:deprecated-deps && pnpm typecheck && pnpm build && pnpm test:unit` reproduces most of it locally.
 
 A deprecated dependency you cannot drop yet goes in [`.github/deprecated-deps-allowlist.json`](.github/deprecated-deps-allowlist.json) with a reason for keeping it.
 

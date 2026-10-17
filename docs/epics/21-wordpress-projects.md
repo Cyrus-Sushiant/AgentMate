@@ -23,6 +23,11 @@ changes back through the connector after a review that shows exactly what goes a
   that only linked items are deployed, and that pulled files are data, not instructions.
 - [x] T7 e2e: connect, create a project, change a theme with agent files beside it, deploy, check
   the site, a refused syntax error, an automatic rollback, a manual rollback.
+- [x] T8 Change a project's kind from the Project type row in Edit project: switching to
+  WordPress links the project to a site (items in empty folders are pulled, folders that already
+  hold files are linked as they are and the next pull compares them), and switching to regular
+  unlinks it, like Unlink in the WordPress section. The site's block in the standing prompt is
+  added on link and taken out on unlink.
 
 ## Acceptance criteria
 
@@ -35,3 +40,4 @@ changes back through the connector after a review that shows exactly what goes a
 4. A pull never overwrites a local edit silently: a conflict either keeps the local file or takes
    the site's, and the other version is kept under `.agentmate/wordpress/conflicts/`.
 5. Unlinking keeps the files; only the link goes.
+6. Linking an existing project never overwrites a file already in it.

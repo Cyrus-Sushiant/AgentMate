@@ -122,6 +122,9 @@ describe.skipIf(!enabled)('WordPress projects against the real connector', () =>
       progress: () => undefined,
       hostname: () => 'int-test',
       saveConnectorZip: async () => ({ saved: false }),
+      readConnectorBundle: async () => {
+        throw new Error('No connector bundle in this test.');
+      },
       projects: port,
     });
   }, 900_000);

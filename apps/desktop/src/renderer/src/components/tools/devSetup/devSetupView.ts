@@ -35,7 +35,9 @@ export type RowActionKind =
   | 'retry'
   | 'recheck'
   | 'cancel'
-  | 'unqueue';
+  | 'unqueue'
+  /** Puts the folder of a tool that is installed but not on PATH on the user PATH. */
+  | 'add-to-path';
 
 export interface RowAction {
   kind: RowActionKind;
@@ -102,13 +104,32 @@ function neededText(row: ChecklistRow): string {
   return row.item.minVersion ? `Needs ${formatMinimum(row.item.minVersion)} or newer.` : '';
 }
 
+/**
+ * What to do about an item that is a step rather than a program. "Install GitHub sign-in" and
+ * "Install Docker is running" do not read as anything, so these say the action instead.
+ */
+const STEP_LABELS: ReadonlyMap<string, string> = new Map([
+  ['gh-auth', 'Sign in to GitHub'],
+  ['android-licenses', 'Accept Android SDK licenses'],
+  ['docker-running', 'Start Docker'],
+]);
+
+/** "Install Git and Node.js", or "Accept Android SDK licenses" when the thing needed is a step. */
+function needFirst(ids: readonly string[], nameOf: (id: string) => string): string {
+  const programs = ids.filter((id) => !STEP_LABELS.has(id)).map(nameOf);
+  const steps = ids.flatMap((id) => STEP_LABELS.get(id) ?? []);
+  return joinNames([...(programs.length > 0 ? [`Install ${joinNames(programs)}`] : []), ...steps]);
+}
+
 /** The button for getting an item in place, shaped by how the app can do it on this machine. */
 function installAction(
   row: ChecklistRow,
   verb: 'install' | 'update',
   options: DescribeRowOptions,
 ): RowAction | null {
-  const label = `${verb === 'install' ? 'Install' : 'Update'} ${row.name}`;
+  const label =
+    (verb === 'install' ? STEP_LABELS.get(row.item.id) : undefined) ??
+    `${verb === 'install' ? 'Install' : 'Update'} ${row.name}`;
   const downloadPage = (url: string | undefined): RowAction | null =>
     url ? { kind: 'open-link', label: 'Open download page', url } : null;
 
@@ -158,6 +179,7 @@ export function describeRow(row: ChecklistRow, options: DescribeRowOptions): Row
         icon: 'installed',
         text: state.version ? `Version ${state.version}` : 'Installed',
         chips: state.onPath ? [] : [{ text: 'Not on your PATH', tone: 'warning' }],
+        action: state.onPath ? null : { kind: 'add-to-path', label: `Add ${row.name} to PATH` },
       };
 
     case 'outdated': {
@@ -193,7 +215,7 @@ export function describeRow(row: ChecklistRow, options: DescribeRowOptions): Row
         action: action && {
           ...action,
           disabled: true,
-          hint: `Install ${names} first. Install all missing handles the order.`,
+          hint: `${needFirst(state.waitingFor, options.nameOf)} first. Install all missing handles the order.`,
         },
       };
     }

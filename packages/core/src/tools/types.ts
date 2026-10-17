@@ -112,5 +112,7 @@ export interface InstalledAgentTool {
   version: string | null;
   /** 'unavailable' when the tool has no Docker option, or Docker itself isn't on this machine. */
   dockerStatus: 'unavailable' | 'not-created' | 'running' | 'stopped';
+  /** Where the detect command's executable was found, when it was found on disk at all. */
+  executablePath?: string | null;
   lastCheckedAt: string;
 }

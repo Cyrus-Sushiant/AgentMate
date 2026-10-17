@@ -23,9 +23,7 @@ vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 const NAMES: Record<string, string> = { gh: 'GitHub CLI', git: 'Git', node: 'Node.js' };
 const nameOf = (id: string) => NAMES[id] ?? id;
 
-function renderDrawer(
-  props: Partial<React.ComponentProps<typeof InstallLogDrawer>> = {},
-) {
+function renderDrawer(props: Partial<React.ComponentProps<typeof InstallLogDrawer>> = {}) {
   const onSelect = vi.fn();
   const onClose = vi.fn();
   const view = renderWithProviders(
@@ -84,7 +82,10 @@ describe('InstallLogDrawer', () => {
       logs: { gh: ['a'], git: ['b'], node: [] },
     });
 
-    expect(screen.getByRole('button', { name: 'GitHub CLI' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'GitHub CLI' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.getByRole('button', { name: 'Git' })).toHaveAttribute('aria-pressed', 'false');
     // Node.js has no lines, so there is nothing to switch to.
     expect(screen.queryByRole('button', { name: 'Node.js' })).toBeNull();
@@ -102,7 +103,10 @@ describe('InstallLogDrawer', () => {
   it('still offers the item being shown when it has no lines but another does', () => {
     renderDrawer({ logs: { git: ['b'] }, selected: 'gh' });
 
-    expect(screen.getByRole('button', { name: 'GitHub CLI' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'GitHub CLI' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.getByRole('button', { name: 'Git' })).toBeTruthy();
   });
 

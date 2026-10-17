@@ -7,7 +7,7 @@
 
 [Unit]
 Description=AgentMate Server Core
-Documentation=https://github.com/Cyrus-Sushiant/AgentMate
+Documentation=https://github.com/SmartClouds/AgentMate
 After=network-online.target
 Wants=network-online.target
 # A release that keeps crashing stops being restarted instead of looping forever.

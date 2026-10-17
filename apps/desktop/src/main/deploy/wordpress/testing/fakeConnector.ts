@@ -21,6 +21,7 @@ import {
   WP_WRITE_ROUTES,
   type WpAuditEntry,
   type WpConflict,
+  type WpConnectorUpdateRequest,
   type WpDeployItem,
   type WpDeployOp,
   type WpDeployRecord,
@@ -43,6 +44,7 @@ import {
   wpCanonicalResponse,
   wpItemKey,
 } from '@agentmat/core';
+import { compareConnectorVersions } from '../connectorBundle';
 import { gzipBytes, privateKeyFromSeed, signEd25519, verifyEd25519 } from '../crypto';
 import { seedBytes, WP_VECTORS } from './vectors';
 
@@ -95,6 +97,17 @@ export interface FakeConnectorSwitches {
   delayMs: number;
   /** The status the home page answers with (the desktop's own health check). */
   homeStatus: number;
+  /**
+   * The connector has `/connector/update`. Off, it behaves like one that predates the route: the
+   * route answers 404 and `/site/info` has no `selfUpdate`.
+   */
+  selfUpdate: boolean;
+  /** With the route: PHP cannot swap the connector's folder here, so `/site/info` says `selfUpdate: false`. */
+  notReplaceable: boolean;
+  /** The site fails its health check after a connector update, so the update is undone. */
+  updateHealthFails: boolean;
+  /** A connector update is refused with this error (the site's own reasons: syntax, size, ...). */
+  refuseUpdate: { code: WpErrorCode; message: string; details?: Record<string, unknown> } | null;
 }
 
 interface Pairing {
@@ -183,6 +196,7 @@ const STATUS: Record<WpErrorCode, number> = {
   pairingInvalid: 401,
   pairingExpired: 410,
   protocolMismatch: 400,
+  updateRefused: 422,
   internal: 500,
 };
 
@@ -251,6 +265,10 @@ export class FakeConnector {
     commitSteps: 0,
     delayMs: 0,
     homeStatus: 200,
+    selfUpdate: true,
+    notReplaceable: false,
+    updateHealthFails: false,
+    refuseUpdate: null,
   };
   readonly limits: WpLimits = defaultLimits();
   readonly sitePublicKey = WP_VECTORS.keys.site.publicKey;
@@ -262,6 +280,10 @@ export class FakeConnector {
   readonly requests: FakeRequestLog[] = [];
   /** Every upload chunk's size, in order. */
   readonly uploadSizes: number[] = [];
+  /** The version the plugin reports; a connector update changes it. */
+  pluginVersion: string = WP_CONNECTOR_VERSION;
+  /** Every connector update that arrived and was not refused, with its outcome. */
+  readonly updates: { version: string; files: string[]; state: 'updated' | 'rolledBack' }[] = [];
   activeTheme = { stylesheet: 'shop', template: 'shop' };
   private readonly siteKey = privateKeyFromSeed(seedBytes(WP_VECTORS.keys.site.seedHex));
   private readonly nonces = new Set<string>();
@@ -472,6 +494,10 @@ export class FakeConnector {
       html(404, 'No route');
       return;
     }
+    if (route === WP_ROUTES.connectorUpdate && !this.switches.selfUpdate) {
+      html(404, 'No route');
+      return;
+    }
     if (this.switches.rateLimitNext > 0) {
       this.switches.rateLimitNext -= 1;
       const envelope = encodeWpResponse(
@@ -599,7 +625,7 @@ export class FakeConnector {
         return {
           data: {
             protocol: this.switches.protocol,
-            pluginVersion: WP_CONNECTOR_VERSION,
+            pluginVersion: this.pluginVersion,
             sitePublicKey: this.switches.helloKey ?? this.sitePublicKey,
             serverTime: this.now(),
             capabilities: ['deploy', 'rescue'],
@@ -653,6 +679,8 @@ export class FakeConnector {
           },
         };
       }
+      case WP_ROUTES.connectorUpdate:
+        return { data: this.connectorUpdate(input, blobs, connection as FakeConnection) };
       case WP_ROUTES.connectionRevoke:
         (connection as FakeConnection).revoked = true;
         this.record('revoked', (connection as FakeConnection).label);
@@ -741,7 +769,7 @@ export class FakeConnector {
       siteUrl: this.siteUrl,
       wpVersion: '6.8.2',
       phpVersion: '8.3.12',
-      pluginVersion: WP_CONNECTOR_VERSION,
+      pluginVersion: this.pluginVersion,
       protocol: this.switches.protocol,
       multisite: false,
       activeTheme: this.activeTheme,
@@ -751,6 +779,7 @@ export class FakeConnector {
       fileEditDisabled: false,
       filesystemMethod: 'direct',
       readOnlyByConstant: false,
+      ...(this.switches.selfUpdate ? { selfUpdate: !this.switches.notReplaceable } : {}),
       sodium: 'native',
       limits: this.limits,
       guard: { installed: true, rescueUrl: this.rescueUrl },
@@ -765,6 +794,70 @@ export class FakeConnector {
       pendingDeploy: active
         ? { deployId: active.id, state: active.state, deadline: this.now() + 180 }
         : null,
+    };
+  }
+
+  /** `/connector/update`: checks the files the way the plugin does, then swaps the version. */
+  private connectorUpdate(
+    input: Record<string, unknown>,
+    blobs: Uint8Array[],
+    connection: FakeConnection,
+  ) {
+    const request = input as Partial<WpConnectorUpdateRequest>;
+    const files = Array.isArray(request.files) ? request.files : null;
+    if (typeof request.version !== 'string' || !files || files.length !== blobs.length) {
+      throw new FakeError('badRequest', 'Send a version and one blob per file.');
+    }
+    if (this.activeDeploy()) {
+      throw new FakeError('busy', 'Another deploy is still open on this site.', {
+        deployId: this.activeDeploy()?.id,
+      });
+    }
+    const refusal = this.switches.refuseUpdate;
+    if (refusal) throw new FakeError(refusal.code, refusal.message, refusal.details);
+    files.forEach((file, index) => {
+      if (sha(blobs[index]) !== file.sha256 || blobs[index].length !== file.size) {
+        throw new FakeError('updateRefused', 'A file does not match its hash.', {
+          reason: 'badPackage',
+        });
+      }
+    });
+    if (!files.some((file) => file.path === 'agentmate-connector.php')) {
+      throw new FakeError('updateRefused', 'The main plugin file is missing.', {
+        reason: 'badPackage',
+      });
+    }
+    const fromVersion = this.pluginVersion;
+    if (compareConnectorVersions(request.version, fromVersion) < 0) {
+      throw new FakeError('updateRefused', 'That is older than the connector on this site.', {
+        reason: 'downgrade',
+      });
+    }
+    const paths = files.map((file) => file.path);
+    const failed = this.switches.updateHealthFails;
+    const checks: WpHealthCheck[] = [
+      failed
+        ? { name: 'home', status: 500, ok: false, detail: 'HTTP 500' }
+        : { name: 'home', status: 200, ok: true, detail: 'HTTP 200' },
+      { name: 'ajaxPing', status: 200, ok: true, detail: 'HTTP 200' },
+    ];
+    this.updates.push({
+      version: request.version,
+      files: paths,
+      state: failed ? 'rolledBack' : 'updated',
+    });
+    if (failed) {
+      this.record('connectorRolledBack', connection.label, `Tried ${request.version}.`);
+    } else {
+      this.pluginVersion = request.version;
+      this.record('connectorUpdated', connection.label, `${fromVersion} to ${request.version}.`);
+    }
+    return {
+      state: failed ? 'rolledBack' : 'updated',
+      fromVersion,
+      version: request.version,
+      files: files.length,
+      checks,
     };
   }
 

@@ -161,6 +161,7 @@ describe('CliManagerPage install', () => {
     const { user, bridge } = renderPage({
       'cli.detectAll': [claudeInstalled],
       'cli.getInstallCommand': async () => 'npm install -g @google/gemini-cli',
+      'cli.checkCommandPrerequisite': async () => null,
     });
     await screen.findByRole('heading', { name: 'Claude Code CLI' });
     await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
@@ -168,14 +169,40 @@ describe('CliManagerPage install', () => {
     await user.click(within(cliCard('Gemini CLI')).getByRole('button', { name: /Install/ }));
 
     await waitFor(() =>
-      expect(bridge.$fn('cli.getInstallCommand')).toHaveBeenCalledWith('gemini-cli'),
+      expect(toast.info).toHaveBeenCalledWith('Press Enter in the terminal to install Gemini CLI.'),
+    );
+    expect(bridge.$fn('cli.getInstallCommand')).toHaveBeenCalledWith('gemini-cli');
+    expect(bridge.$fn('cli.checkCommandPrerequisite')).toHaveBeenCalledWith(
+      'npm install -g @google/gemini-cli',
     );
     // Nothing is run for the user: the command is typed into a session they still have to accept.
     const session = useTerminalStore
       .getState()
       .sessions.find((one) => one.title === 'Install Gemini CLI');
     expect(session?.initialInput).toBe('npm install -g @google/gemini-cli');
-    expect(toast.info).toHaveBeenCalledWith('Press Enter in the terminal to install Gemini CLI.');
+  });
+
+  it('asks for Node.js first rather than opening a terminal where npm would fail', async () => {
+    const { user } = renderPage({
+      'cli.detectAll': [claudeInstalled],
+      'cli.getInstallCommand': async () => 'npm install -g @google/gemini-cli',
+      'cli.checkCommandPrerequisite': { name: 'Node.js', url: 'https://nodejs.org/en/download' },
+    });
+    await screen.findByRole('heading', { name: 'Claude Code CLI' });
+    await user.click(screen.getByRole('button', { name: /^Show all CLIs/ }));
+
+    await user.click(within(cliCard('Gemini CLI')).getByRole('button', { name: /Install/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Gemini CLI needs Node.js, which isn't installed.",
+        expect.objectContaining({ action: expect.objectContaining({ label: 'Get Node.js' }) }),
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
+    expect(toast.info).not.toHaveBeenCalledWith(
+      'Press Enter in the terminal to install Gemini CLI.',
+    );
   });
 
   it('says so instead of opening an empty terminal when this OS has no install command', async () => {
@@ -270,7 +297,7 @@ describe('CliManagerPage updates', () => {
         latestVersion: '2.0.0',
         updateAvailable: true,
       }),
-      'cli.getUpdateCommand': async () => 'npm install -g @anthropic-ai/claude-code',
+      'cli.getUpdateCommand': async () => 'claude update',
     });
     await screen.findByRole('heading', { name: 'Claude Code CLI' });
 
@@ -280,18 +307,49 @@ describe('CliManagerPage updates', () => {
     expect(within(dialog).getByText('Update Claude Code CLI?')).toBeTruthy();
     expect(within(dialog).getByText(/1\.2\.3/)).toBeTruthy();
     expect(within(dialog).getByText(/2\.0\.0/)).toBeTruthy();
-    expect(within(dialog).getByText('npm install -g @anthropic-ai/claude-code')).toBeTruthy();
+    expect(within(dialog).getByText('claude update')).toBeTruthy();
     expect(bridge.$fn('cli.checkForUpdate')).toHaveBeenCalledWith('claude-code', '1.2.3');
 
     await user.click(within(dialog).getByRole('button', { name: 'Update' }));
 
-    expect(toast.info).toHaveBeenCalledWith(
-      'Press Enter in the terminal to update Claude Code CLI.',
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        'Press Enter in the terminal to update Claude Code CLI.',
+      ),
     );
     const session = useTerminalStore
       .getState()
       .sessions.find((one) => one.title === 'Update Claude Code CLI');
-    expect(session?.initialInput).toBe('npm install -g @anthropic-ai/claude-code');
+    expect(session?.initialInput).toBe('claude update');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('closes the update dialog without a terminal when the update needs something missing', async () => {
+    const { user } = renderPage({
+      'cli.detectAll': [detected({ id: 'gemini-cli', version: '0.1.0' })],
+      'cli.checkForUpdate': async () => ({
+        cliId: 'gemini-cli',
+        supported: true,
+        currentVersion: '0.1.0',
+        latestVersion: '0.2.0',
+        updateAvailable: true,
+      }),
+      'cli.getUpdateCommand': async () => 'npm install -g @google/gemini-cli@latest',
+      'cli.checkCommandPrerequisite': { name: 'Node.js', url: 'https://nodejs.org/en/download' },
+    });
+    await screen.findByRole('heading', { name: 'Gemini CLI' });
+
+    await user.click(screen.getByRole('button', { name: /Check all for updates/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Update' }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Gemini CLI needs Node.js, which isn't installed.",
+        expect.anything(),
+      ),
+    );
+    expect(useTerminalStore.getState().sessions).toHaveLength(0);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 

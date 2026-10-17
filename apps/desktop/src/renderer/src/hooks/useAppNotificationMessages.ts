@@ -14,6 +14,8 @@ const KIND: Record<AppNotification['kind'], { kind: ToastHistoryKind; tag?: stri
   'deploy-critical': { kind: 'error', tag: 'Critical' },
   'deploy-warning': { kind: 'warning', tag: 'Warning' },
   'deploy-info': { kind: 'info' },
+  'health-failure': { kind: 'error', tag: 'Down' },
+  'health-recovered': { kind: 'success', tag: 'Recovered' },
 };
 
 /** A page inside the app; anything else in `route` is ignored rather than followed. */

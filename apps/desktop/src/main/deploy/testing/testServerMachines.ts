@@ -54,7 +54,7 @@ export function requestedImages(
 }
 
 /**
- * The servers a system test runs on: its defaults (what every `[e2e]` push runs), or, when
+ * The servers a system test runs on: its defaults (what every CI run runs), or, when
  * images are asked for, those of them the test supports.
  */
 export function testServerImages<T extends TestServerImage>(

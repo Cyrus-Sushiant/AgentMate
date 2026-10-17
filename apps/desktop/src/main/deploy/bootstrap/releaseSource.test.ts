@@ -167,7 +167,7 @@ describe('githubReleaseSource', () => {
 
   it('points at the GitHub release for the version', () => {
     expect(releaseDownloadUrl('1.53.0', 'agentmate-core-1.53.0-linux-x64.tar.gz')).toBe(
-      'https://github.com/Cyrus-Sushiant/AgentMate/releases/download/v1.53.0/agentmate-core-1.53.0-linux-x64.tar.gz',
+      'https://github.com/SmartClouds/AgentMate/releases/download/v1.53.0/agentmate-core-1.53.0-linux-x64.tar.gz',
     );
   });
 });

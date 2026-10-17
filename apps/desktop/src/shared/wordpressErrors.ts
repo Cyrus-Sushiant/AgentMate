@@ -70,6 +70,7 @@ const CODES: ReadonlySet<string> = new Set<WordPressErrorCode>([
   'pairingInvalid',
   'pairingExpired',
   'protocolMismatch',
+  'updateRefused',
   'internal',
   'vaultLocked',
   'foreignResponse',

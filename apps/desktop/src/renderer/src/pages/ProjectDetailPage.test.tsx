@@ -304,7 +304,7 @@ describe('ProjectDetailPage sections', () => {
   });
 
   it('mounts every section in the nav without falling over', async () => {
-    // The page is mostly a router between sixteen sections, so the thing worth proving is that
+    // The page is mostly a router between seventeen sections, so the thing worth proving is that
     // each one can be reached and rendered with nothing but a project behind the bridge.
     const { user } = renderPage({
       'tools.detectAll': [{ id: 'diffray', installed: true }],
@@ -315,7 +315,7 @@ describe('ProjectDetailPage sections', () => {
     const labels = within(sectionNav())
       .getAllByRole('button')
       .map((button) => button.textContent?.trim() ?? '');
-    expect(labels.length).toBe(16);
+    expect(labels.length).toBe(17);
 
     for (const label of labels) {
       const button = within(sectionNav()).getByRole('button', { name: label });
@@ -775,5 +775,42 @@ describe('ProjectDetailPage WordPress section', () => {
         { name: /^Overview/, current: 'page' },
       ),
     ).toBeTruthy();
+  });
+
+  async function openEdit(user: ReturnType<typeof renderPage>['user']): Promise<void> {
+    await screen.findByRole('heading', { name: 'Apollo' });
+    await user.click(screen.getByRole('button', { name: 'More project actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit project/ }));
+    await screen.findByRole('dialog', { name: 'Edit project' });
+  }
+
+  it('switches a regular project to WordPress from the edit form', async () => {
+    const { user } = renderPage({ 'deployWordPress.listSites': [site] });
+    await openEdit(user);
+    expect(screen.getByText('Regular project')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Switch to a WordPress project/ }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Make this a WordPress project' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Edit project' })).toBeNull();
+  });
+
+  it('switches a WordPress project back to regular from the edit form', async () => {
+    const { user, bridge } = renderPage(
+      {
+        'deployWordPress.listSites': [site],
+        'deployWordPress.unlinkProject': project(),
+      },
+      [linked],
+    );
+    await openEdit(user);
+    expect(screen.getByText('WordPress site')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Switch to a regular project/ }));
+    expect(confirm.confirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Unlink this project from the site?' }),
+    );
+    await waitFor(() =>
+      expect(bridge.$fn('deployWordPress.unlinkProject')).toHaveBeenCalledWith('p1'),
+    );
   });
 });

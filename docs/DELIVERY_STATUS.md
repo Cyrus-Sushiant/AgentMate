@@ -19,8 +19,8 @@ Plan: docs/ROADMAP.md
 | Server core format | `pnpm server-core:format:check` |
 | Server core tests | `pnpm server-core:test` (Linux-only socket tests run in the .NET SDK container or CI) |
 | Contracts | `pnpm server-core:contracts`, then no diff under `apps/desktop/src/shared/deploy/protocol/generated` |
-| System tests | `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (Docker with Linux containers; CI job "Server core on test servers" with `[e2e]`) |
-| e2e | `pnpm test:e2e`, in CI when the commit message carries `[e2e]` |
+| System tests | `pnpm server-core:publish linux-x64`, then `AGENTMATE_SYSTEM_TESTS=1 pnpm --filter @agentmat/desktop exec vitest run src/main/deploy/deploy.int.test.ts` (Docker with Linux containers; CI job "Server core on test servers", on every CI run) |
+| e2e | `pnpm test:e2e`, on every CI run (Linux, self-hosted); Windows and macOS only in CD when the tagged commit carries `[e2e]` |
 | Full server matrix | `.github/workflows/nightly.yml` (nightly and `gh workflow run nightly.yml`): every Deploy system test once per test server (`AGENTMATE_TEST_SERVER_IMAGES`), plus the server core's nginx and Pebble system tests |
 
 ## Epics
@@ -49,6 +49,7 @@ Plan: docs/ROADMAP.md
 | E19 | WordPress Connector plugin and sync engine | Complete | | Built by four parallel agents against one contract and shared vectors; plugin on PHP 7.4 to 8.4 and multisite, smoke on real WordPress; the sync engine against the real plugin in Docker (`wordpress.int.test.ts`); security review findings fixed; uninstall checked on single site and multisite |
 | E20 | WordPress sites in Deploy | Complete | | Rail group, connect dialog, overview, items, deploys with rollback, access and audit log |
 | E21 | WordPress projects | Complete | | New project flow, WordPress section, pull and deploy reviews with conflicts and the left-out list; `deployWordPress.e2e.ts` passes on the final code (6 of 6, 3.9 minutes; nightly job `wordpress-e2e`). The new-project item step loaded slowly in the e2e window (likely its throttling; unconfirmed in a focused window) |
+| E22 | Project health checks | Complete | | Core protocol, main (store, probe, scheduler, alerts, auto-diagnosis, IPC) and renderer (Health page, project tab, dialogs) built test-first; `health.e2e.ts` passes (1 of 1, 43 s). AC4 (an agent builds a passing endpoint from the setup prompt alone) not yet tried with a real agent |
 
 Status values: Not started, In progress, Blocked, Complete.
 

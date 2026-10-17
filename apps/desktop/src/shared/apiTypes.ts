@@ -129,6 +129,15 @@ export type UpdateStatus =
       progress?: UpdateDownloadProgress;
     };
 
+/**
+ * A tool an install or update command needs before it can run (Node.js for `npm install -g`,
+ * say), with the page that explains how to get it.
+ */
+export interface CommandPrerequisite {
+  name: string;
+  url: string;
+}
+
 export interface CreateTerminalOptions {
   /**
    * Stable id for the session. Passing the id of a session that is still running reconnects

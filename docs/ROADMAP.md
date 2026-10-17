@@ -214,3 +214,4 @@ upload extraction, tunnel, installer verification, firewall guard) get coverage 
 | [E19](epics/19-wordpress-connector.md) | WordPress Connector plugin and sync engine | Standalone (Deploy) | E07 patterns |
 | [E20](epics/20-wordpress-sites-in-deploy.md) | WordPress sites in Deploy | Standalone (Deploy) | E19 |
 | [E21](epics/21-wordpress-projects.md) | WordPress projects | Standalone (Projects) | E19, E20 |
+| [E22](epics/22-health-checks.md) | Project health checks | Standalone (Ship) | none |

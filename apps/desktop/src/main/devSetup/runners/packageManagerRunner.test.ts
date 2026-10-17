@@ -245,3 +245,22 @@ describe('how it ends', () => {
     });
   });
 });
+
+describe('the environment it runs in', () => {
+  it('runs with the environment it was given, when it was given one', async () => {
+    const spawn = fakeSpawn();
+    const env = { Path: 'C:\sandbox\bin' };
+
+    await createPackageManagerRunner({ spawn, cwd: '.', env }).run(WINGET, 'install', hooks());
+
+    expect(spawn.mock.calls[0]?.[0].env).toBe(env);
+  });
+
+  it('leaves the choice to the process otherwise', async () => {
+    const spawn = fakeSpawn();
+
+    await createPackageManagerRunner({ spawn, cwd: '.' }).run(WINGET, 'install', hooks());
+
+    expect(spawn.mock.calls[0]?.[0].env).toBeUndefined();
+  });
+});

@@ -54,6 +54,8 @@ const SkillsPage = lazy(() => import('./pages/SkillsPage'));
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage'));
 /** Deploy is a large section that most sessions never open, so it loads on first visit. */
 const DeployPage = lazy(() => import('./pages/DeployPage'));
+/** Health checks (E22) load on first visit, like Deploy. */
+const HealthPage = lazy(() => import('./pages/HealthPage'));
 /** Carries the IronRDP WebAssembly engine, which only Remote Desktop session windows need. */
 const RdpSessionRoute = lazy(() => import('./components/rdp/RdpSessionRoute'));
 
@@ -171,6 +173,18 @@ export default function App(): React.JSX.Element {
                       }
                     >
                       <DeployPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="health"
+                  element={
+                    <Suspense
+                      fallback={
+                        <div className="p-6 text-sm text-muted-foreground">Loading Health…</div>
+                      }
+                    >
+                      <HealthPage />
                     </Suspense>
                   }
                 />

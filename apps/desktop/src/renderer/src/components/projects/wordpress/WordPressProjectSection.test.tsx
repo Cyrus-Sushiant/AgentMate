@@ -132,7 +132,7 @@ describe('WordPressProjectSection', () => {
       expect(bridge.$fn('deployWordPress.unlinkProject')).toHaveBeenCalledWith('p1'),
     );
     expect(toast.success).toHaveBeenCalledWith(
-      'Unlinked. The files are still in the project folder.',
+      'Unlinked. It is a regular project again, with every file still in its folder.',
     );
     await waitFor(() => expect(screen.getByTestId('search')).toBeEmptyDOMElement());
   });

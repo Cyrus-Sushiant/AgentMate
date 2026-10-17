@@ -57,6 +57,19 @@ vi.mock('../shellPath', () => ({
     for (const command of appearsAfterPathRefresh) installed.add(command);
   }),
 }));
+/** Commands whose file sits in a folder only the extra tool path covers, like ~/.local/bin. */
+const foundInToolDirs = new Set<string>();
+// The real lookup would find whatever CLIs the machine running the tests has installed.
+vi.mock('../installMethod', () => ({
+  resolveExecutable: vi.fn(async (names: string[]) => {
+    const name = names.find((candidate) => foundInToolDirs.has(candidate));
+    return name ? `/home/me/.local/bin/${name}` : null;
+  }),
+}));
+// The real one starts Python to find its Scripts folder, which would land in `spawned` too.
+vi.mock('../toolPaths', () => ({
+  withToolPath: vi.fn(async (env?: NodeJS.ProcessEnv) => ({ ...(env ?? process.env) })),
+}));
 vi.mock('../store', () => ({
   store: {
     getSettings: async () => ({
@@ -191,6 +204,17 @@ describe('runHeadlessCliPrompt finds a CLI the startup PATH missed', () => {
       }
     },
   );
+
+  it('picks a natively installed CLI whose folder only the extra tool path covers', async () => {
+    installed.clear();
+    foundInToolDirs.add('claude');
+    try {
+      const started = await run({ preferredCliId: 'claude-code', strictCli: true });
+      expect(started.command).toBe('claude');
+    } finally {
+      foundInToolDirs.clear();
+    }
+  });
 
   it('says how to fix it when the CLI really is missing', async () => {
     installed.clear();

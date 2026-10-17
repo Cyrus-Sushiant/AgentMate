@@ -63,6 +63,54 @@ describe('ProjectFormDialog focusRunCommands', () => {
   });
 });
 
+describe('ProjectFormDialog project type', () => {
+  function renderTyped(initial: Project | undefined) {
+    const onOpenChange = vi.fn();
+    const onMakeWordPress = vi.fn();
+    const onMakeRegular = vi.fn();
+    const view = renderWithProviders(
+      <ProjectFormDialog
+        open
+        onOpenChange={onOpenChange}
+        initial={initial}
+        onSubmit={vi.fn()}
+        onMakeWordPress={onMakeWordPress}
+        onMakeRegular={onMakeRegular}
+      />,
+      { bridge: { 'settings.get': {} } },
+    );
+    return { ...view, onOpenChange, onMakeWordPress, onMakeRegular };
+  }
+
+  it('closes the form and starts the WordPress link for a regular project', async () => {
+    const { user, onOpenChange, onMakeWordPress, onMakeRegular } = renderTyped(project());
+    expect(await screen.findByText('Regular project')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Switch to a regular project/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Switch to a WordPress project/ }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onMakeWordPress).toHaveBeenCalledTimes(1);
+    expect(onMakeRegular).not.toHaveBeenCalled();
+  });
+
+  it('closes the form and starts the unlink for a WordPress project', async () => {
+    const linked = {
+      ...project(),
+      wordpress: { siteId: 'site-1', items: [{ kind: 'theme', slug: 'shop' }], linkedAt: '' },
+    } as Project;
+    const { user, onOpenChange, onMakeRegular } = renderTyped(linked);
+    expect(await screen.findByText('WordPress site')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Switch to a regular project/ }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onMakeRegular).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the row out of a new project', async () => {
+    renderTyped(undefined);
+    await screen.findByRole('dialog');
+    expect(screen.queryByText('Project type')).toBeNull();
+  });
+});
+
 function renderWithCommands(runCommands: ProjectRunCommand[]) {
   const onSubmit = vi.fn();
   const view = renderWithProviders(

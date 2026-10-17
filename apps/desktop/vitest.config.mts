@@ -200,6 +200,9 @@ export default defineConfig({
         // WordPress sites (E19): the signed client, pairing, the sync engine and their IPC.
         'src/main/deploy/wordpress/**': { lines: 90, branches: 80 },
         'src/main/ipc/deployWordPress.ts': { lines: 90, branches: 80 },
+        // Project healthchecks (E22): the probe that holds a key, its scheduler and the IPC.
+        'src/main/health/**': { lines: 90, branches: 80 },
+        'src/main/ipc/health.ts': { lines: 90, branches: 80 },
         'src/renderer/src/components/deploy/appStore/**': {
           lines: 90,
           functions: 80,

@@ -8,6 +8,7 @@ import {
 import { ipcMain } from 'electron';
 import { IPC } from '../../shared/ipcChannels';
 import { getDevSetupService } from '../devSetup/runtime';
+import type { UserPathResult } from '../devSetup/userPath';
 
 /**
  * The renderer sends item ids and nothing else. An id is only a key into the catalog in
@@ -61,6 +62,13 @@ export function registerDevSetupHandlers(): void {
   ipcMain.handle(IPC.devSetup.cancel, (_event, id?: unknown): void => {
     if (id !== undefined && !isDevItemId(id)) throw new Error('Unknown dev setup item.');
     getDevSetupService().cancel(id);
+  });
+
+  ipcMain.handle(IPC.devSetup.addToPath, (_event, id: unknown): Promise<UserPathResult> => {
+    // Only the id crosses over. Which folder goes on the PATH is worked out in main from where the
+    // tool was found, never taken from the caller.
+    if (!isDevItemId(id)) throw new Error('Unknown dev setup item.');
+    return getDevSetupService().addToPath(id);
   });
 
   ipcMain.handle(IPC.devSetup.jobState, (): DevJobState => getDevSetupService().jobState());

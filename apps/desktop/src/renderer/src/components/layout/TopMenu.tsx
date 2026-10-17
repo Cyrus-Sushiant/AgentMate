@@ -39,7 +39,7 @@ const PILL_ACTIVE = 'font-semibold text-primary';
 export function TopMenu(): React.JSX.Element {
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
-  const { unread, workspaceAttention } = useNavBadges();
+  const { unread, workspaceAttention, healthIncidents } = useNavBadges();
   const updateCheck = useUpdateCheck();
 
   const pillTransition = reduceMotion
@@ -80,6 +80,7 @@ export function TopMenu(): React.JSX.Element {
               pathname={pathname}
               activePill={activePill}
               unread={unread}
+              healthIncidents={healthIncidents}
             />
           ))}
         </div>
@@ -170,16 +171,21 @@ function GroupMenu({
   pathname,
   activePill,
   unread,
+  healthIncidents = 0,
 }: {
   group: NavGroup;
   pathname: string;
   activePill: React.JSX.Element;
   unread: number;
+  /** Health targets with an incident open, shown on the Health entry. */
+  healthIncidents?: number;
 }): React.JSX.Element {
   const items = NAV_ITEMS.filter((item) => item.group === group);
   const active = items.some((item) => isNavItemActive(item, pathname));
   // Unread pipeline results live in Ship; the trigger carries a dot so they show while it is shut.
   const groupUnread = items.some((item) => item.to === '/pipelines') ? unread : 0;
+  // Open health incidents live in Ship too, and light the same dot.
+  const groupIncidents = items.some((item) => item.to === '/health') ? healthIncidents : 0;
 
   return (
     <DropdownMenu>
@@ -198,11 +204,14 @@ function GroupMenu({
           {active && activePill}
           <span className="relative z-10">{group}</span>
           <ChevronDown className="relative z-10 h-3 w-3 opacity-60 transition-transform duration-150 group-data-[state=open]:rotate-180" />
-          {groupUnread > 0 ? (
-            <>
-              <span className="absolute right-1 top-1 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
-              <span className="sr-only">, {groupUnread} unread</span>
-            </>
+          {groupUnread > 0 || groupIncidents > 0 ? (
+            <span className="absolute right-1 top-1 z-10 h-1.5 w-1.5 rounded-full bg-destructive" />
+          ) : null}
+          {groupUnread > 0 ? <span className="sr-only">, {groupUnread} unread</span> : null}
+          {groupIncidents > 0 ? (
+            <span className="sr-only">
+              , {groupIncidents} open incident{groupIncidents === 1 ? '' : 's'}
+            </span>
           ) : null}
         </button>
       </DropdownMenuTrigger>
@@ -221,6 +230,15 @@ function GroupMenu({
                 {item.to === '/pipelines' && unread > 0 ? (
                   <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
                     {unread > 99 ? '99+' : unread}
+                  </span>
+                ) : null}
+                {item.to === '/health' && healthIncidents > 0 ? (
+                  <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-destructive-foreground">
+                    {healthIncidents > 99 ? '99+' : healthIncidents}
+                    <span className="sr-only">
+                      {' '}
+                      open incident{healthIncidents === 1 ? '' : 's'}
+                    </span>
                   </span>
                 ) : null}
               </Link>

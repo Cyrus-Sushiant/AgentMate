@@ -11,6 +11,26 @@ vi.mock('../windowsPath', () => ({
     Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH',
 }));
 
+// Whatever these tests do, nothing may reach the real registry or a real shell startup file.
+const userPath = vi.hoisted(() => ({
+  readRegistryPath: vi.fn(async () => null),
+  writeRegistryPath: vi.fn(async () => undefined),
+  broadcastEnvironmentChange: vi.fn(async () => undefined),
+  addToProcessPath: vi.fn(),
+  readFile: vi.fn(async () => null),
+  writeFile: vi.fn(async () => undefined),
+}));
+vi.mock('./userPathSystem', () => ({
+  createSystemUserPathDeps: (home: string) => ({ os: 'win32', home, ...userPath }),
+}));
+
+// The real thing unless a test says otherwise, so the refusals below run the real checks.
+vi.mock('./addToPath', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./addToPath')>();
+  return { addToolToPath: vi.fn(actual.addToolToPath) };
+});
+
+import { addToolToPath } from './addToPath';
 import { getDevSetupService } from './runtime';
 
 /**
@@ -109,5 +129,75 @@ describe('the Dev Setup service: installs', () => {
 
   it('stops cleanly on dispose when nothing is running', () => {
     expect(() => getDevSetupService().dispose()).not.toThrow();
+  });
+});
+
+describe('the Dev Setup service: adding a tool to PATH', () => {
+  const REFUSED = 'That tool is already on your PATH, or was not found.';
+
+  function expectNothingWritten(): void {
+    expect(userPath.writeRegistryPath).not.toHaveBeenCalled();
+    expect(userPath.broadcastEnvironmentChange).not.toHaveBeenCalled();
+    expect(userPath.addToProcessPath).not.toHaveBeenCalled();
+    expect(userPath.writeFile).not.toHaveBeenCalled();
+  }
+
+  beforeEach(() => {
+    for (const fn of Object.values(userPath)) fn.mockClear();
+  });
+
+  it('refuses a tool that is nowhere, and writes nothing', async () => {
+    await expect(getDevSetupService().addToPath('pnpm')).rejects.toThrow(REFUSED);
+
+    expectNothingWritten();
+  });
+
+  it('refuses an item that is not in the catalog, and writes nothing', async () => {
+    await expect(getDevSetupService().addToPath('definitely-not-real')).rejects.toThrow(REFUSED);
+
+    expectNothingWritten();
+  });
+
+  it('refuses a tool that is already on PATH, and writes nothing', async () => {
+    writeFakeNode('22.12.0');
+
+    await expect(getDevSetupService().addToPath('node')).rejects.toThrow(REFUSED);
+
+    expectNothingWritten();
+  });
+
+  it('adds the folder through the real PATH editing and then looks at the tool again', async () => {
+    const service = getDevSetupService();
+    // `jdk17` is never checked in this file, so anything remembered about it is from this call.
+    expect(service.peek(['jdk17'])).toEqual({ jdk17: undefined });
+    vi.mocked(addToolToPath).mockResolvedValueOnce({ changed: true, where: 'your user PATH' });
+
+    await expect(service.addToPath('jdk17')).resolves.toEqual({
+      changed: true,
+      where: 'your user PATH',
+    });
+
+    const call = vi.mocked(addToolToPath).mock.calls.at(-1);
+    const deps = call?.[1];
+    expect(call?.[0]).toBe('jdk17');
+    expect(deps?.os).toBe(
+      process.platform === 'win32' || process.platform === 'darwin' ? process.platform : 'linux',
+    );
+    // The edit is the real one: it turns an unsafe folder away before it touches anything.
+    await expect(deps?.addToUserPath('relative\\folder')).rejects.toThrow(
+      'That folder cannot go on the PATH.',
+    );
+    expectNothingWritten();
+    expect(service.peek(['jdk17']).jdk17).toBeDefined();
+  });
+
+  it('does not look again when the edit was refused', async () => {
+    const service = getDevSetupService();
+    // `dart` is never checked in this file either.
+    vi.mocked(addToolToPath).mockRejectedValueOnce(new Error('That folder cannot go on the PATH.'));
+
+    await expect(service.addToPath('dart')).rejects.toThrow('That folder cannot go on the PATH.');
+
+    expect(service.peek(['dart'])).toEqual({ dart: undefined });
   });
 });

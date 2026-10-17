@@ -31,6 +31,7 @@ import type {
 } from '../../shared/apiTypes';
 import { IPC } from '../../shared/ipcChannels';
 import { gitOrNull, isGitRepo } from '../git/plumbing';
+import { pruneOrphanHealthTargets } from '../health/store';
 import { decryptSecret, encryptSecret } from '../ssh/vault';
 import { store } from '../store';
 
@@ -251,14 +252,14 @@ export function registerEnvironmentHandlers(): void {
       }),
   );
 
-  ipcMain.handle(
-    IPC.environments.remove,
-    (_event, id: string): Promise<void> =>
-      mutate((environments) => {
-        const index = environments.findIndex((e) => e.id === id);
-        if (index >= 0) environments.splice(index, 1);
-      }),
-  );
+  ipcMain.handle(IPC.environments.remove, async (_event, id: string): Promise<void> => {
+    await mutate((environments) => {
+      const index = environments.findIndex((e) => e.id === id);
+      if (index >= 0) environments.splice(index, 1);
+    });
+    // A healthcheck of this environment stays, just no longer tied to it.
+    await pruneOrphanHealthTargets({ environmentIds: [id] });
+  });
 
   ipcMain.handle(
     IPC.environments.reorder,

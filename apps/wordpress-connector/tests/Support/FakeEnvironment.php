@@ -90,9 +90,12 @@ final class FakeEnvironment implements Environment
         return $value;
     }
 
+    /** @var string the version the fake connector reports it runs */
+    public $pluginVersion = '1.0.0';
+
     public function pluginVersion(): string
     {
-        return '1.0.0';
+        return $this->pluginVersion;
     }
 
     public function siteName(): string

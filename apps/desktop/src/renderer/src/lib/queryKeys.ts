@@ -290,4 +290,11 @@ export const queryKeys = {
   vaultData: ['vault', 'data'] as const,
   vaultEntries: ['vault', 'data', 'entries'] as const,
   vaultEntry: (id: string) => ['vault', 'data', 'entry', id] as const,
+  /** Prefix of everything the Health page reads (E22). */
+  health: ['health'] as const,
+  /** Every target with no project, one project's otherwise. The bare key is the prefix of both. */
+  healthList: (projectId?: string) =>
+    projectId ? (['health', 'list', projectId] as const) : (['health', 'list'] as const),
+  /** One target's detail panel: last report, incidents and samples. */
+  healthTarget: (id: string) => ['health', 'target', id] as const,
 };

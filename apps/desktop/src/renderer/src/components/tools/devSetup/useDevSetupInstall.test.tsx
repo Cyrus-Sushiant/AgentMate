@@ -25,7 +25,12 @@ vi.mock('sonner', () => ({ toast, Toaster: () => null }));
 
 const WIN: DevSetupEnvironment = { os: 'win32', arch: 'x64', packageManagers: ['winget'] };
 const absent: DevDetection = { state: 'absent' };
-const found = (version: string): DevDetection => ({ state: 'found', version, path: null, onPath: true });
+const found = (version: string): DevDetection => ({
+  state: 'found',
+  version,
+  path: null,
+  onPath: true,
+});
 
 const IDLE: DevJobState = {
   jobId: null,
@@ -84,18 +89,24 @@ describe('following a run', () => {
       running: true,
       order: ['gh'],
       current: 'gh',
-      items: { gh: { status: 'installing', phase: 'downloading', fraction: 0.4, detail: '4 of 10 MB' } },
+      items: {
+        gh: { status: 'installing', phase: 'downloading', fraction: 0.4, detail: '4 of 10 MB' },
+      },
     };
     const { result } = renderHookWithProviders(() => useDevSetup(), {
       bridge: bridgeFor({ jobState: running }),
     });
 
-    await waitFor(() => expect(stateOf(result, 'gh')).toMatchObject({ kind: 'installing', fraction: 0.4 }));
+    await waitFor(() =>
+      expect(stateOf(result, 'gh')).toMatchObject({ kind: 'installing', fraction: 0.4 }),
+    );
     expect(result.current.job.running).toBe(true);
   });
 
   it('shows the steps of a new run as they are announced', async () => {
-    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor() });
+    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor(),
+    });
     await waitFor(() => expect(result.current.checklist?.summary.checking).toBe(0));
 
     await emit(bridge, { type: 'plan', jobId: 'a', steps: ['git', 'gh'] });
@@ -147,8 +158,10 @@ describe('following a run', () => {
     expect(bridge.$listenerCount('devSetup.onEvent')).toBe(0);
   });
 
-  it('keeps each item\'s log', async () => {
-    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor() });
+  it("keeps each item's log", async () => {
+    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor(),
+    });
     await waitFor(() => expect(result.current.checklist).toBeDefined());
 
     await emit(bridge, { type: 'plan', jobId: 'a', steps: ['gh'] });
@@ -158,7 +171,9 @@ describe('following a run', () => {
   });
 
   it('shows a failure on the row, with its reason', async () => {
-    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor() });
+    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor(),
+    });
     await waitFor(() => expect(result.current.checklist?.summary.checking).toBe(0));
 
     await emit(bridge, { type: 'plan', jobId: 'a', steps: ['gh'] });
@@ -207,14 +222,18 @@ describe('re-checking as items finish', () => {
     await emit(bridge, { type: 'plan', jobId: 'a', steps: ['gh'] });
     await emit(bridge, { type: 'finished', jobId: 'a', itemId: 'gh', result: 'installed' });
 
-    await waitFor(() => expect(stateOf(result, 'gh')).toMatchObject({ kind: 'installed', version: '2.62.0' }));
+    await waitFor(() =>
+      expect(stateOf(result, 'gh')).toMatchObject({ kind: 'installed', version: '2.62.0' }),
+    );
   });
 });
 
 describe('installing', () => {
   it('asks main to install the items named', async () => {
     const install = vi.fn(async () => IDLE);
-    const { result } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor({ install }) });
+    const { result } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor({ install }),
+    });
     await waitFor(() => expect(result.current.checklist?.summary.checking).toBe(0));
 
     await act(async () => result.current.install(['gh']));
@@ -224,7 +243,9 @@ describe('installing', () => {
 
   it('installs everything that is missing in one go', async () => {
     const install = vi.fn(async () => IDLE);
-    const { result } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor({ install }) });
+    const { result } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor({ install }),
+    });
     await waitFor(() => expect(result.current.checklist?.summary.checking).toBe(0));
 
     await act(async () => result.current.installAll());
@@ -247,18 +268,26 @@ describe('installing', () => {
 
   it('says so when main refuses', async () => {
     const install = vi.fn(async () => {
-      throw new Error("Error invoking remote method 'devSetup:install': Error: Invalid dev setup items.");
+      throw new Error(
+        "Error invoking remote method 'devSetup:install': Error: Invalid dev setup items.",
+      );
     });
-    const { result } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor({ install }) });
+    const { result } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor({ install }),
+    });
     await waitFor(() => expect(result.current.checklist?.summary.checking).toBe(0));
 
     await act(async () => result.current.install(['gh']));
 
-    expect(toast.error).toHaveBeenCalledWith('Could not start the install. Invalid dev setup items.');
+    expect(toast.error).toHaveBeenCalledWith(
+      'Could not start the install. Invalid dev setup items.',
+    );
   });
 
   it('cancels the whole run, or one waiting step', async () => {
-    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), { bridge: bridgeFor() });
+    const { result, bridge } = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor(),
+    });
     await waitFor(() => expect(result.current.checklist).toBeDefined());
 
     act(() => result.current.cancel());
@@ -337,5 +366,95 @@ describe('agreements', () => {
 
     expect(useConfirmStore.getState().open).toBe(false);
     expect(install).toHaveBeenCalledWith({ ids: ['jdk17'], consented: false });
+  });
+});
+
+describe('an agreement that only main knew about', () => {
+  const REFUSED = new Error(
+    "Error invoking remote method 'devSetup:install': Error: consent-required",
+  );
+
+  /**
+   * The page last saw the Android licenses as installed, so its own plan has no agreement in it.
+   * Main looked again, found them missing and refused. When `recheckFindsThem` is set, a fresh
+   * look at the machine from here finds them missing too, once main has refused.
+   */
+  async function setup({ recheckFindsThem }: { recheckFindsThem: boolean }) {
+    let refused = false;
+    const install = vi.fn(async (request: { consented?: boolean }) => {
+      if (request.consented) return IDLE;
+      refused = recheckFindsThem;
+      throw REFUSED;
+    });
+    const view = renderHookWithProviders(() => useDevSetup(), {
+      bridge: bridgeFor({
+        stacks: ['essentials', 'flutter'],
+        detect: async (id) => (id === 'android-licenses' && !refused ? found('1') : absent),
+        install: (request) => install(request as { consented?: boolean }),
+      }),
+    });
+    await waitFor(() => expect(view.result.current.checklist?.summary.checking).toBe(0));
+    return { ...view, install };
+  }
+
+  it('asks the person with the usual agreement dialog, and never shows the code', async () => {
+    const { result } = await setup({ recheckFindsThem: true });
+
+    act(() => {
+      void result.current.install(['android-licenses']);
+    });
+
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    expect(useConfirmStore.getState().confirmLabel).toBe('Accept and install');
+    expect(useConfirmStore.getState().items).toEqual([
+      { name: 'Android SDK licenses', detail: 'https://developer.android.com/studio/terms' },
+    ]);
+    expect(toast.error).not.toHaveBeenCalled();
+    act(() => resolveConfirm(false));
+  });
+
+  it('installs with the agreement accepted once the person agrees', async () => {
+    const { result, install } = await setup({ recheckFindsThem: true });
+
+    act(() => {
+      void result.current.install(['android-licenses']);
+    });
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    await act(async () => resolveConfirm(true));
+
+    await waitFor(() =>
+      expect(install).toHaveBeenLastCalledWith({ ids: ['android-licenses'], consented: true }),
+    );
+    expect(install).toHaveBeenCalledTimes(2);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('stops quietly when the person says no', async () => {
+    const { result, install } = await setup({ recheckFindsThem: true });
+
+    let done: Promise<void> = Promise.resolve();
+    act(() => {
+      done = result.current.install(['android-licenses']);
+    });
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    await act(async () => {
+      resolveConfirm(false);
+      await done;
+    });
+
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('says something plain when it still cannot tell which agreement it is', async () => {
+    const { result } = await setup({ recheckFindsThem: false });
+
+    await act(async () => result.current.install(['android-licenses']));
+
+    expect(useConfirmStore.getState().open).toBe(false);
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    const shown = String(toast.error.mock.calls[0]?.[0]);
+    expect(shown).not.toContain('consent-required');
+    expect(shown).toMatch(/^Could not start the install\. \S/);
   });
 });

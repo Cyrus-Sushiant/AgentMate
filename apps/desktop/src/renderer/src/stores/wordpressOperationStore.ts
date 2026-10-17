@@ -2,6 +2,8 @@ import type {
   DeployWordPressCreateProjectInput,
   DeployWordPressDeployResult,
   DeployWordPressItemsInput,
+  DeployWordPressLinkProjectInput,
+  DeployWordPressLinkProjectResult,
   DeployWordPressOperationKind,
   DeployWordPressPhase,
   DeployWordPressProgressEvent,
@@ -25,7 +27,8 @@ import { create } from 'zustand';
 export type WordPressOperationResult =
   | { kind: 'deploy'; value: DeployWordPressDeployResult }
   | { kind: 'pull'; value: DeployWordPressPullResult }
-  | { kind: 'project'; value: Project };
+  | { kind: 'project'; value: Project }
+  | { kind: 'link'; value: DeployWordPressLinkProjectResult };
 
 export interface WordPressPhaseProgress {
   done: number;
@@ -67,6 +70,10 @@ interface WordPressOperationState {
   createProject: (input: DeployWordPressCreateProjectInput) => Promise<Project | null>;
   /** Changes a project's items; newly added ones are pulled. */
   setProjectItems: (input: DeployWordPressItemsInput, siteId: string) => Promise<Project | null>;
+  /** Makes an existing project a WordPress project, pulling the items into empty folders. */
+  linkProject: (
+    input: DeployWordPressLinkProjectInput,
+  ) => Promise<DeployWordPressLinkProjectResult | null>;
   deploy: (
     input: DeployWordPressRunInput,
     context: { siteId: string; projectId: string },
@@ -173,6 +180,17 @@ export const useWordPressOperationStore = create<WordPressOperationState>((set, 
         { operationId: input.operationId, kind: 'items', siteId, projectId: input.projectId },
         () => window.agentmat.deployWordPress.setProjectItems(input),
         (value) => ({ kind: 'project', value }),
+      ),
+    linkProject: (input) =>
+      start(
+        {
+          operationId: input.operationId,
+          kind: 'items',
+          siteId: input.siteId,
+          projectId: input.projectId,
+        },
+        () => window.agentmat.deployWordPress.linkProject(input),
+        (value) => ({ kind: 'link', value }),
       ),
     deploy: (input, context) =>
       start(
