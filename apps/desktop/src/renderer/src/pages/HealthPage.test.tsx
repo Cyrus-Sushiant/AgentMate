@@ -1,3 +1,4 @@
+import { healthDays } from '@agentmat/core';
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { usePageHeaderStore } from '@/stores/pageHeaderStore';
@@ -6,6 +7,7 @@ import {
   detail,
   environment,
   incident,
+  NOW,
   project,
   target,
 } from '../components/health/testing/fixtures';
@@ -79,6 +81,7 @@ describe('HealthPage', () => {
     expect(items[0]).toHaveTextContent('Have your AI build the endpoint');
     expect(items[1]).toHaveTextContent('Add a target');
     expect(items[2]).toHaveTextContent('Test the connection');
+    expect(screen.queryByRole('region', { name: 'Availability by day' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add a target' }));
     expect(await screen.findByRole('dialog', { name: 'Add a health check' })).toBeInTheDocument();
   });
@@ -99,6 +102,30 @@ describe('HealthPage', () => {
     expect(within(dialog).getByRole('region', { name: 'Prompt for your agent' })).toHaveTextContent(
       'AgentMate Health Protocol',
     );
+  });
+
+  it('charts availability by day for the targets in view, following the project filter', async () => {
+    // Today is the last of the 30 days; only today had checks.
+    const days = (checks: number, failures: number) =>
+      healthDays([], { days: 30, now: NOW }).map((day, i) =>
+        i === 29 ? { ...day, checks, failures } : day,
+      );
+    const withDays = [
+      { ...targets[0], daily: days(100, 0) },
+      { ...targets[1], daily: days(100, 0) },
+      { ...targets[2], daily: days(100, 50) },
+    ];
+    const { user } = renderPage('/monitoring', { 'health.list': withDays });
+    const chart = await screen.findByRole('region', { name: 'Availability by day' });
+    await waitFor(() => expect(chart).toHaveTextContent('83.3% up over 7 days'));
+
+    await user.click(screen.getByRole('button', { name: 'Admin' }));
+    expect(chart).toHaveTextContent('50.0% up over 7 days');
+    await user.click(screen.getByRole('button', { name: 'All projects' }));
+
+    // Search and the status filter narrow the cards, not the chart.
+    await user.type(screen.getByLabelText('Search targets'), 'dash');
+    expect(chart).toHaveTextContent('83.3% up over 7 days');
   });
 
   it('groups targets by project, then by environment', async () => {

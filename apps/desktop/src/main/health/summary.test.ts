@@ -1,4 +1,10 @@
-import type { HealthIncident, HealthReport, HealthSample } from '@agentmat/core';
+import {
+  type HealthIncident,
+  type HealthReport,
+  type HealthSample,
+  localDayStart,
+  localHourStart,
+} from '@agentmat/core';
 import { describe, expect, it } from 'vitest';
 import { emptyHealthResult, type HealthResultRecord, type StoredHealthTarget } from './store';
 import { toHealthDetail, toHealthSummary } from './summary';
@@ -130,6 +136,27 @@ describe('toHealthSummary', () => {
     expect(summarize(result({ samples: samples.slice(0, 1) })).uptime24h).toBeNull();
   });
 
+  it('reads uptime from the hours, which reach further back than the samples', () => {
+    const hours = Array.from({ length: 20 }, (_, i) => ({
+      start: localHourStart(NOW - (19 - i) * HOUR),
+      checks: 60,
+      failures: i === 0 ? 12 : 0,
+      p50: 40,
+      p95: 90,
+    }));
+    const samples: HealthSample[] = [{ at: NOW - 1000, state: 'pass', latencyMs: 40 }];
+    expect(summarize(result({ hours, samples })).uptime24h).toBe(1 - 12 / 1200);
+  });
+
+  it('gives the last 30 days for the availability chart, today last', () => {
+    const hours = [{ start: localHourStart(NOW - HOUR), checks: 10, failures: 1, p50: 1, p95: 2 }];
+    const { daily } = summarize(result({ hours }));
+    expect(daily).toHaveLength(30);
+    expect(daily[29].start).toBe(localDayStart(NOW));
+    expect(daily.reduce((sum, day) => sum + day.checks, 0)).toBe(10);
+    expect(daily.reduce((sum, day) => sum + day.failures, 0)).toBe(1);
+  });
+
   it('keeps the last 50 samples for the strip', () => {
     const samples = Array.from({ length: 200 }, (_, index) => ({
       at: NOW - (200 - index) * 1000,
@@ -208,5 +235,24 @@ describe('toHealthDetail', () => {
   it('is empty before the first probe', () => {
     const detail = toHealthDetail(target, undefined, { now: NOW, locked: false });
     expect(detail).toMatchObject({ report: null, incidents: [], samples: [] });
+    expect(detail.latency).toHaveLength(24);
+    expect(detail.latency.every((point) => point.p50 === null)).toBe(true);
+  });
+
+  it('gives the last 24 hours of response times, one point per hour', () => {
+    const hours = [
+      { start: localHourStart(NOW - 3 * HOUR), checks: 60, failures: 0, p50: 40, p95: 120 },
+      { start: localHourStart(NOW), checks: 5, failures: 1, p50: 55, p95: 300 },
+    ];
+    const { latency } = toHealthDetail(target, result({ hours }), { now: NOW, locked: false });
+    expect(latency).toHaveLength(24);
+    expect(latency[23]).toEqual({
+      start: localHourStart(NOW),
+      checks: 5,
+      failures: 1,
+      p50: 55,
+      p95: 300,
+    });
+    expect(latency[20]).toMatchObject({ p50: 40, p95: 120 });
   });
 });

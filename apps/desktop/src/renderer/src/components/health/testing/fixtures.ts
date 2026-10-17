@@ -66,6 +66,7 @@ export function target(overrides: Partial<HealthTargetSummary> = {}): HealthTarg
     nextCheckAt: NOW + 30_000,
     latencyMs: 120,
     uptime24h: 0.995,
+    daily: [],
     samples: samples(['pass', 'pass', 'warn', 'pass']),
     servicesTotal: 2,
     servicesFailing: 0,
@@ -146,6 +147,7 @@ export function detail(overrides: Partial<HealthTargetDetail> = {}): HealthTarge
     report: report(),
     incidents: summary.openIncident ? [summary.openIncident] : [],
     samples: summary.samples,
+    latency: [],
     ...overrides,
   };
 }

@@ -94,7 +94,11 @@ function MessageComposer({
     if (!field || !draft.length) return;
     field.style.height = 'auto';
     if (field.scrollHeight > 0) {
-      field.style.height = `${Math.min(field.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
+      // scrollHeight leaves out the border, but the height is set on the border box, so
+      // without it the box comes up a few pixels short and shows a scrollbar.
+      const needed = field.scrollHeight + (field.offsetHeight - field.clientHeight);
+      field.style.height = `${Math.min(needed, COMPOSER_MAX_HEIGHT_PX)}px`;
+      field.style.overflowY = needed > COMPOSER_MAX_HEIGHT_PX ? 'auto' : 'hidden';
     }
   }, [draft]);
 
@@ -112,7 +116,10 @@ function MessageComposer({
       if (await sendSshAgentMessage(sessionId, text)) {
         onDraftChange('');
         setNote({ text: sentNote(phase, paused) });
-        if (fieldRef.current) fieldRef.current.style.height = '';
+        if (fieldRef.current) {
+          fieldRef.current.style.height = '';
+          fieldRef.current.style.overflowY = '';
+        }
       } else {
         // The text stays in the box, so nothing typed is lost.
         toast.error('The AI task has already ended, so nothing was sent.');
@@ -153,7 +160,7 @@ function MessageComposer({
               void submit();
             }
           }}
-          className="min-h-8 flex-1 resize-none py-1.5 text-xs leading-5"
+          className="min-h-8 flex-1 resize-none overflow-y-hidden py-1.5 text-xs leading-5"
           style={{ maxHeight: COMPOSER_MAX_HEIGHT_PX }}
         />
         <Button

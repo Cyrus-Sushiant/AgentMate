@@ -1,6 +1,16 @@
-import { type HealthReport, type HealthState, isHealthProblem } from '@agentmat/core';
+import {
+  type HealthReport,
+  type HealthState,
+  healthDays,
+  healthHoursFromSamples,
+  healthLatencyHours,
+  healthUptimeSince,
+} from '@agentmat/core';
 import type { HealthTargetDetail, HealthTargetSummary } from '../../shared/healthTypes';
 import type { HealthResultRecord, StoredHealthTarget } from './store';
+
+const CHART_DAYS = 30;
+const CHART_HOURS = 24;
 
 /**
  * Turns a stored target and its results into what the Health page shows. The sealed key never
@@ -34,6 +44,12 @@ export function healthHeadline(report: HealthReport | null): string | null {
   return null;
 }
 
+/** The hourly roll-up; a record made in memory without one gets it from its samples. */
+function hoursOf(result: HealthResultRecord | undefined) {
+  if (!result) return [];
+  return result.hours?.length ? result.hours : healthHoursFromSamples(result.samples);
+}
+
 function stateOf(
   target: StoredHealthTarget,
   result: HealthResultRecord | undefined,
@@ -51,8 +67,7 @@ export function toHealthSummary(
 ): HealthTargetSummary {
   const { secretEnvelope, ...setup } = target;
   const samples = result?.samples ?? [];
-  const recent = samples.filter((sample) => sample.at >= context.now - DAY_MS);
-  const up = recent.filter((sample) => !isHealthProblem(sample.state)).length;
+  const hours = hoursOf(result);
   const report = result?.report ?? null;
   return {
     ...setup,
@@ -61,7 +76,8 @@ export function toHealthSummary(
     lastCheckedAt: result?.lastCheckedAt ?? null,
     nextCheckAt: result?.nextCheckAt ?? null,
     latencyMs: report?.latencyMs ?? null,
-    uptime24h: recent.length === 0 ? null : up / recent.length,
+    uptime24h: healthUptimeSince(hours, context.now - DAY_MS),
+    daily: healthDays(hours, { days: CHART_DAYS, now: context.now }),
     samples: samples.slice(-STRIP_SAMPLES),
     servicesTotal: report?.services.length ?? 0,
     servicesFailing: report?.services.filter((service) => service.status === 'fail').length ?? 0,
@@ -80,5 +96,6 @@ export function toHealthDetail(
     report: result?.report ?? null,
     incidents: result?.incidents ?? [],
     samples: result?.samples ?? [],
+    latency: healthLatencyHours(hoursOf(result), { hoursBack: CHART_HOURS, now: context.now }),
   };
 }

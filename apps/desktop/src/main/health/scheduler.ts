@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
+  addHealthSampleToHours,
   type HealthIncident,
   type HealthReport,
+  type HealthSample,
   healthNextDelayMs,
   nextHealthTrack,
   probeFailureReport,
@@ -108,10 +110,13 @@ export function createHealthScheduler(deps: HealthSchedulerDeps) {
       state.results[targetId] = result;
       const at = now();
 
-      result.samples = [
-        ...result.samples,
-        { at: report.checkedAt, state: report.state, latencyMs: report.latencyMs },
-      ].slice(-HEALTH_MAX_SAMPLES);
+      const sample: HealthSample = {
+        at: report.checkedAt,
+        state: report.state,
+        latencyMs: report.latencyMs,
+      };
+      result.samples = [...result.samples, sample].slice(-HEALTH_MAX_SAMPLES);
+      result.hours = addHealthSampleToHours(result.hours, sample);
       result.report = report;
       result.lastCheckedAt = report.checkedAt;
       const step = nextHealthTrack(result.track, report.state);

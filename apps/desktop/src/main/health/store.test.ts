@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { INITIAL_HEALTH_TRACK } from '@agentmat/core';
+import { healthHoursFromSamples, INITIAL_HEALTH_TRACK } from '@agentmat/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { HealthTargetInput } from '../../shared/healthTypes';
 import { IPC } from '../../shared/ipcChannels';
@@ -159,6 +159,22 @@ describe('reading and writing', () => {
     expect(state.targets.map((target) => target.id)).toEqual(['t1']);
     expect(Object.keys(state.results)).toEqual(['t1']);
     expect(state.results.t1.lastCheckedAt).toBe(5);
+  });
+
+  it('builds the hours of a results file saved before hours were kept from its samples', async () => {
+    const samples = [
+      { at: 1_760_000_000_000, state: 'pass', latencyMs: 10 },
+      { at: 1_760_000_060_000, state: 'fail', latencyMs: null },
+    ] as const;
+    const { hours: _hours, ...old } = health.emptyHealthResult();
+    userData.writeData('health-results.json', { t1: { ...old, samples } });
+    const state = await health.readHealthState();
+    expect(state.results.t1.hours).toEqual(healthHoursFromSamples([...samples]));
+    expect(state.results.t1.hours.reduce((sum, hour) => sum + hour.checks, 0)).toBe(2);
+  });
+
+  it('starts a new result with no hours', () => {
+    expect(health.emptyHealthResult().hours).toEqual([]);
   });
 
   it('reads a results file that is not JSON as empty', async () => {

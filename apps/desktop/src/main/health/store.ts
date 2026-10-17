@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  type HealthHourBucket,
   type HealthIncident,
   type HealthReport,
   type HealthSample,
   type HealthTrack,
+  healthHoursFromSamples,
   INITIAL_HEALTH_TRACK,
   normalizeHealthInterval,
   normalizeHealthTimeout,
@@ -44,6 +46,8 @@ export interface HealthResultRecord {
   report: HealthReport | null;
   /** Oldest first, at most HEALTH_MAX_SAMPLES. */
   samples: HealthSample[];
+  /** Every check, rolled up by hour for 30 days, oldest first. Uptime and the charts read it. */
+  hours: HealthHourBucket[];
   track: HealthTrack;
   /** Newest first, at most HEALTH_MAX_INCIDENTS. */
   incidents: HealthIncident[];
@@ -71,6 +75,7 @@ export function emptyHealthResult(): HealthResultRecord {
   return {
     report: null,
     samples: [],
+    hours: [],
     track: { ...INITIAL_HEALTH_TRACK },
     incidents: [],
     lastCheckedAt: null,
@@ -122,6 +127,20 @@ const resultSchema = z.object({
   samples: z.array(
     z.object({ at: z.number(), state: probeState, latencyMs: z.number().nullable() }),
   ),
+  // Missing from files written before hours were kept; built from the samples then.
+  hours: z
+    .array(
+      z
+        .object({
+          start: z.number(),
+          checks: z.number(),
+          failures: z.number(),
+          p50: z.number().nullable(),
+          p95: z.number().nullable(),
+        })
+        .passthrough(),
+    )
+    .optional(),
   track: z.object({
     confirmed: z.enum(['ok', 'problem']).nullable(),
     streak: z.number(),
@@ -187,7 +206,10 @@ function parseResults(value: unknown): Record<string, HealthResultRecord> {
   const results: Record<string, HealthResultRecord> = {};
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return results;
   for (const [id, entry] of Object.entries(value)) {
-    if (resultSchema.safeParse(entry).success) results[id] = entry as HealthResultRecord;
+    if (!resultSchema.safeParse(entry).success) continue;
+    const record = entry as HealthResultRecord;
+    if (!record.hours) record.hours = healthHoursFromSamples(record.samples);
+    results[id] = record;
   }
   return results;
 }

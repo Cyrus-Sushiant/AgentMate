@@ -3,7 +3,7 @@ title: Monitoring
 category: Ship
 order: 20
 summary: Monitoring watches your projects' apps and sites on every environment and server. It calls a private, key-protected health endpoint in your app on its own schedule, shows which services work and which fail with their errors, and hands a failure to AI to diagnose and fix. Build with AI gives Claude Code a prompt to build that endpoint.
-keywords: monitoring, monitor, build with ai, claude, prompt, health, healthcheck, health check, status, uptime, monitor, monitoring, incident, outage, down, service, endpoint, environment, server, interval, schedule, bearer, basic auth, key, token, rotate, sha-256, diagnose, fix with ai, setup prompt, health+json, agentmate health protocol
+keywords: monitoring, monitor, chart, availability, response time, latency, p95, build with ai, claude, prompt, health, healthcheck, health check, status, uptime, monitor, monitoring, incident, outage, down, service, endpoint, environment, server, interval, schedule, bearer, basic auth, key, token, rotate, sha-256, diagnose, fix with ai, setup prompt, health+json, agentmate health protocol
 route: /monitoring
 ---
 
@@ -40,6 +40,12 @@ The prompt never contains a key. It only names the server variables, and the key
 ## Reading a target
 
 Each card shows the target's state in words and with a colored dot, how long the last check took, when it ran and when the next one is due, and a strip of the last 50 checks (point at a bar to see when it ran and what it found). Click a card to open its details: every service with its result, the full error of a failing one, the incident history, and the raw report.
+
+Above the cards, **Availability by day** shows one bar per day for the last 7 or 30 days, for the targets in view (it follows the project and environment filters). A full green bar is a day with no failed checks; amber and red bars had some. Point at a bar for that day's uptime, how many checks ran and failed, and which targets failed. Click a day that had failures to list those targets and open one.
+
+In a target's details, **Response time, 24 h** draws the median and the slowest 5% (95th percentile) for each hour, with incidents shaded red, so you can see whether the app got slower before it went down.
+
+AgentMate keeps a summary of every hour for 30 days, so the 24 hour uptime and both charts cover the whole period, however often the target is checked.
 
 The states are:
 

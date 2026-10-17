@@ -8,6 +8,13 @@ import { cn } from '@/lib/utils';
  * card around it offers the readings as a table, so nothing is only reachable by hovering.
  */
 
+/** A stretch of time to shade behind the lines, such as an outage. */
+export interface ChartBand {
+  key: string;
+  from: number;
+  to: number;
+}
+
 export interface ChartSeries {
   key: string;
   label: string;
@@ -29,6 +36,7 @@ export function MetricChart({
   formatTime,
   axisTimes,
   height = 132,
+  bands = [],
   className,
 }: {
   title: string;
@@ -42,6 +50,8 @@ export function MetricChart({
   /** For the axis under the plot. */
   axisTimes: (unixMs: number) => string;
   height?: number;
+  /** Shaded behind the lines in the destructive tone, clipped to the plotted time. */
+  bands?: ChartBand[];
   className?: string;
 }): React.JSX.Element {
   const [index, setIndex] = useState<number | null>(null);
@@ -54,6 +64,8 @@ export function MetricChart({
   const x = (i: number) => (n <= 1 ? WIDTH : ((times[i] - first) / span) * WIDTH);
   const y = (value: number) =>
     PAD_TOP + (1 - Math.min(1, Math.max(0, value / top))) * (height - PAD_TOP - PAD_BOTTOM);
+  const xAt = (time: number) => ((time - first) / span) * WIDTH;
+  const shaded = n === 0 ? [] : bands.filter((band) => band.to > first && band.from < last);
   const line = (values: number[]) =>
     values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
   const area = (values: number[]) =>
@@ -131,6 +143,22 @@ export function MetricChart({
             className="absolute inset-0 h-full w-full overflow-visible"
             aria-hidden
           >
+            {shaded.map((band) => {
+              const from = xAt(Math.max(first, band.from));
+              const to = xAt(Math.min(last, band.to));
+              return (
+                <rect
+                  key={band.key}
+                  data-band={band.key}
+                  x={from.toFixed(1)}
+                  y={0}
+                  width={Math.max(0, to - from).toFixed(1)}
+                  height={height}
+                  fill="hsl(var(--destructive))"
+                  fillOpacity={0.12}
+                />
+              );
+            })}
             {ticks.map((tick) => (
               <line
                 key={tick}

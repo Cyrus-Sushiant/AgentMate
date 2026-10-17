@@ -41,6 +41,10 @@ rules, so the user's AI can build a compatible endpoint into any stack.
   environment, server, sign-in and path before any target exists, sends it to the project's agent
   by name or copies it, and hands over to adding a target. Offered in the toolbar, on first use, and
   in a target's details while it does not answer yet.
+- [x] T13 Charts: every check rolled up by local hour for 30 days (`core/health/rollup.ts`, built
+  from the samples for older result files), so the 24 hour uptime reads real history. Availability
+  by day (7 or 30 days, across the targets in view) on the page, and response time (median and
+  95th percentile, incidents shaded) for the last 24 hours in a target's details.
 
 ## Acceptance criteria
 
@@ -62,6 +66,10 @@ rules, so the user's AI can build a compatible endpoint into any stack.
 - The feature is called Monitoring in the app (menu, page, project tab, route `/monitoring`). The
   endpoint and the protocol keep the name health check, the standard term an agent or developer
   knows, and code identifiers keep `health`.
+- Uptime used to come from the last 200 samples, which at a one-minute interval is barely three
+  hours. The hourly roll-up fixes that: an hour keeps its check and failure counts and its median
+  and 95th percentile latency, and only the open hour keeps raw latencies (thinned evenly past 240).
+  Hours follow the local clock so days end at the user's midnight, half-hour zones included.
 - Warn is degraded, not down: it shows on the page but opens no incident.
 - A target's sign-in type and Basic username are fixed once it is made, since changing either
   needs a new secret. Delete and add the target again to switch.

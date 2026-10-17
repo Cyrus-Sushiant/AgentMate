@@ -83,4 +83,35 @@ describe('MetricChart', () => {
     fireEvent.keyDown(screen.getByRole('img'), { key: 'End' });
     expect(screen.getByRole('tooltip')).toHaveTextContent('7 B/s');
   });
+
+  it('shades bands behind the lines, clamped to the plotted time', () => {
+    const { container } = renderChart({
+      bands: [
+        { key: 'inside', from: 1_000, to: 2_000 },
+        { key: 'edge', from: -5_000, to: 500 },
+        { key: 'outside', from: 4_000, to: 9_000 },
+      ],
+    });
+    const bands = container.querySelectorAll('rect[data-band]');
+    expect([...bands].map((band) => band.getAttribute('data-band'))).toEqual(['inside', 'edge']);
+    const [inside, edge] = bands;
+    // 600 units wide over 3 s of readings, so one second is 200 units.
+    expect(inside.getAttribute('x')).toBe('200.0');
+    expect(inside.getAttribute('width')).toBe('200.0');
+    expect(edge.getAttribute('x')).toBe('0.0');
+    expect(edge.getAttribute('width')).toBe('100.0');
+    // Behind the lines: every band comes before the first series path.
+    const svg = container.querySelector('svg') as SVGSVGElement;
+    const order = [...svg.children].map((child) => child.tagName.toLowerCase());
+    expect(order.lastIndexOf('rect')).toBeLessThan(order.indexOf('path'));
+  });
+
+  it('draws no bands when there are no readings', () => {
+    const { container } = renderChart({
+      times: [],
+      series: [{ ...series[0], values: [] }],
+      bands: [{ key: 'b', from: 0, to: 10 }],
+    });
+    expect(container.querySelectorAll('rect[data-band]')).toHaveLength(0);
+  });
 });

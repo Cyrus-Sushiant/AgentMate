@@ -171,6 +171,16 @@ describe('when targets are probed', () => {
     expect(h.changed).toHaveBeenCalledWith(['a']);
   });
 
+  it('counts each check in its hour, which outlives the 200-sample ring', async () => {
+    await seed(target('a'));
+    const s = await scheduler(harness().deps);
+    await tickAt(s, T0);
+    const [hour] = (await results('a')).hours;
+    expect(hour).toMatchObject({ checks: 1, failures: 0, p50: 5, p95: 5 });
+    expect(hour.start).toBeLessThanOrEqual(T0);
+    expect(T0 - hour.start).toBeLessThan(3_600_000);
+  });
+
   it('keeps each target on its own interval', async () => {
     await seed(target('fast', { intervalSec: 15 }), target('slow', { intervalSec: 60 }));
     const h = harness();

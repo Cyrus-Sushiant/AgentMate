@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { queryKeys } from '@/lib/queryKeys';
 import { cn } from '@/lib/utils';
+import { HealthAvailabilityChart } from './HealthAvailabilityChart';
 import { HealthBuildDialog } from './HealthBuildDialog';
 import { HealthPulseHeader } from './HealthPulseHeader';
 import { HealthSetupDialog } from './HealthSetupDialog';
@@ -234,11 +235,13 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
     (one.environmentId && environments.get(one.environmentId)?.name) || NO_ENVIRONMENT;
   const envOptions = [...new Set(all.map(envName))].sort((a, b) => a.localeCompare(b));
 
-  const visible = all.filter((one) => {
+  // The chart follows where the user is looking (project and environment), the cards also
+  // follow the search and the status filter.
+  const inView = all.filter((one) => {
     if (projectFilter && one.projectId !== projectFilter) return false;
-    if (envFilter && envName(one) !== (envFilter === NO_ENV_VALUE ? NO_ENVIRONMENT : envFilter)) {
-      return false;
-    }
+    return !envFilter || envName(one) === (envFilter === NO_ENV_VALUE ? NO_ENVIRONMENT : envFilter);
+  });
+  const visible = inView.filter((one) => {
     if (status !== 'all' && healthBucket(one.state) !== status) return false;
     return matchesHealthSearch(one, query);
   });
@@ -273,6 +276,15 @@ export function HealthBoard({ projectId }: { projectId?: string }): React.JSX.El
   return (
     <div className="flex flex-col gap-2">
       <HealthPulseHeader summary={summary} loading={loading} active={status} onSelect={setStatus} />
+
+      {!firstRun && !list.error && (
+        <HealthAvailabilityChart
+          targets={inView}
+          loading={loading}
+          now={now}
+          onOpenTarget={openTarget}
+        />
+      )}
 
       {!firstRun && (
         <div className={TOOLBAR}>

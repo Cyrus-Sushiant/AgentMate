@@ -1,5 +1,7 @@
 import type {
   HealthAuthMode,
+  HealthDayBucket,
+  HealthLatencyPoint,
   HealthIncident,
   HealthReport,
   HealthSample,
@@ -53,8 +55,10 @@ export interface HealthTargetSummary extends HealthTargetInput {
   lastCheckedAt: number | null;
   nextCheckAt: number | null;
   latencyMs: number | null;
-  /** Share of good samples over the last 24 hours (0 to 1), or null with no samples yet. */
+  /** Share of good checks over the last 24 hours (0 to 1), or null with no checks yet. */
   uptime24h: number | null;
+  /** The last 30 calendar days, oldest first, for the availability chart. */
+  daily: HealthDayBucket[];
   /** The most recent samples, oldest first, at most 50, for the card's strip. */
   samples: HealthSample[];
   servicesTotal: number;
@@ -73,6 +77,8 @@ export interface HealthTargetDetail {
   incidents: HealthIncident[];
   /** Every stored sample, oldest first, at most 200. */
   samples: HealthSample[];
+  /** The last 24 hours, one point per hour, oldest first, for the response time chart. */
+  latency: HealthLatencyPoint[];
 }
 
 /** The key or password, shown once after it is generated. */

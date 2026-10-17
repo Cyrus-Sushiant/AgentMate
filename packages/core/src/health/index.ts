@@ -2,6 +2,7 @@ export * from './interval.js';
 export * from './parse.js';
 export * from './prompt.js';
 export * from './redact.js';
+export * from './rollup.js';
 export * from './spec.js';
 export * from './transitions.js';
 export * from './types.js';

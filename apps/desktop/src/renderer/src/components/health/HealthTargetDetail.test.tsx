@@ -77,6 +77,21 @@ describe('HealthTargetDetail', () => {
     expect(await navigator.clipboard.readText()).toContain('at connect (db.js:10:5)');
   });
 
+  it('charts the response time of the last 24 hours', async () => {
+    renderPanel({
+      'health.get': async () =>
+        detail({
+          latency: [
+            { start: NOW - 7_200_000, checks: 60, failures: 0, p50: 110, p95: 250 },
+            { start: NOW - 3_600_000, checks: 60, failures: 0, p50: 95, p95: 180 },
+          ],
+        }),
+    });
+    const view = await panel();
+    const section = await within(view).findByRole('region', { name: 'Response time, 24 h' });
+    expect(within(section).getByRole('img', { name: /Response time, 2 readings/ })).toBeTruthy();
+  });
+
   it('keeps the raw response folded until asked for', async () => {
     const { user } = renderPanel();
     const view = await panel();

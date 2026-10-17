@@ -51,6 +51,7 @@ import { SimpleTooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { confirmDialog } from '@/stores/confirmStore';
 import { HealthFixDialog, healthFixPromptKey } from './HealthFixDialog';
+import { HealthLatencyChart } from './HealthLatencyChart';
 import { HealthSecretDialog } from './HealthSecretStep';
 import { HealthStatusChip } from './HealthStatusChip';
 import {
@@ -704,6 +705,14 @@ export function HealthTargetDetail({
                     Each bar is one check, oldest on the left. Point at one for its time and
                     latency.
                   </p>
+                </Section>
+
+                <Section title="Response time, 24 h">
+                  <HealthLatencyChart
+                    latency={data?.latency ?? []}
+                    incidents={data?.incidents ?? []}
+                    now={now}
+                  />
                 </Section>
 
                 {failing.length > 0 && (
